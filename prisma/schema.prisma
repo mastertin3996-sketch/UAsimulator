@@ -1,0 +1,849 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ENUMS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+enum Profession {
+  ACCOUNTANT
+  MANAGER
+  OPERATOR
+  ENGINEER
+  AGRONOMIST
+  LOADER
+  DRIVER
+  SECURITY_GUARD
+  CLEANER
+  SALES_REP
+  IT_SPECIALIST
+  LAWYER
+  HR_SPECIALIST
+  TECHNICIAN
+  QUALITY_CONTROLLER
+}
+
+enum EnterpriseType {
+  OFFICE           // адміністративний офіс — передумова для операцій у місті
+  AGRO_FARM        // сільськогосподарське підприємство
+  TEXTILE_FACTORY  // текстильне виробництво
+  FOOD_PROCESSING  // харчова переробка (млин, олійня, молокозавод тощо)
+  RETAIL_STORE     // роздрібна торгівля
+  WAREHOUSE        // склад
+  LOGISTICS_HUB    // логістичний термінал
+}
+
+enum LandStatus {
+  AVAILABLE // на ринку, ніким не придбана
+  OWNED     // куплена гравцем
+  LEASED    // орендована гравцем
+}
+
+enum EquipmentStatus {
+  NEW          // wearAndTear < 0.10
+  OPERATIONAL  // 0.10 ≤ wearAndTear < 0.80
+  WORN         // 0.80 ≤ wearAndTear < 1.00  — продуктивність −50%
+  BROKEN       // wearAndTear ≥ 1.00 або раптовий збій — продуктивність = 0
+}
+
+enum MarketOrderType {
+  SELL
+  BUY
+}
+
+enum MarketOrderStatus {
+  OPEN
+  PARTIALLY_FILLED
+  FILLED
+  CANCELLED
+  EXPIRED
+}
+
+enum ProductCategory {
+  RAW_MATERIAL
+  SEMI_FINISHED
+  FINISHED_GOOD
+  EQUIPMENT_ITEM
+}
+
+enum ConstructionStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum TransactionType {
+  INITIAL_DEPOSIT
+  LAND_PURCHASE
+  LAND_LEASE_PAYMENT
+  CONSTRUCTION_COST
+  EQUIPMENT_PURCHASE
+  ENERGY_BILL
+  SALARY_PAYMENT
+  TAX_PAYMENT
+  MARKET_SALE
+  MARKET_PURCHASE
+  MAINTENANCE_COST
+  NPC_SALE
+  LOAN_DISBURSEMENT
+  LOAN_REPAYMENT
+  FREIGHT_PAYMENT
+  BANKRUPTCY_LIQUIDATION
+  LOAN_INTEREST_PAYMENT
+}
+
+enum LoanStatus {
+  ACTIVE    // платежі вчасно
+  OVERDUE   // прострочено 1–60 тиків
+  DEFAULTED // прострочено > 60 тиків
+  PAID_OFF  // погашено
+}
+
+enum DeliveryStatus {
+  IN_TRANSIT  // вантаж у дорозі
+  DELIVERED   // успішно доставлено та розміщено
+  SPOILING    // прибуло, але склад переповнений — псування 10%/тік
+  FAILED      // знищено повністю або скасовано
+}
+
+// Категорії для P&L-звітності.  Кожна операція в FinancialLog має рівно одну.
+enum FinancialLogCategory {
+  REVENUE_RETAIL        // виручка від роздрібних продажів (NPC)
+  REVENUE_B2B           // виручка від B2B-ринку
+  EXPENSE_SALARY        // брутто зарплата (без ЄСВ)
+  EXPENSE_ESV           // ЄСВ роботодавця 22%
+  EXPENSE_TAX           // ПДВ, ПнП, ПДФО, військовий збір
+  EXPENSE_ENERGY        // електроенергія
+  EXPENSE_LOGISTICS     // вартість перевезень
+  EXPENSE_LEASE         // оренда землі / офісу
+  EXPENSE_INTEREST      // відсотки за кредитами
+  EXPENSE_MAINTENANCE   // технічне обслуговування
+  EXPENSE_DEPRECIATION  // амортизація обладнання
+  ADJUSTMENT            // коригування / коригувальні записи
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PLAYERS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model Player {
+  id              String   @id @default(uuid())
+  email           String   @unique
+  username        String   @unique
+  passwordHash    String
+  companyName     String   @default("Моя компанія")
+  // Поточний залишок на рахунку (UAH)
+  cashBalance     Decimal  @default(500000) @db.Decimal(18, 2)
+  // Чиста вартість: готівка + активи − борги. Перераховується щомісяця.
+  netWorth        Decimal  @default(500000) @db.Decimal(18, 2)
+  creditRating    Float    @default(7.0)   // 0–10
+  reputationScore Float    @default(5.0)   // 0–10
+  createdAt       DateTime @default(now())
+  lastActiveAt    DateTime @default(now())
+  // ── Insolvency state ───────────────────────────────────────────────────────
+  // Consecutive ticks with negative cashBalance (reset when positive)
+  insolvencyTickCount  Int      @default(0)
+  // True when balance has been negative for 7+ ticks — operations frozen
+  isOperationsFrozen   Boolean  @default(false)
+  // True after bankruptcy procedure is executed
+  isBankrupt           Boolean  @default(false)
+  bankruptcyStartedAt  DateTime?
+
+  offices         Office[]
+  landPlots       LandPlot[]
+  enterprises     Enterprise[]
+  employees       Employee[]
+  marketOrders    MarketOrder[]
+  transactions    FinancialTransaction[]
+  playerInventory PlayerInventory[]
+  taxRecords      TaxRecord[]
+  energyBills     EnergyBill[]
+  loans           Loan[]
+  warehouses        Warehouse[]
+  pendingDeliveries PendingDelivery[]
+  financialLogs     FinancialLog[]
+
+  @@index([username])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// GAME STATE
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model GameTick {
+  id          BigInt    @id @default(autoincrement())
+  tickNumber  BigInt    @unique
+  gameDay     BigInt
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+  durationMs  Int?
+
+  @@index([tickNumber])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// GEOGRAPHY
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model City {
+  id                String  @id @default(uuid())
+  name              String  @unique
+  nameUa            String
+  region            String
+  population        Int
+  // Коефіцієнт зарплат відносно національного базового рівня (1.0 = середній по країні)
+  wageCoefficient   Float   @default(1.0)
+  // Місячна базова брутто-зарплата найнижчої кваліфікації у цьому місті (UAH).
+  // Використовується для розрахунку настрою: якщо зарплата < базової → настрій падає.
+  wageBaselineUah   Decimal @db.Decimal(10, 2)
+  // Комерційний тариф на електроенергію (UAH/кВт·год), оцінка 2026
+  energyTariffUah   Decimal @db.Decimal(8, 4)
+  // Мультиплікатор попиту NPC відносно середнього по Україні
+  demandCoefficient Float   @default(1.0)
+  landPriceCoeff    Float   @default(1.0)
+  latitude          Float
+  longitude         Float
+
+  landPlots   LandPlot[]
+  offices     Office[]
+  npcDemand   NpcDemand[]
+  energyBills EnergyBill[]
+  logisticsRoutesFrom LogisticsRoute[] @relation("RouteFromCity")
+  logisticsRoutesTo   LogisticsRoute[] @relation("RouteToCity")
+  warehouses          Warehouse[]
+
+  @@index([name])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// LAND
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model LandPlot {
+  id                  String     @id @default(uuid())
+  cityId              String
+  playerId            String?
+  cadastralNumber     String     @unique
+  status              LandStatus @default(AVAILABLE)
+  totalAreaM2         Float
+  // Підтримується сервісом: sum(enterprise.footprintM2) ≤ totalAreaM2
+  usedAreaM2          Float      @default(0)
+  // Повна вартість ділянки (UAH) для купівлі
+  purchasePriceUah    Decimal    @db.Decimal(14, 2)
+  // Фіксована місячна орендна плата за всю ділянку (UAH)
+  monthlyLeaseCostUah Decimal    @db.Decimal(12, 2)
+  leaseStartDate      DateTime?
+  leaseEndDate        DateTime?
+  purchasedAt         DateTime?
+
+  city        City         @relation(fields: [cityId], references: [id])
+  player      Player?      @relation(fields: [playerId], references: [id])
+  enterprises Enterprise[]
+
+  @@index([cityId])
+  @@index([playerId])
+  @@index([status])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// OFFICES — обов'язкова умова для будь-якого підприємства у місті
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model Office {
+  id                       String   @id @default(uuid())
+  playerId                 String
+  cityId                   String
+  enterpriseId             String   @unique
+  sizeM2                   Float    @default(50)
+  // Споживання електроенергії офісом (кВт·год за ігровий день = 24 год)
+  energyConsumptionKwhPerTick Float @default(30)
+  // Місячна орендна плата за офісне приміщення, якщо не власне (UAH)
+  monthlyRentUah           Decimal  @default(0) @db.Decimal(12, 2)
+  isOperational            Boolean  @default(false)
+  openedAt                 DateTime @default(now())
+
+  player     Player     @relation(fields: [playerId], references: [id])
+  city       City       @relation(fields: [cityId], references: [id])
+  enterprise Enterprise @relation(fields: [enterpriseId], references: [id])
+
+  // Один активний офіс на гравця на місто
+  @@unique([playerId, cityId])
+  @@index([playerId])
+  @@index([cityId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ENTERPRISES
+// Перевірка наявності офісу у місті — на рівні сервісу (GameEngineService).
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model Enterprise {
+  id               String         @id @default(uuid())
+  playerId         String
+  landPlotId       String
+  type             EnterpriseType
+  name             String
+  // Площа забудови на земельній ділянці (м²)
+  footprintM2      Float
+  // Загальна та використана корисна площа будівлі (м²)
+  totalFloorAreaM2 Float          @default(0)
+  usedFloorAreaM2  Float          @default(0)
+  isOperational    Boolean        @default(false)
+  constructedAt    DateTime?
+  // Постійне споживання: освітлення, ОВІК, охорона (кВт·год/тік незалежно від виробництва)
+  basePowerKwhPerTick Float       @default(5)
+  // ── Corporate finance flags ────────────────────────────────────────────────
+  // True while this enterprise is pledged as loan collateral (cannot be sold/demolished)
+  isCollateral     Boolean        @default(false)
+  // True after bankruptcy seizure; enterprise becomes inoperable
+  isSeized         Boolean        @default(false)
+
+  player               Player                @relation(fields: [playerId], references: [id])
+  landPlot             LandPlot              @relation(fields: [landPlotId], references: [id])
+  office               Office?
+  workshops            Workshop[]
+  employees            Employee[]
+  inventory            EnterpriseInventory[]
+  constructionProjects ConstructionProject[]
+  warehouse            Warehouse?
+  collateralLoans      Loan[]     @relation("CollateralEnterprise")
+
+  @@index([playerId])
+  @@index([landPlotId])
+  @@index([type])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// WORKSHOPS / PRODUCTION LINES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model Workshop {
+  id                  String  @id @default(uuid())
+  enterpriseId        String
+  name                String
+  footprintM2         Float
+  // Максимальна пропускна здатність за ігровий день (в одиницях виходу рецепту)
+  maxCapacity         Float
+  // Запланований об'єм виробництва цього тіку (≤ maxCapacity; встановлює гравець)
+  currentVolume       Float   @default(0)
+  isActive            Boolean @default(false)
+  // Базове енергоспоживання виробничого простору (кВт·год/тік, незалежно від обладнання)
+  basePowerKwhPerTick Float   @default(2)
+
+  enterprise       Enterprise        @relation(fields: [enterpriseId], references: [id])
+  equipment        Equipment[]
+  productionOrders ProductionOrder[]
+
+  @@index([enterpriseId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EQUIPMENT
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model Equipment {
+  id                  String          @id @default(uuid())
+  workshopId          String
+  catalogProductId    String
+  name                String
+  status              EquipmentStatus @default(NEW)
+
+  // Знос: 0.0 = ідеальний стан, 1.0 = повністю зруйноване
+  wearAndTear         Float           @default(0.0)
+  // Приріст зносу за ігровий день при 100% завантаженні (напр. 0.005 = 0.5%/день)
+  wearRatePerTick     Float           @default(0.005)
+  // Чи повністю виведене з ладу (wearAndTear ≥ 1.0 або несподіваний збій)
+  isBroken            Boolean         @default(false)
+
+  // Номінальне споживання потужності в кіловатах (кВт·год/день = кВт × 24 год)
+  energyConsumptionKw Float
+  // Мультиплікатор якості виходу у новому стані (0.0–1.0; преміум = 1.0)
+  baseQualityModifier Float           @default(1.0)
+  // Поточна ринкова/балансова вартість (UAH), зменшується зі зносом
+  marketValueUah      Decimal         @db.Decimal(14, 2)
+  // Вартість планового технічного обслуговування (UAH)
+  maintenanceCostUah  Decimal         @db.Decimal(12, 2)
+  purchasedAt         DateTime        @default(now())
+  lastMaintenanceAt   DateTime        @default(now())
+
+  workshop       Workshop @relation(fields: [workshopId], references: [id])
+  catalogProduct Product  @relation(fields: [catalogProductId], references: [id])
+
+  @@index([workshopId])
+  @@index([status])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EMPLOYEES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model Employee {
+  id            String     @id @default(uuid())
+  playerId      String
+  enterpriseId  String
+  firstName     String
+  lastName      String
+  profession    Profession
+
+  // Брутто місячна зарплата (UAH); роботодавець платить +22% ЄСВ зверху
+  salaryUah        Decimal  @db.Decimal(10, 2)
+  // Задоволеність: 0.0 = страйк/звільнення, 1.0 = повністю залучений
+  mood             Float    @default(0.7)
+  // Базовий рівень майстерності (встановлюється при наймі, зростає поступово)
+  baseEfficiency   Float    @default(1.0)
+  // Поточна ефективність після штрафу за настрій (0.0–1.0)
+  efficiency       Float    @default(1.0)
+
+  isOnStrike       Boolean  @default(false)
+  strikeStartedTick BigInt?
+  hiredAt          DateTime @default(now())
+  lastPaidAt       DateTime?
+  // Накопичена зарплата, ще не виплачена (поденне нарахування)
+  accruedSalaryUah Decimal  @default(0) @db.Decimal(12, 2)
+
+  player     Player     @relation(fields: [playerId], references: [id])
+  enterprise Enterprise @relation(fields: [enterpriseId], references: [id])
+
+  @@index([playerId])
+  @@index([enterpriseId])
+  @@index([profession])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PRODUCT CATALOG & RECIPES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model Product {
+  id              String          @id @default(uuid())
+  sku             String          @unique
+  name            String
+  nameUa          String
+  category        ProductCategory
+  unit            String          // "кг", "шт", "л", "кВт·год"
+  baseWeightKg    Float           @default(0)
+  baseVolumeLitre Float           @default(0)
+  isEquipmentItem Boolean         @default(false)
+
+  equipmentInstances  Equipment[]
+  recipeOutputs       RecipeOutput[]
+  recipeInputs        RecipeInput[]
+  marketOrders        MarketOrder[]
+  playerInventory     PlayerInventory[]
+  enterpriseInventory EnterpriseInventory[]
+  npcDemand           NpcDemand[]
+  pendingDeliveries   PendingDelivery[]
+
+  @@index([category])
+  @@index([sku])
+}
+
+model Recipe {
+  id               String         @id @default(uuid())
+  name             String
+  enterpriseType   EnterpriseType
+  ticksToComplete  Int            @default(1)
+  laborHoursPerUnit Float
+  // Еталонна якість при ідеальних умовах (слугує верхньою межею)
+  baseQuality      Float          @default(7.0)
+  powerKwhPerUnit  Float
+
+  inputs           RecipeInput[]
+  outputs          RecipeOutput[]
+  productionOrders ProductionOrder[]
+}
+
+model RecipeInput {
+  id              String @id @default(uuid())
+  recipeId        String
+  productId       String
+  quantityPerUnit Float  // одиниць входу на 1 одиницю виходу
+
+  recipe  Recipe  @relation(fields: [recipeId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+
+  @@unique([recipeId, productId])
+}
+
+model RecipeOutput {
+  id              String @id @default(uuid())
+  recipeId        String
+  productId       String
+  quantityPerUnit Float
+
+  recipe  Recipe  @relation(fields: [recipeId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+
+  @@unique([recipeId, productId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PRODUCTION ORDERS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model ProductionOrder {
+  id                String             @id @default(uuid())
+  workshopId        String
+  recipeId          String
+  targetQuantity    Float
+  completedQuantity Float              @default(0)
+  outputQuality     Float?             // 0–10, обчислюється при завершенні
+  status            ConstructionStatus @default(IN_PROGRESS)
+  ticksRemaining    Int
+  startedAt         DateTime           @default(now())
+  completedAt       DateTime?
+
+  workshop Workshop @relation(fields: [workshopId], references: [id])
+  recipe   Recipe   @relation(fields: [recipeId], references: [id])
+
+  @@index([workshopId, status])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INVENTORIES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model PlayerInventory {
+  id         String   @id @default(uuid())
+  playerId   String
+  productId  String
+  quantity   Float    @default(0)
+  avgQuality Float    @default(0)
+  updatedAt  DateTime @updatedAt
+
+  player  Player  @relation(fields: [playerId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+
+  @@unique([playerId, productId])
+}
+
+model EnterpriseInventory {
+  id           String   @id @default(uuid())
+  enterpriseId String
+  productId    String
+  quantity     Float    @default(0)
+  avgQuality   Float    @default(0)
+  updatedAt    DateTime @updatedAt
+
+  enterprise Enterprise @relation(fields: [enterpriseId], references: [id])
+  product    Product    @relation(fields: [productId], references: [id])
+
+  @@unique([enterpriseId, productId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// B2B MARKET
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model MarketOrder {
+  id             String            @id @default(uuid())
+  playerId       String
+  productId      String
+  // Денормалізовано для швидкого пошуку без JOIN з Product (SKU або категорія)
+  resourceType   String
+  type           MarketOrderType
+  status         MarketOrderStatus @default(OPEN)
+  pricePerUnit   Decimal           @db.Decimal(12, 4)
+  qualityMin     Float?            // для BUY-ордерів: мін. прийнятна якість
+  quality        Float?            // для SELL-ордерів: якість виставленого товару (0–10)
+  quantityTotal  Float
+  quantityFilled Float             @default(0)
+  expiresAt      DateTime
+  createdAt      DateTime          @default(now())
+  filledAt       DateTime?
+
+  player      Player        @relation(fields: [playerId], references: [id])
+  product     Product       @relation(fields: [productId], references: [id])
+  asSellOrder MarketTrade[] @relation("SellOrder")
+  asBuyOrder  MarketTrade[] @relation("BuyOrder")
+
+  @@index([productId, type, status])
+  @@index([resourceType, status])
+  @@index([playerId])
+  @@index([expiresAt])
+}
+
+model MarketTrade {
+  id           String   @id @default(uuid())
+  sellOrderId  String
+  buyOrderId   String
+  quantity     Float
+  pricePerUnit Decimal  @db.Decimal(12, 4)
+  quality      Float
+  executedAt   DateTime @default(now())
+
+  sellOrder MarketOrder @relation("SellOrder", fields: [sellOrderId], references: [id])
+  buyOrder  MarketOrder @relation("BuyOrder", fields: [buyOrderId], references: [id])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ENERGY BILLS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model EnergyBill {
+  id             String   @id @default(uuid())
+  playerId       String
+  cityId         String
+  tickNumber     BigInt
+  consumptionKwh Float
+  tariffUah      Decimal  @db.Decimal(8, 4)
+  totalUah       Decimal  @db.Decimal(14, 2)
+  isPaid         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+
+  player Player @relation(fields: [playerId], references: [id])
+  city   City   @relation(fields: [cityId], references: [id])
+
+  @@index([playerId])
+  @@index([tickNumber])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CONSTRUCTION
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model ConstructionProject {
+  id             String             @id @default(uuid())
+  enterpriseId   String
+  name           String
+  status         ConstructionStatus @default(PLANNED)
+  totalCostUah   Decimal            @db.Decimal(14, 2)
+  paidCostUah    Decimal            @default(0) @db.Decimal(14, 2)
+  ticksRequired  Int
+  ticksRemaining Int
+  targetType     String             // "ENTERPRISE" | "WORKSHOP"
+  targetId       String
+  footprintM2    Float
+  startedAt      DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime           @default(now())
+
+  enterprise Enterprise @relation(fields: [enterpriseId], references: [id])
+
+  @@index([enterpriseId, status])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// FINANCIAL LEDGER
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model FinancialTransaction {
+  id            String          @id @default(uuid())
+  playerId      String
+  type          TransactionType
+  amountUah     Decimal         @db.Decimal(18, 2) // > 0 = дохід, < 0 = витрата
+  balanceBefore Decimal         @db.Decimal(18, 2)
+  balanceAfter  Decimal         @db.Decimal(18, 2)
+  description   String
+  referenceId   String?
+  createdAt     DateTime        @default(now())
+
+  player Player @relation(fields: [playerId], references: [id])
+
+  @@index([playerId, createdAt])
+  @@index([type])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// NPC DEMAND
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model NpcDemand {
+  id              String  @id @default(uuid())
+  cityId          String
+  productId       String
+  baseUnitsPerDay Float
+  referencePrice  Decimal @db.Decimal(12, 4)
+  priceElasticity Float   @default(-1.2)
+  qualityWeight   Float   @default(0.6)
+
+  city    City    @relation(fields: [cityId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+
+  @@unique([cityId, productId])
+  @@index([cityId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TAXATION
+// ПДВ 20% | CIT 18% | ЄСВ 22% (роботодавець) | ПДФО 18% | Вій. збір 5%
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model TaxRecord {
+  id             String    @id @default(uuid())
+  playerId       String
+  periodStart    DateTime
+  periodEnd      DateTime
+  vatUah         Decimal   @db.Decimal(14, 2)
+  citUah         Decimal   @db.Decimal(14, 2)
+  esvUah         Decimal   @db.Decimal(14, 2)
+  pdfoUah        Decimal   @db.Decimal(14, 2)
+  militaryTaxUah Decimal   @db.Decimal(14, 2)
+  totalUah       Decimal   @db.Decimal(14, 2)
+  isPaid         Boolean   @default(false)
+  dueAt          DateTime
+  paidAt         DateTime?
+  createdAt      DateTime  @default(now())
+
+  player Player @relation(fields: [playerId], references: [id])
+
+  @@index([playerId, isPaid])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CREDIT SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model Loan {
+  id                String     @id @default(uuid())
+  playerId          String
+  principalUah      Decimal    @db.Decimal(18, 2)
+  remainingUah      Decimal    @db.Decimal(18, 2)
+  annualInterestPct Float
+  monthlyPaymentUah Decimal    @db.Decimal(14, 2)
+  // Daily payment for commercial credit lines (monthlyPaymentUah / 30)
+  dailyPaymentUah   Decimal    @default(0) @db.Decimal(14, 4)
+  termMonths        Int
+  paidMonths        Int        @default(0)
+  missedPayments    Int        @default(0)
+  status            LoanStatus @default(ACTIVE)
+  issuedAt          DateTime   @default(now())
+  nextPaymentTick   BigInt
+  // 1 = daily commercial credit; 30 = standard monthly loan
+  paymentFrequencyTicks Int    @default(30)
+  fullyPaidAt       DateTime?
+  // ── Collateral ─────────────────────────────────────────────────────────────
+  collateralEnterpriseId String?
+  collateralReleased     Boolean @default(false)
+
+  player      Player      @relation(fields: [playerId], references: [id])
+  collateral  Enterprise? @relation("CollateralEnterprise", fields: [collateralEnterpriseId], references: [id])
+  payments    LoanPayment[]
+
+  @@index([playerId, status])
+  @@index([nextPaymentTick])
+  @@index([collateralEnterpriseId])
+}
+
+model LoanPayment {
+  id           String   @id @default(uuid())
+  loanId       String
+  totalUah     Decimal  @db.Decimal(14, 2)
+  principalUah Decimal  @db.Decimal(14, 2)
+  interestUah  Decimal  @db.Decimal(14, 2)
+  wasOnTime    Boolean  @default(true)
+  paidAt       DateTime @default(now())
+
+  loan Loan @relation(fields: [loanId], references: [id])
+
+  @@index([loanId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// LOGISTICS — warehouse capacity, inter-city routes, pending deliveries
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Фізичний склад — прив'язаний до Enterprise типу WAREHOUSE або LOGISTICS_HUB.
+// usedVolumeM3 підтримується LogisticsService; іншим сервісам не змінювати.
+model Warehouse {
+  id           String   @id @default(uuid())
+  enterpriseId String   @unique
+  // Денормалізовано для ефективного пошуку без JOIN
+  cityId       String
+  playerId     String
+  maxVolumeM3  Float
+  usedVolumeM3 Float    @default(0)
+  isActive     Boolean  @default(true)
+
+  enterprise     Enterprise       @relation(fields: [enterpriseId], references: [id])
+  city           City             @relation(fields: [cityId],       references: [id])
+  player         Player           @relation(fields: [playerId],     references: [id])
+  fromDeliveries PendingDelivery[] @relation("DeliveryOrigin")
+  toDeliveries   PendingDelivery[] @relation("DeliveryDestination")
+
+  @@index([playerId, cityId])
+  @@index([cityId])
+}
+
+// Попередньо розрахована матриця відстаней між містами України.
+// Маршрут симетричний — зберігаємо лише один запис (from < to за алфавітом),
+// LogisticsService шукає обидва напрямки через OR.
+model LogisticsRoute {
+  id          String @id @default(uuid())
+  fromCityId  String
+  toCityId    String
+  distanceKm  Float
+  // Ризик маршруту: 0.0 = ідеальні умови, 1.0 = непроїзно
+  riskFactor  Float  @default(0.05)
+  // Якість дороги впливає на середню швидкість: 1.0 = норма, 0.5 = вдвічі повільніше
+  roadQuality Float  @default(1.0)
+
+  fromCity City @relation("RouteFromCity", fields: [fromCityId], references: [id])
+  toCity   City @relation("RouteToCity",   fields: [toCityId],   references: [id])
+
+  @@unique([fromCityId, toCityId])
+  @@index([fromCityId])
+  @@index([toCityId])
+}
+
+// Вантаж у дорозі. Ресурси списані з джерела одразу при відправці;
+// зараховуються на склад призначення при ticksRemaining = 0.
+model PendingDelivery {
+  id              String         @id @default(uuid())
+  playerId        String
+  fromWarehouseId String
+  toWarehouseId   String
+  productId       String
+  // Кількість у поточному стані (зменшується при псуванні)
+  quantity        Float
+  quality         Float
+  volumeM3        Float
+  freightCostUah  Decimal        @db.Decimal(14, 2)
+  ticksTotal      Int
+  ticksRemaining  Int
+  status          DeliveryStatus @default(IN_TRANSIT)
+  // Накопичений відсоток втрат (тільки інформаційне поле)
+  spoiledPct      Float          @default(0)
+  dispatchedAt    DateTime       @default(now())
+  arrivedAt       DateTime?
+
+  player        Player    @relation(fields: [playerId],        references: [id])
+  fromWarehouse Warehouse @relation("DeliveryOrigin",      fields: [fromWarehouseId], references: [id])
+  toWarehouse   Warehouse @relation("DeliveryDestination", fields: [toWarehouseId],   references: [id])
+  product       Product   @relation(fields: [productId],       references: [id])
+
+  @@index([playerId])
+  @@index([status, ticksRemaining])
+  @@index([toWarehouseId, status])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CORPORATE FINANCE — structured P&L audit trail
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Категоризований журнал фінансових операцій для генерації P&L-звітів.
+// Паралельно до FinancialTransaction (загальний лежер).
+// FinanceService пише сюди; інші сервіси за потреби можуть теж.
+model FinancialLog {
+  id          String               @id @default(uuid())
+  playerId    String
+  category    FinancialLogCategory
+  // > 0 = дохід, < 0 = витрата (у гривнях, без ПДВ)
+  amountUah   Decimal              @db.Decimal(18, 2)
+  description String
+  referenceId String?              // loanId / enterpriseId / orderId etc.
+  tickNumber  BigInt
+  recordedAt  DateTime             @default(now())
+
+  player Player @relation(fields: [playerId], references: [id])
+
+  @@index([playerId, category, tickNumber])
+  @@index([playerId, tickNumber])
+  @@index([tickNumber])
+}

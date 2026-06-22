@@ -1,0 +1,35 @@
+{
+  "name": "uaeconomy",
+  "version": "1.0.0",
+  "description": "Realistic Ukrainian economic simulator",
+  "main": "dist/index.js",
+  "scripts": {
+    "build":      "tsc",
+    "dev":        "ts-node src/index.ts",
+    "tick":       "ts-node src/tick-runner.ts",
+    "test":       "jest",
+    "test:watch": "jest --watch",
+    "test:cover": "jest --coverage",
+    "db:generate": "prisma generate",
+    "db:migrate":  "prisma migrate dev",
+    "db:seed":     "ts-node prisma/seed.ts",
+    "db:studio":   "prisma studio"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.14.0",
+    "decimal.js": "^10.4.3",
+    "express": "^5.2.1",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^20.14.0",
+    "@types/uuid": "^9.0.8",
+    "jest": "^30.4.2",
+    "prisma": "^5.14.0",
+    "ts-jest": "^29.4.11",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.5"
+  }
+}

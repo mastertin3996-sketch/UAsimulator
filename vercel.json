@@ -1,0 +1,17 @@
+{
+  "version": 2,
+  "functions": {
+    "api/index.ts":      { "maxDuration": 30 },
+    "api/cron/tick.ts":  { "maxDuration": 60 }
+  },
+  "rewrites": [
+    { "source": "/cron/tick", "destination": "/api/cron/tick" },
+    { "source": "/(.*)",      "destination": "/api/index.ts"  }
+  ],
+  "crons": [
+    {
+      "path": "/cron/tick",
+      "schedule": "0 * * * *"
+    }
+  ]
+}
