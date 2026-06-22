@@ -113,12 +113,20 @@ enum TransactionType {
   CUSTOMS_VAT        // ПДВ при імпорті 20% (→ StateBudget)
   CUSTOMS_STORAGE_FEE // Складська плата при замороженні вантажу (500 UAH/тік)
   EXPORT_SALE        // Виручка від експорту (USD, зараховується після митниці)
-  IMPORT_PURCHASE    // Оплата імпорту міжнародному постачальнику (USD)
+  IMPORT_PURCHASE      // Оплата імпорту міжнародному постачальнику (USD)
+  GREEN_ENERGY_INSTALL // CAPEX на встановлення СЕС + акумуляторів
+  DIESEL_FUEL_COST     // Витрати на дизельне паливо при резервному живленні
 }
 
 enum CustomsType {
   IMPORT
   EXPORT
+}
+
+enum EnergySourceType {
+  GRID             // стандартна міська мережа (тариф міста або EnergyContract)
+  SOLAR_AUTONOMOUS // СЕС + акумулятори (мережа як резерв при нестачі)
+  DIESEL_BACKUP    // дизельний генератор при відключеннях; мережа при нормальній роботі
 }
 
 enum CustomsStatus {
@@ -249,6 +257,7 @@ model Player {
   hrPolicy             HRAutomationPolicy?
   subsidyApplications  SubsidyApplication[]
   customsDeclarations  CustomsDeclaration[]
+  energyContracts      EnergyContract[]
 
   @@index([username])
 }
@@ -388,6 +397,13 @@ model Enterprise {
   // True when frozen by a tax inspection; sales + production blocked
   isFrozenByInspection    Boolean  @default(false)
   inspectionFreezeUntilTick BigInt?
+  // ── Energy source (Step 16) ────────────────────────────────────────────────
+  energySourceType    EnergySourceType @default(GRID)
+  // СЕС: встановлена потужність (кВт)
+  solarCapacityKw     Decimal  @default(0) @db.Decimal(10, 2)
+  // Акумулятор: максимальна ємність та поточний заряд (кВт·год)
+  batteryCapacityKwh  Decimal  @default(0) @db.Decimal(10, 2)
+  currentBatteryKwh   Decimal  @default(0) @db.Decimal(10, 2)
 
   player               Player                @relation(fields: [playerId], references: [id])
   landPlot             LandPlot              @relation(fields: [landPlotId], references: [id])
@@ -400,6 +416,7 @@ model Enterprise {
   collateralLoans      Loan[]     @relation("CollateralEnterprise")
   licenses             License[]
   subsidyApplications  SubsidyApplication[]
+  energyContracts      EnergyContract[]
 
   @@index([playerId])
   @@index([landPlotId])
@@ -1265,4 +1282,32 @@ model CustomsDeclaration {
   @@index([playerId, status])
   @@index([status, createdAtTick])
   @@index([createdAtTick])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ENERGY MARKET — Step 16
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Прямий договір між великим промисловим підприємством та комерційним генератором.
+// Дозволяє платити за фіксованим тарифом замість регіонального (економія на пікових тарифах).
+model EnergyContract {
+  id             String   @id @default(uuid())
+  playerId       String
+  enterpriseId   String
+  // Фіксований тариф UAH/кВт·год (як правило нижче міського в 1.5–2×)
+  fixedTariffUah Decimal  @db.Decimal(8, 4)
+  // Максимальний обсяг за контрактом (кВт·год/тік); понад ліміт — по міському тарифу
+  maxKwhPerTick  Float
+  isActive       Boolean  @default(true)
+  startsAtTick   BigInt
+  expiresAtTick  BigInt?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  player     Player     @relation(fields: [playerId],     references: [id])
+  enterprise Enterprise @relation(fields: [enterpriseId], references: [id])
+
+  @@index([enterpriseId, isActive])
+  @@index([playerId])
+  @@index([expiresAtTick])
 }

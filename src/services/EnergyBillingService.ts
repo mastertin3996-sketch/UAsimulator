@@ -41,6 +41,9 @@ export class EnergyBillingService {
     const kwhByCity = new Map<string, { cityId: string; kwh: number; tariff: Decimal }>();
 
     for (const ent of enterprises) {
+      // SOLAR_AUTONOMOUS і DIESEL_BACKUP обробляються EnergyMarketService
+      if (ent.energySourceType !== 'GRID') continue;
+
       const city   = ent.landPlot.city;
       const tariff = new Decimal(city.energyTariffUah.toString());
 

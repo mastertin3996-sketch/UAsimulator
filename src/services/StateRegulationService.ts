@@ -569,10 +569,14 @@ export class StateRegulationService {
     return effectsApplied;
   }
 
-  /** Charge ₴20 000 diesel surcharge to every player per operational enterprise in city. */
+  /**
+   * Charge ₴20 000 flat diesel surcharge per GRID enterprise in the affected city.
+   * SOLAR_AUTONOMOUS and DIESEL_BACKUP enterprises are handled by EnergyMarketService
+   * (real fuel-cost / zero-cost generation) and are excluded here.
+   */
   private async applyPowerOutageEffect(cityId: string, currentTick: bigint): Promise<number> {
     const enterprises = await this.db.enterprise.findMany({
-      where:   { isOperational: true, landPlot: { cityId } },
+      where:   { isOperational: true, landPlot: { cityId }, energySourceType: 'GRID' },
       select:  { id: true, playerId: true, name: true },
     });
 

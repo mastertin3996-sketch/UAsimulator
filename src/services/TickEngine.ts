@@ -34,6 +34,7 @@ import { AnalyticsService }           from './AnalyticsService';
 import { ERPAutomationService }       from './ERPAutomationService';
 import { FiscalBudgetService }        from './FiscalBudgetService';
 import { ForeignTradeService }        from './ForeignTradeService';
+import { EnergyMarketService }        from './EnergyMarketService';
 import { TICKS_PER_MONTH, TICKS_PER_SNAPSHOT } from '../constants/economic';
 
 interface TickSummary {
@@ -62,6 +63,7 @@ export class TickEngine {
   private readonly erp:         ERPAutomationService;
   private readonly fiscal:      FiscalBudgetService;
   private readonly foreign:     ForeignTradeService;
+  private readonly energyMarket: EnergyMarketService;
   private readonly db:          PrismaClient;
 
   constructor(prismaClient: PrismaClient = defaultPrisma) {
@@ -80,7 +82,8 @@ export class TickEngine {
     this.regulation = new StateRegulationService(prismaClient);
     this.erp        = new ERPAutomationService(prismaClient);
     this.fiscal     = new FiscalBudgetService(prismaClient);
-    this.foreign    = new ForeignTradeService(prismaClient);
+    this.foreign      = new ForeignTradeService(prismaClient);
+    this.energyMarket = new EnergyMarketService(prismaClient);
   }
 
   /**
@@ -199,6 +202,24 @@ export class TickEngine {
         (regulationSummary.macroEvent.fired
           ? `macro event: ${regulationSummary.macroEvent.type}.`
           : 'no macro event.'),
+      );
+    }
+
+    // ── 3h. Energy market: solar battery update, diesel billing, SOLAR/DIESEL enterprises ─
+    const energySummary = await this.energyMarket.processEnergyMarketTick(tickNumber)
+      .catch(e => {
+        console.error(`[Tick ${tickNumber}] EnergyMarket tick failed:`, e);
+        return null;
+      });
+    if (energySummary) {
+      console.log(
+        `[Tick ${tickNumber}] EnergyMarket: ☀ coeff ${energySummary.sunCoefficient.toFixed(3)} ` +
+        `| solar ${energySummary.solarEnterprisesCount} ent (${energySummary.totalGenerationKwh.toFixed(0)} kWh gen) ` +
+        `| diesel ${energySummary.dieselEnterprisesCount} ent (₴${energySummary.totalDieselCostUah.toFixed(0)}) ` +
+        `| saved ₴${energySummary.totalSolarSavingsUah.toFixed(0)} ` +
+        (energySummary.outageAffectedCities.length
+          ? `| outage cities: ${energySummary.outageAffectedCities.length}`
+          : ''),
       );
     }
 
