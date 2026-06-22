@@ -35,6 +35,7 @@ import { ERPAutomationService }       from './ERPAutomationService';
 import { FiscalBudgetService }        from './FiscalBudgetService';
 import { ForeignTradeService }        from './ForeignTradeService';
 import { EnergyMarketService }        from './EnergyMarketService';
+import { CorporateSecurityService }   from './CorporateSecurityService';
 import { TICKS_PER_MONTH, TICKS_PER_SNAPSHOT } from '../constants/economic';
 
 interface TickSummary {
@@ -63,8 +64,9 @@ export class TickEngine {
   private readonly erp:         ERPAutomationService;
   private readonly fiscal:      FiscalBudgetService;
   private readonly foreign:     ForeignTradeService;
-  private readonly energyMarket: EnergyMarketService;
-  private readonly db:          PrismaClient;
+  private readonly energyMarket:  EnergyMarketService;
+  private readonly corpSecurity:  CorporateSecurityService;
+  private readonly db:            PrismaClient;
 
   constructor(prismaClient: PrismaClient = defaultPrisma) {
     this.db         = prismaClient;
@@ -82,8 +84,9 @@ export class TickEngine {
     this.regulation = new StateRegulationService(prismaClient);
     this.erp        = new ERPAutomationService(prismaClient);
     this.fiscal     = new FiscalBudgetService(prismaClient);
-    this.foreign      = new ForeignTradeService(prismaClient);
-    this.energyMarket = new EnergyMarketService(prismaClient);
+    this.foreign       = new ForeignTradeService(prismaClient);
+    this.energyMarket  = new EnergyMarketService(prismaClient);
+    this.corpSecurity  = new CorporateSecurityService(prismaClient);
   }
 
   /**
@@ -220,6 +223,22 @@ export class TickEngine {
         (energySummary.outageAffectedCities.length
           ? `| outage cities: ${energySummary.outageAffectedCities.length}`
           : ''),
+      );
+    }
+
+    // ── 3i. Corporate security: maintenance, patent freeze, hostile asset freeze ─
+    const securitySummary = await this.corpSecurity.processSecurityTick(tickNumber)
+      .catch(e => {
+        console.error(`[Tick ${tickNumber}] CorporateSecurity tick failed:`, e);
+        return null;
+      });
+    if (securitySummary) {
+      console.log(
+        `[Tick ${tickNumber}] CorpSecurity: ` +
+        `${securitySummary.systemsCharged} systems ₴${securitySummary.totalMaintenanceUah.toFixed(0)} ` +
+        `| +${securitySummary.newFreezes} freezes ` +
+        `| −${securitySummary.liftedFreezes} lifted ` +
+        `| ${securitySummary.totalFrozenCount} total frozen.`,
       );
     }
 

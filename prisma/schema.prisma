@@ -20,6 +20,7 @@ enum Profession {
   LOADER
   DRIVER
   SECURITY_GUARD
+  SECURITY_OFFICER  // керівник служби безпеки; управляє SecuritySystem підприємства
   CLEANER
   SALES_REP
   IT_SPECIALIST
@@ -114,13 +115,24 @@ enum TransactionType {
   CUSTOMS_STORAGE_FEE // Складська плата при замороженні вантажу (500 UAH/тік)
   EXPORT_SALE        // Виручка від експорту (USD, зараховується після митниці)
   IMPORT_PURCHASE      // Оплата імпорту міжнародному постачальнику (USD)
-  GREEN_ENERGY_INSTALL // CAPEX на встановлення СЕС + акумуляторів
-  DIESEL_FUEL_COST     // Витрати на дизельне паливо при резервному живленні
+  GREEN_ENERGY_INSTALL     // CAPEX на встановлення СЕС + акумуляторів
+  DIESEL_FUEL_COST         // Витрати на дизельне паливо при резервному живленні
+  SECURITY_MAINTENANCE     // Щотікові витрати на утримання SecuritySystem
+  PATENT_REGISTRATION_FEE  // Держмито за реєстрацію патенту
+  COURT_PENALTY_DEBIT      // Судовий штраф списаний з відповідача
+  COURT_PENALTY_CREDIT     // Судовий штраф зарахований позивачу
+  HOSTILE_ASSET_FREEZE_FEE // Судові витрати при накладанні арешту на активи
 }
 
 enum CustomsType {
   IMPORT
   EXPORT
+}
+
+enum LegalActionStatus {
+  PLAINTIFF_WON  // позивач переміг; штраф списаний з відповідача
+  DEFENDANT_WON  // відповідач переміг; справу закрито без фінансових наслідків
+  SETTLED        // мирова угода (для майбутнього розширення)
 }
 
 enum EnergySourceType {
@@ -258,6 +270,10 @@ model Player {
   subsidyApplications  SubsidyApplication[]
   customsDeclarations  CustomsDeclaration[]
   energyContracts      EnergyContract[]
+  securitySystems      SecuritySystem[]
+  patents              Patent[]
+  legalActionsAsPlaintiff LegalAction[] @relation("PlaintiffLegalActions")
+  legalActionsAsDefendant LegalAction[] @relation("DefendantLegalActions")
 
   @@index([username])
 }
@@ -397,6 +413,11 @@ model Enterprise {
   // True when frozen by a tax inspection; sales + production blocked
   isFrozenByInspection    Boolean  @default(false)
   inspectionFreezeUntilTick BigInt?
+  // ── Legal freeze (Step 17) ────────────────────────────────────────────────
+  // Судовий арест: B2B + логістика заблоковані до погашення боргу + суд.витрат
+  isLegallyFrozen      Boolean  @default(false)
+  legalFreezeReason    String?
+  legalFreezeUntilTick BigInt?
   // ── Energy source (Step 16) ────────────────────────────────────────────────
   energySourceType    EnergySourceType @default(GRID)
   // СЕС: встановлена потужність (кВт)
@@ -417,6 +438,7 @@ model Enterprise {
   licenses             License[]
   subsidyApplications  SubsidyApplication[]
   energyContracts      EnergyContract[]
+  securitySystem       SecuritySystem?
 
   @@index([playerId])
   @@index([landPlotId])
@@ -1310,4 +1332,79 @@ model EnergyContract {
   @@index([enterpriseId, isActive])
   @@index([playerId])
   @@index([expiresAtTick])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CORPORATE SECURITY, PATENTS & LEGAL ACTIONS — Step 17
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Система фізичної безпеки підприємства (охорона, відеоспостереження, контроль доступу).
+// Впливає на Defense Score та знижує ризик штрафів при аудитах.
+model SecuritySystem {
+  id               String   @id @default(uuid())
+  enterpriseId     String   @unique
+  playerId         String
+  // Рівень безпеки 1–5 (1 = мінімальний, 5 = банківський рівень)
+  securityLevel    Int      @default(1)
+  // Кількість активних охоронців (SECURITY_GUARD + SECURITY_OFFICER)
+  guardCount       Int      @default(0)
+  // Сукупна місячна вартість: ЗП охоронців + обладнання + ліцензії (UAH)
+  monthlyUpkeepUah Decimal  @db.Decimal(12, 2)
+  isActive         Boolean  @default(true)
+  installedAtTick  BigInt
+  updatedAt        DateTime @updatedAt
+
+  enterprise Enterprise @relation(fields: [enterpriseId], references: [id])
+  player     Player     @relation(fields: [playerId],     references: [id])
+
+  @@index([playerId, isActive])
+}
+
+// Патент на досліджену технологію. Захищає власника від безоплатного копіювання
+// конкурентами; надає право подати PatentLawsuit при порушенні.
+model Patent {
+  id               String   @id @default(uuid())
+  playerId         String
+  // TechCode як рядок — не FK, щоб зберегти гнучкість при розширенні TechCode
+  technologyCode   String
+  // Відсоток ліцензійного відрахування від розрахованої вигоди порушника
+  licenseRoyaltyPct Float   @default(0.15)
+  isActive         Boolean  @default(true)
+  registeredAtTick BigInt
+  createdAt        DateTime @default(now())
+
+  player Player @relation(fields: [playerId], references: [id])
+
+  // Один гравець — один патент на технологію
+  @@unique([playerId, technologyCode])
+  @@index([technologyCode, isActive])
+  @@index([playerId, isActive])
+}
+
+// Запис судового процесу щодо порушення патентних прав.
+// Розрахунок вигоди та штрафу фіксується в момент ухвалення рішення.
+model LegalAction {
+  id                   String            @id @default(uuid())
+  plaintiffId          String
+  defendantId          String
+  technologyCode       String
+  status               LegalActionStatus
+  // Агрегована ефективність адвокатів кожної сторони на момент позову
+  plaintiffLawyerScore Float
+  defendantLawyerScore Float
+  // Розрахована вигода відповідача від використання технології без ліцензії (UAH)
+  benefitUah           Decimal  @db.Decimal(18, 2)
+  // Штраф = benefitUah × 3.0 (лише при PLAINTIFF_WON)
+  penaltyUah           Decimal  @default(0) @db.Decimal(18, 2)
+  description          String
+  resolvedAtTick       BigInt
+  createdAt            DateTime @default(now())
+
+  plaintiff Player @relation("PlaintiffLegalActions", fields: [plaintiffId], references: [id])
+  defendant Player @relation("DefendantLegalActions", fields: [defendantId], references: [id])
+
+  @@index([plaintiffId])
+  @@index([defendantId])
+  @@index([technologyCode])
+  @@index([resolvedAtTick])
 }
