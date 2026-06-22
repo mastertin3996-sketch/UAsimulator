@@ -142,7 +142,7 @@ export default function MarketPage() {
     const data = await res.json();
     setBuying(false);
     if (!res.ok) { setBuyError(data.error ?? "Помилка"); return; }
-    setBuySuccess(`✓ Куплено ${buyQty} ${buyOffer.unit} · −${formatNumber(buyQty * buyOffer.price)} GC`);
+    setBuySuccess(`✓ Куплено ${buyQty} ${buyOffer.unit} · −${formatNumber(buyQty * buyOffer.price)} ₴`);
     loadOffers();
     setTimeout(() => setBuyOffer(null), 2000);
   }
@@ -229,7 +229,7 @@ export default function MarketPage() {
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
-                      <CurrencyDisplay amount={o.price} currency="GC" size="sm" />
+                      <CurrencyDisplay amount={o.price} currency="UAH" size="sm" />
                       <div className="text-xs text-gray-600">/ {o.unit}</div>
                     </TableCell>
                     <TableCell className="text-right">
@@ -268,7 +268,7 @@ export default function MarketPage() {
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">Ціна / {buyOffer.unit}</span>
-                <span className="text-emerald-400 font-bold font-mono">{formatNumber(buyOffer.price)} GC</span>
+                <span className="text-emerald-400 font-bold font-mono">{formatNumber(buyOffer.price)} ₴</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">Доступно</span>
@@ -318,7 +318,7 @@ export default function MarketPage() {
             <div className="rounded-xl bg-emerald-950/40 border border-emerald-800/40 px-4 py-3 flex items-center justify-between">
               <span className="text-sm text-gray-400">До сплати:</span>
               <span className="text-lg font-bold font-mono text-emerald-400">
-                {formatNumber(buyQty * buyOffer.price)} GC
+                {formatNumber(buyQty * buyOffer.price)} ₴
               </span>
             </div>
 
@@ -393,7 +393,7 @@ export default function MarketPage() {
               required
             />
             <Input
-              label="Ціна за одиницю (GC) *"
+              label="Ціна за одиницю (₴) *"
               type="number"
               placeholder="0"
               min={0.01}

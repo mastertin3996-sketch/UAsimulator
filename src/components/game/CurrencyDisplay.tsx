@@ -1,9 +1,9 @@
 import { cn } from "@/lib/utils";
-import { CircleDollarSign, Coins } from "lucide-react";
+import { CircleDollarSign, DollarSign } from "lucide-react";
 
 interface CurrencyDisplayProps {
   amount: number;
-  currency: "GC" | "PC";
+  currency: "UAH" | "USD" | "GC" | "PC";
   size?: "sm" | "md" | "lg";
   className?: string;
   showSign?: boolean;
@@ -12,43 +12,38 @@ interface CurrencyDisplayProps {
 const textSizes = { sm: "text-sm", md: "text-base", lg: "text-xl" };
 const iconSizes = { sm: 14, md: 16, lg: 20 };
 
-export function CurrencyDisplay({
-  amount,
-  currency,
-  size = "md",
-  className,
-  showSign,
-}: CurrencyDisplayProps) {
-  const isGC = currency === "GC";
+export function CurrencyDisplay({ amount, currency, size = "md", className, showSign }: CurrencyDisplayProps) {
+  const isUsd  = currency === "USD";
+  const decimals = isUsd ? 2 : 0;
   const isPositive = amount > 0;
   const isNegative = amount < 0;
 
   const formatted = new Intl.NumberFormat("uk-UA", {
     minimumFractionDigits: 0,
-    maximumFractionDigits: isGC ? 0 : 4,
+    maximumFractionDigits: decimals,
   }).format(Math.abs(amount));
+
+  const symbol = currency === "UAH" ? "₴" : currency === "USD" ? "$" : currency;
 
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 font-mono font-semibold",
+        "inline-flex items-center gap-1 font-mono font-semibold",
         textSizes[size],
         showSign && isPositive && "text-green-400",
         showSign && isNegative && "text-red-400",
-        !showSign && isGC && "text-amber-400",
-        !showSign && !isGC && "text-violet-400",
+        !showSign && currency === "UAH" && "text-emerald-400",
+        !showSign && currency === "USD" && "text-blue-400",
+        !showSign && currency === "GC"  && "text-amber-400",
+        !showSign && currency === "PC"  && "text-violet-400",
         className,
       )}
     >
-      {isGC ? (
-        <CircleDollarSign size={iconSizes[size]} className="shrink-0" />
-      ) : (
-        <Coins size={iconSizes[size]} className="shrink-0" />
-      )}
+      {isUsd ? <DollarSign size={iconSizes[size]} className="shrink-0" /> : <CircleDollarSign size={iconSizes[size]} className="shrink-0" />}
       {showSign && isPositive && "+"}
       {showSign && isNegative && "−"}
       {formatted}
-      <span className="text-[0.7em] opacity-60">{currency}</span>
+      {" "}{symbol}
     </span>
   );
 }
