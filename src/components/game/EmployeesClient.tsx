@@ -145,7 +145,7 @@ function SalaryEditor({
         </>
       ) : (
         <>
-          <span className="font-mono text-xs text-white">{formatNumber(role.salaryOffered)} GC</span>
+          <span className="font-mono text-xs text-white">{formatNumber(role.salaryOffered)} ₴</span>
           <span className={cn("text-[10px] font-mono", ratioColor)}>({ratio}%)</span>
           <button onClick={() => setEditing(true)} className="text-gray-600 hover:text-gray-300 transition-colors">
             <Pencil size={11} />
@@ -219,7 +219,7 @@ function EnterpriseRow({ ent, tickNumber }: { ent: EntData; tickNumber: number }
           {/* Mobile stats */}
           <div className="flex gap-4 mb-3 sm:hidden text-xs">
             <span className="text-gray-500">Персонал: <span className="text-white">{ent.workersCurrent}/{ent.workersMax}</span></span>
-            <span className="text-gray-500">ЗП: <span className="text-red-400">−{formatNumber(Math.round(ent.totalSalaryPerTick))} GC/тік</span></span>
+            <span className="text-gray-500">ЗП: <span className="text-red-400">−{formatNumber(Math.round(ent.totalSalaryPerTick))} ₴/тік</span></span>
           </div>
 
           <table className="w-full text-xs">

@@ -80,7 +80,7 @@ function PriceEditor({ offer, onSaved }: { offer: MyOffer; onSaved: (id: string,
   if (!editing) {
     return (
       <div className="flex items-center gap-1.5">
-        <span className="font-mono text-white text-sm">{formatNumber(offer.price)} GC</span>
+        <span className="font-mono text-white text-sm">{formatNumber(offer.price)} ₴</span>
         <PriceTag ratio={offer.priceVsBase} />
         <button onClick={() => setEditing(true)} className="text-gray-600 hover:text-gray-300 transition-colors">
           <Pencil size={12} />
@@ -97,7 +97,7 @@ function PriceEditor({ offer, onSaved }: { offer: MyOffer; onSaved: (id: string,
           onChange={(e) => setPrice(Number(e.target.value))}
           onKeyDown={(e) => { if (e.key === "Enter") save(); if (e.key === "Escape") setEditing(false); }}
           className="w-28 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs font-mono text-white focus:outline-none focus:border-emerald-500 [appearance:textfield]"
-          placeholder="Ціна GC"
+          placeholder="Ціна ₴"
         />
         <PriceTag ratio={newRatio} />
         <button onClick={save} disabled={saving} className="text-emerald-400 hover:text-emerald-300 disabled:opacity-40"><Check size={13} /></button>
@@ -176,14 +176,14 @@ function OfferCard({ offer, onUpdate, onDelete }: {
             <PriceEditor offer={offer} onSaved={onUpdate} />
           ) : (
             <div className="flex items-center gap-1.5">
-              <span className="font-mono text-white text-sm">{formatNumber(offer.price)} GC</span>
+              <span className="font-mono text-white text-sm">{formatNumber(offer.price)} ₴</span>
               <PriceTag ratio={offer.priceVsBase} />
             </div>
           )}
         </div>
         <div className="text-right">
           <p className="text-[10px] text-gray-600 mb-0.5">Виручка</p>
-          <p className="font-mono text-emerald-400 text-sm">+{formatNumber(Math.round(offer.revenue))} GC</p>
+          <p className="font-mono text-emerald-400 text-sm">+{formatNumber(Math.round(offer.revenue))} ₴</p>
         </div>
       </div>
 
