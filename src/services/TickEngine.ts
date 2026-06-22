@@ -36,6 +36,7 @@ import { FiscalBudgetService }        from './FiscalBudgetService';
 import { ForeignTradeService }        from './ForeignTradeService';
 import { EnergyMarketService }        from './EnergyMarketService';
 import { CorporateSecurityService }   from './CorporateSecurityService';
+import { CompanyValuationService }    from './CompanyValuationService';
 import { TICKS_PER_MONTH, TICKS_PER_SNAPSHOT } from '../constants/economic';
 
 interface TickSummary {
@@ -65,8 +66,9 @@ export class TickEngine {
   private readonly fiscal:      FiscalBudgetService;
   private readonly foreign:     ForeignTradeService;
   private readonly energyMarket:  EnergyMarketService;
-  private readonly corpSecurity:  CorporateSecurityService;
-  private readonly db:            PrismaClient;
+  private readonly corpSecurity:   CorporateSecurityService;
+  private readonly valuation:      CompanyValuationService;
+  private readonly db:             PrismaClient;
 
   constructor(prismaClient: PrismaClient = defaultPrisma) {
     this.db         = prismaClient;
@@ -87,6 +89,7 @@ export class TickEngine {
     this.foreign       = new ForeignTradeService(prismaClient);
     this.energyMarket  = new EnergyMarketService(prismaClient);
     this.corpSecurity  = new CorporateSecurityService(prismaClient);
+    this.valuation     = new CompanyValuationService(prismaClient);
   }
 
   /**
@@ -270,6 +273,15 @@ export class TickEngine {
           `[Tick ${tickNumber}] Fiscal: +₴${fiscalSummary.newTotalUah.toFixed(0)} ` +
           `(ПДВ ₴${fiscalSummary.newVatUah.toFixed(0)} + OPEX ₴${fiscalSummary.newOpexTaxUah.toFixed(0)}), ` +
           `net budget ₴${fiscalSummary.budgetBalance.toFixed(0)}.`,
+        );
+      }
+    }
+
+    // ── 3j. Company Valuation: recalculate every TICKS_PER_SNAPSHOT ──────────
+    if (tickNumber % TICKS_PER_SNAPSHOT === 0n) {
+      for (const { id: playerId } of players) {
+        await this.valuation.calculateCompanyValuation(playerId).catch(e =>
+          console.error(`[Tick ${tickNumber}] Valuation failed for ${playerId}:`, e),
         );
       }
     }

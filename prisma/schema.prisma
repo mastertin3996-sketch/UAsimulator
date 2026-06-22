@@ -122,11 +122,19 @@ enum TransactionType {
   COURT_PENALTY_DEBIT      // Судовий штраф списаний з відповідача
   COURT_PENALTY_CREDIT     // Судовий штраф зарахований позивачу
   HOSTILE_ASSET_FREEZE_FEE // Судові витрати при накладанні арешту на активи
+  MA_ACQUISITION_COST      // CAPEX на придбання підприємства / компанії (M&A)
+  MA_SALE_REVENUE          // Виручка від продажу підприємства / компанії (M&A)
 }
 
 enum CustomsType {
   IMPORT
   EXPORT
+}
+
+enum MaDealStatus {
+  PENDING    // виставлено на продаж, очікує покупця
+  COMPLETED  // угода успішно виконана
+  CANCELED   // продавець відкликав або угода скасована
 }
 
 enum LegalActionStatus {
@@ -211,6 +219,8 @@ enum FinancialLogCategory {
   EXPENSE_MAINTENANCE   // технічне обслуговування
   EXPENSE_DEPRECIATION  // амортизація обладнання
   ADJUSTMENT            // коригування / коригувальні записи
+  REVENUE_MA            // надходження від продажу бізнесу (M&A)
+  EXPENSE_MA            // витрати на придбання бізнесу (M&A)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -233,6 +243,13 @@ model Player {
   reputationScore Float    @default(5.0)   // 0–10
   createdAt       DateTime @default(now())
   lastActiveAt    DateTime @default(now())
+  // ── Corporate Valuation (Step 18) ─────────────────────────────────────────
+  // Поточна ринкова оцінка компанії (UAH); оновлюється calculateCompanyValuation()
+  companyValuationUah  Decimal  @default(0)      @db.Decimal(22, 2)
+  // True якщо компанія або окреме підприємство виставлені на продаж
+  isListedForSale      Boolean  @default(false)
+  // Мінімальна ціна продажу, встановлена продавцем (UAH)
+  minimumSalePriceUah  Decimal  @default(0)      @db.Decimal(22, 2)
   // ── R&D state ──────────────────────────────────────────────────────────────
   // ID технології (Technology.id), яка зараз досліджується; null = дослідження не ведеться
   activeResearchTechId String?
@@ -274,6 +291,8 @@ model Player {
   patents              Patent[]
   legalActionsAsPlaintiff LegalAction[] @relation("PlaintiffLegalActions")
   legalActionsAsDefendant LegalAction[] @relation("DefendantLegalActions")
+  maDealAsBuyer           MaDeal[]      @relation("MaDealBuyer")
+  maDealAsSeller          MaDeal[]      @relation("MaDealSeller")
 
   @@index([username])
 }
@@ -1407,4 +1426,35 @@ model LegalAction {
   @@index([defendantId])
   @@index([technologyCode])
   @@index([resolvedAtTick])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// M&A — CORPORATE ACQUISITIONS — Step 18
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Запис про операцію злиття/поглинання або продаж окремого підприємства.
+// targetEnterpriseId = null → повний викуп компанії.
+// targetEnterpriseId = id → продаж конкретного підприємства.
+model MaDeal {
+  id                   String       @id @default(uuid())
+  buyerId              String?      // null поки угода PENDING (покупець ще невідомий)
+  sellerId             String
+  // null = продаж усієї компанії; non-null = продаж конкретного підприємства
+  targetEnterpriseId   String?
+  // Мінімальна ціна, встановлена продавцем; може бути змінена до виконання
+  transactionAmountUah Decimal      @db.Decimal(22, 2)
+  status               MaDealStatus @default(PENDING)
+  listedAtTick         BigInt
+  executedAtTick       BigInt?
+  canceledAtTick       BigInt?
+  notes                String?
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+
+  buyer  Player? @relation("MaDealBuyer",  fields: [buyerId],  references: [id])
+  seller Player  @relation("MaDealSeller", fields: [sellerId], references: [id])
+
+  @@index([sellerId, status])
+  @@index([buyerId,  status])
+  @@index([status,   listedAtTick])
 }
