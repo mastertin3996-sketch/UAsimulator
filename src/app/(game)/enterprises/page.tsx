@@ -141,7 +141,7 @@ function EnterpriseCard({ e, currentTick }: { e: EnterpriseSummary; currentTick:
             isProfit ? "text-emerald-400" : "text-red-400",
           )}>
             {isProfit ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
-            {isProfit ? "+" : ""}{formatNumber(Math.round(e.lastTickNet))} GC
+            {isProfit ? "+" : ""}{formatNumber(Math.round(e.lastTickNet))} ₴
           </div>
         ) : (
           <span className="text-xs text-gray-600 shrink-0">—</span>
@@ -171,7 +171,7 @@ function EnterpriseCard({ e, currentTick }: { e: EnterpriseSummary; currentTick:
           </span>
         )}
         <span className="text-[10px] text-gray-600 ml-auto">
-          −{formatNumber(Math.round(e.rentPerTick + e.salaryPerTick))} GC/тік
+          −{formatNumber(Math.round(e.rentPerTick + e.salaryPerTick))} ₴/тік
         </span>
       </div>
 
@@ -259,11 +259,11 @@ function SummaryStrip({ list }: { list: EnterpriseSummary[] }) {
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
       {[
-        { label: "Витрати / тік", value: `-${formatNumber(Math.round(totalCosts))} GC`, color: "text-orange-400" },
+        { label: "Витрати / тік", value: `-${formatNumber(Math.round(totalCosts))} ₴`, color: "text-orange-400" },
         { label: "Сер. ефективність", value: `${avgEff.toFixed(0)}%`, color: avgEff >= 70 ? "text-emerald-400" : "text-amber-400" },
         {
           label: "Тік (чистий прибуток)",
-          value: hasNetData ? `${totalNet >= 0 ? "+" : ""}${formatNumber(Math.round(totalNet))} GC` : "—",
+          value: hasNetData ? `${totalNet >= 0 ? "+" : ""}${formatNumber(Math.round(totalNet))} ₴` : "—",
           color: !hasNetData ? "text-gray-500" : totalNet >= 0 ? "text-emerald-400" : "text-red-400",
         },
         {
@@ -289,12 +289,15 @@ export default function EnterprisesPage() {
   const [cat,         setCat]         = useState<CatFilter>("ALL");
   const [query,       setQuery]       = useState("");
   const [view,        setView]        = useState<"grid" | "list">("grid");
-  const currentTick = 0; // fallback — tick not fetched here
+  const [currentTick, setCurrentTick] = useState(0);
 
   useEffect(() => {
     fetch("/api/enterprises")
       .then((r) => r.json())
-      .then((d) => setEnterprises(d.enterprises ?? []))
+      .then((d) => {
+        setEnterprises(d.enterprises ?? []);
+        setCurrentTick(d.currentTick ?? 0);
+      })
       .finally(() => setLoading(false));
   }, []);
 
