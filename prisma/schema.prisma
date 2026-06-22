@@ -124,6 +124,16 @@ enum TransactionType {
   HOSTILE_ASSET_FREEZE_FEE // Судові витрати при накладанні арешту на активи
   MA_ACQUISITION_COST      // CAPEX на придбання підприємства / компанії (M&A)
   MA_SALE_REVENUE          // Виручка від продажу підприємства / компанії (M&A)
+  DEPOSIT_OPEN             // Кошти заблоковано у депозит (дебет з рахунку)
+  DEPOSIT_MATURITY         // Повернення депозиту разом із нарахованими відсотками
+  REVENUE_INTEREST         // Відсотковий дохід за депозитом (частина DEPOSIT_MATURITY)
+  OVERDRAFT_DRAWDOWN       // Автоматичне покриття дефіциту балансу через овердрафт
+  OVERDRAFT_INTEREST       // Нарахування відсотків на залишок овердрафту (36% р./р.)
+}
+
+enum DepositCurrency {
+  UAH
+  USD
 }
 
 enum CustomsType {
@@ -243,6 +253,11 @@ model Player {
   reputationScore Float    @default(5.0)   // 0–10
   createdAt       DateTime @default(now())
   lastActiveAt    DateTime @default(now())
+  // ── Banking & Overdraft (Step 19) ─────────────────────────────────────────
+  // Ліміт овердрафту, встановлений банком (UAH). 0 = овердрафт недоступний.
+  overdraftLimitUah         Decimal  @default(0) @db.Decimal(18, 2)
+  // Поточна заборгованість за овердрафтом (UAH). Зростає з відсотками (36% р./р.)
+  currentOverdraftUsageUah  Decimal  @default(0) @db.Decimal(18, 2)
   // ── Corporate Valuation (Step 18) ─────────────────────────────────────────
   // Поточна ринкова оцінка компанії (UAH); оновлюється calculateCompanyValuation()
   companyValuationUah  Decimal  @default(0)      @db.Decimal(22, 2)
@@ -293,6 +308,7 @@ model Player {
   legalActionsAsDefendant LegalAction[] @relation("DefendantLegalActions")
   maDealAsBuyer           MaDeal[]      @relation("MaDealBuyer")
   maDealAsSeller          MaDeal[]      @relation("MaDealSeller")
+  deposits                Deposit[]
 
   @@index([username])
 }
@@ -1457,4 +1473,33 @@ model MaDeal {
   @@index([sellerId, status])
   @@index([buyerId,  status])
   @@index([status,   listedAtTick])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// BANKING — CORPORATE DEPOSITS & OVERDRAFT — Step 19
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Строковий корпоративний депозит.
+// Кошти знімаються з рахунку при відкритті і повертаються з відсотками при погашенні.
+// Ставка (annualYieldRate) фіксується на момент відкриття і не змінюється.
+model Deposit {
+  id              String          @id @default(uuid())
+  playerId        String
+  currency        DepositCurrency
+  // Сума, що розміщується (без відсотків)
+  principalAmount Decimal         @db.Decimal(18, 4)
+  // Річна ставка у форматі 0.15 = 15%. Фіксується при відкритті.
+  annualYieldRate Decimal         @db.Decimal(6,  4)
+  startTick       BigInt
+  durationTicks   BigInt          // кількість тіків (1 тік = 1 день)
+  isMatured       Boolean         @default(false)
+  // Заповнюється при погашенні: фактична фінальна сума (principal + interest)
+  finalAmountPaid Decimal?        @db.Decimal(18, 4)
+  maturedAtTick   BigInt?
+  createdAt       DateTime        @default(now())
+
+  player Player @relation(fields: [playerId], references: [id])
+
+  @@index([playerId, isMatured])
+  @@index([isMatured, startTick])
 }

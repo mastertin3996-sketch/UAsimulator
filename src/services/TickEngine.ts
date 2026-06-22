@@ -37,6 +37,7 @@ import { ForeignTradeService }        from './ForeignTradeService';
 import { EnergyMarketService }        from './EnergyMarketService';
 import { CorporateSecurityService }   from './CorporateSecurityService';
 import { CompanyValuationService }    from './CompanyValuationService';
+import { BankingLiquidityService }   from './BankingLiquidityService';
 import { TICKS_PER_MONTH, TICKS_PER_SNAPSHOT } from '../constants/economic';
 
 interface TickSummary {
@@ -68,6 +69,7 @@ export class TickEngine {
   private readonly energyMarket:  EnergyMarketService;
   private readonly corpSecurity:   CorporateSecurityService;
   private readonly valuation:      CompanyValuationService;
+  private readonly banking:        BankingLiquidityService;
   private readonly db:             PrismaClient;
 
   constructor(prismaClient: PrismaClient = defaultPrisma) {
@@ -90,6 +92,7 @@ export class TickEngine {
     this.energyMarket  = new EnergyMarketService(prismaClient);
     this.corpSecurity  = new CorporateSecurityService(prismaClient);
     this.valuation     = new CompanyValuationService(prismaClient);
+    this.banking       = new BankingLiquidityService(prismaClient);
   }
 
   /**
@@ -300,6 +303,38 @@ export class TickEngine {
           `wage ${inflationResult.wageDeltaPct >= 0 ? '+' : ''}${inflationResult.wageDeltaPct.toFixed(1)}% ` +
           `(avg tariff ₴${inflationResult.newAvgTariffUah.toFixed(4)}/kWh).`,
         );
+      }
+    }
+
+    // ── 3k. Banking: mature deposits + overdraft coverage + interest accrual ─
+    // Виконується ПІСЛЯ всіх billing-сервісів, щоб захопити всі від'ємні залишки.
+    const bankingSummary = await this.banking.processBankingTick(tickNumber)
+      .catch(e => {
+        console.error(`[Tick ${tickNumber}] Banking tick failed:`, e);
+        return null;
+      });
+    if (bankingSummary) {
+      const msgs: string[] = [];
+      if (bankingSummary.depositsMatured > 0) {
+        msgs.push(
+          `${bankingSummary.depositsMatured} dep matured ` +
+          `(UAH ₴${bankingSummary.interestPaidUah.toFixed(0)} + ` +
+          `USD $${bankingSummary.interestPaidUsd.toFixed(2)} interest)`,
+        );
+      }
+      if (bankingSummary.overdraftDrawdowns > 0) {
+        msgs.push(
+          `${bankingSummary.overdraftDrawdowns} OD draws ₴${bankingSummary.overdraftDrawnUah.toFixed(0)}`,
+        );
+      }
+      if (bankingSummary.overdraftInterestUah.gt(0)) {
+        msgs.push(`OD interest ₴${bankingSummary.overdraftInterestUah.toFixed(2)}`);
+      }
+      if (bankingSummary.limitBreachPlayers.length > 0) {
+        msgs.push(`OD LIMIT BREACH: ${bankingSummary.limitBreachPlayers.join(', ')}`);
+      }
+      if (msgs.length > 0) {
+        console.log(`[Tick ${tickNumber}] Banking: ${msgs.join(' | ')}.`);
       }
     }
 
