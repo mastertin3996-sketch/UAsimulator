@@ -105,6 +105,7 @@ enum TransactionType {
   MACRO_EVENT_CHARGE
   MACRO_EVENT_BONUS
   RD_INVESTMENT      // Витрати на R&D-лабораторію (з/п дослідників, обладнання)
+  AUTO_PROCUREMENT   // Автоматична B2B-закупівля за AutoContract
 }
 
 enum LicenseType {
@@ -217,6 +218,8 @@ model Player {
   technologies      PlayerTechnology[]
   dailySnapshots    DailySnapshot[]
   productionLogs    ProductionLog[]
+  autoContracts     AutoContract[]
+  hrPolicy          HRAutomationPolicy?
 
   @@index([username])
 }
@@ -1077,4 +1080,39 @@ model ProductionLog {
   @@index([playerId, tickNumber])
   @@index([enterpriseId, tickNumber])
   @@index([tickNumber])
+}
+
+model AutoContract {
+  id               String   @id @default(uuid())
+  buyerId          String
+  sellerId         String?  // null = open market (any seller)
+  resourceType     String   // matches MarketOrder.resourceType (SKU)
+  maxPricePerUnit  Decimal  @db.Decimal(12, 4)
+  minQuality       Float    @default(0)
+  quantityPerTick  Float
+  isActive         Boolean  @default(true)
+  // Per-tick execution tracking (reset each tick)
+  lastTickSpentUah Decimal  @default(0) @db.Decimal(14, 2)
+  lastFilledQty    Float    @default(0)
+  lastExecutedTick BigInt?
+  totalSpentUah    Decimal  @default(0) @db.Decimal(18, 2)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  buyer Player @relation(fields: [buyerId], references: [id])
+
+  @@index([buyerId, isActive])
+  @@index([resourceType, isActive])
+}
+
+model HRAutomationPolicy {
+  id                 String   @id @default(uuid())
+  playerId           String   @unique
+  isActive           Boolean  @default(true)
+  autoAdjustSalaries Boolean  @default(true)
+  targetMood         Float    @default(0.85)
+  maxSalaryCapUah    Decimal  @db.Decimal(12, 2)
+  updatedAt          DateTime @updatedAt
+
+  player Player @relation(fields: [playerId], references: [id])
 }

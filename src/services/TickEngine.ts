@@ -31,6 +31,7 @@ import { FinanceService }              from './FinanceService';
 import { StateRegulationService }     from './StateRegulationService';
 import { ResearchDevelopmentService } from './ResearchDevelopmentService';
 import { AnalyticsService }           from './AnalyticsService';
+import { ERPAutomationService }       from './ERPAutomationService';
 import { TICKS_PER_MONTH, TICKS_PER_SNAPSHOT } from '../constants/economic';
 
 interface TickSummary {
@@ -56,6 +57,7 @@ export class TickEngine {
   private readonly regulation:  StateRegulationService;
   private readonly rd:          ResearchDevelopmentService;
   private readonly analytics:   AnalyticsService;
+  private readonly erp:         ERPAutomationService;
   private readonly db:          PrismaClient;
 
   constructor(prismaClient: PrismaClient = defaultPrisma) {
@@ -72,6 +74,7 @@ export class TickEngine {
     this.logistics  = new LogisticsService(prismaClient, this.rd);
     this.finance    = new FinanceService(prismaClient);
     this.regulation = new StateRegulationService(prismaClient);
+    this.erp        = new ERPAutomationService(prismaClient);
   }
 
   /**
@@ -104,6 +107,34 @@ export class TickEngine {
     // Pre-load all unlocked technologies into memory once before the player loop.
     // Modifier getters (getProductionQualityModifier etc.) then do O(1) Map lookups.
     await this.rd.warmTickCache(players.map(p => p.id));
+
+    // ── 1b. ERP: HR automation — adjust salaries BEFORE HR tick runs ─────
+    const hrPolicySummary = await this.erp.processAutomatedHRPolicyTick(tickNumber)
+      .catch(e => {
+        console.error(`[Tick ${tickNumber}] HR automation failed:`, e);
+        return null;
+      });
+    if (hrPolicySummary) {
+      console.log(
+        `[Tick ${tickNumber}] HR Policy: ${hrPolicySummary.policiesApplied} policies, ` +
+        `${hrPolicySummary.salaryAdjustments} salary bumps ` +
+        `(+₴${hrPolicySummary.totalSalaryIncrementUah.toFixed(0)} total).`,
+      );
+    }
+
+    // ── 1c. ERP: Auto-procurement — B2B auto-contracts for all players ───
+    const procurementSummary = await this.erp.processAutoProcurementTick(tickNumber)
+      .catch(e => {
+        console.error(`[Tick ${tickNumber}] Auto-procurement failed:`, e);
+        return null;
+      });
+    if (procurementSummary) {
+      console.log(
+        `[Tick ${tickNumber}] Auto-procurement: ${procurementSummary.contractsProcessed} contracts, ` +
+        `${procurementSummary.totalTradesExecuted} trades, ` +
+        `₴${procurementSummary.totalSpentUah.toFixed(0)} spent.`,
+      );
+    }
 
     for (const { id: playerId } of players) {
       try {
