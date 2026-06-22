@@ -70,7 +70,7 @@ function CategoryBreakdown({ cats, totalIncome, totalExpenses }: {
       {/* Income side */}
       <div className="rounded-xl border border-gray-800 bg-gray-900 p-4">
         <p className="text-sm font-semibold text-emerald-400 mb-4">
-          Дохід — {formatNumber(Math.round(totalIncome))} GC
+          Дохід — {formatNumber(Math.round(totalIncome))} ₴
         </p>
         <div className="space-y-3">
           {CAT_GROUPS.map((g) => {
@@ -81,7 +81,7 @@ function CategoryBreakdown({ cats, totalIncome, totalExpenses }: {
               <div key={g.label}>
                 <div className="flex justify-between text-xs mb-1">
                   <span className="text-gray-400">{g.label}</span>
-                  <span className="font-mono text-white">{formatNumber(Math.round(inc))} GC <span className="text-gray-600">({pct.toFixed(0)}%)</span></span>
+                  <span className="font-mono text-white">{formatNumber(Math.round(inc))} ₴ <span className="text-gray-600">({pct.toFixed(0)}%)</span></span>
                 </div>
                 <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
                   <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: g.color }} />
@@ -95,7 +95,7 @@ function CategoryBreakdown({ cats, totalIncome, totalExpenses }: {
       {/* Expense side */}
       <div className="rounded-xl border border-gray-800 bg-gray-900 p-4">
         <p className="text-sm font-semibold text-red-400 mb-4">
-          Витрати — {formatNumber(Math.round(totalExpenses))} GC
+          Витрати — {formatNumber(Math.round(totalExpenses))} ₴
         </p>
         <div className="space-y-3">
           {CAT_GROUPS.map((g) => {
@@ -106,7 +106,7 @@ function CategoryBreakdown({ cats, totalIncome, totalExpenses }: {
               <div key={g.label}>
                 <div className="flex justify-between text-xs mb-1">
                   <span className="text-gray-400">{g.label}</span>
-                  <span className="font-mono text-white">{formatNumber(Math.round(exp))} GC <span className="text-gray-600">({pct.toFixed(0)}%)</span></span>
+                  <span className="font-mono text-white">{formatNumber(Math.round(exp))} ₴ <span className="text-gray-600">({pct.toFixed(0)}%)</span></span>
                 </div>
                 <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
                   <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: g.color, opacity: 0.8 }} />
@@ -138,13 +138,13 @@ function CategoryBreakdown({ cats, totalIncome, totalExpenses }: {
                 <tr key={c.type} className="hover:bg-gray-800/20">
                   <td className="px-4 py-2 text-gray-300">{lbl}</td>
                   <td className="px-4 py-2 text-right font-mono text-emerald-400">
-                    {c.income > 0 ? `${formatNumber(Math.round(c.income))} GC` : "—"}
+                    {c.income > 0 ? `${formatNumber(Math.round(c.income))} ₴` : "—"}
                   </td>
                   <td className="px-4 py-2 text-right font-mono text-red-400">
-                    {c.expense > 0 ? `${formatNumber(Math.round(c.expense))} GC` : "—"}
+                    {c.expense > 0 ? `${formatNumber(Math.round(c.expense))} ₴` : "—"}
                   </td>
                   <td className={cn("px-4 py-2 text-right font-mono", c.net >= 0 ? "text-emerald-400" : "text-red-400")}>
-                    {c.net >= 0 ? "+" : ""}{formatNumber(Math.round(c.net))} GC
+                    {c.net >= 0 ? "+" : ""}{formatNumber(Math.round(c.net))} ₴
                   </td>
                 </tr>
               );
@@ -272,21 +272,21 @@ export default function FinancesClient() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <StatBox
           label="Загальний дохід"
-          value={`${formatNumber(d.stats.totalIncome)} GC`}
+          value={`${formatNumber(d.stats.totalIncome)} ₴`}
           icon={TrendingUp}
           iconColor="text-emerald-400"
           borderColor="border-emerald-900/50"
         />
         <StatBox
           label="Загальні витрати"
-          value={`${formatNumber(d.stats.totalExpenses)} GC`}
+          value={`${formatNumber(d.stats.totalExpenses)} ₴`}
           icon={TrendingDown}
           iconColor="text-red-400"
           borderColor="border-red-900/50"
         />
         <StatBox
           label="Чистий прибуток"
-          value={`${profit >= 0 ? "+" : ""}${formatNumber(profit)} GC`}
+          value={`${profit >= 0 ? "+" : ""}${formatNumber(profit)} ₴`}
           icon={Coins}
           iconColor={profit >= 0 ? "text-emerald-400" : "text-red-400"}
           borderColor={profit >= 0 ? "border-emerald-900/50" : "border-red-900/50"}
@@ -328,9 +328,8 @@ export default function FinancesClient() {
                 onChange={(e) => applyFilter(typeFilter, e.target.value)}
                 className="bg-gray-800 border border-gray-700 text-sm text-gray-300 rounded-lg px-3 py-1.5 focus:outline-none focus:border-gray-500"
               >
-                <option value="">GC + PC</option>
-                <option value="GAME_CASH">GC</option>
-                <option value="PREMIUM_COIN">PC</option>
+                <option value="">Всі валюти</option>
+                <option value="UAH">₴ UAH</option>
               </select>
               {(typeFilter || currFilter) && (
                 <button
@@ -370,7 +369,7 @@ export default function FinancesClient() {
               ) : (
                 d.txns.map((t) => {
                   const cfg = TXN_LABELS[t.type] ?? { label: t.type, color: "text-gray-400", sign: 1 };
-                  const isGC = t.currency !== "PREMIUM_COIN";
+                  const isGC = true; // all transactions in UAH
                   return (
                     <TableRow key={t.id}>
                       <TableCell>
@@ -389,13 +388,13 @@ export default function FinancesClient() {
                       <TableCell className="text-right">
                         <CurrencyDisplay
                           amount={t.amount}
-                          currency={isGC ? "GC" : "PC"}
+                          currency="UAH"
                           showSign
                           size="sm"
                         />
                       </TableCell>
                       <TableCell className="text-right font-mono text-xs text-gray-400">
-                        {isGC ? `${formatNumber(t.balanceAfter)} GC` : `${Number(t.balanceAfter).toFixed(4)} PC`}
+                        {isGC ? `${formatNumber(t.balanceAfter)} ₴` : `${Number(t.balanceAfter).toFixed(4)} PC`}
                       </TableCell>
                       <TableCell className="text-right text-gray-600 text-xs whitespace-nowrap">
                         {new Date(t.createdAt).toLocaleString("uk-UA", {

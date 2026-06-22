@@ -114,7 +114,7 @@ function SummaryTable({ rows }: { rows: Summary[] }) {
           <div>
             <CardTitle>Загальні запаси</CardTitle>
             <p className="text-sm text-gray-500 mt-0.5">
-              {rows.length} товарів · <span className="text-amber-400 font-mono">{formatNumber(totalValue)} GC</span>
+              {rows.length} товарів · <span className="text-amber-400 font-mono">{formatNumber(totalValue)} ₴</span>
             </p>
           </div>
           <div className="relative">
@@ -164,9 +164,9 @@ function SummaryTable({ rows }: { rows: Summary[] }) {
                   <td className="px-4 py-3 font-medium text-white">{r.productName}</td>
                   <td className="px-4 py-3 text-gray-500 text-xs">{r.unit}</td>
                   <td className="px-4 py-3 font-mono text-white text-right">{r.totalQty.toFixed(1)}</td>
-                  <td className="px-4 py-3 font-mono text-gray-400 text-right">{r.basePrice} GC</td>
+                  <td className="px-4 py-3 font-mono text-gray-400 text-right">{r.basePrice} ₴</td>
                   <td className="px-4 py-3 text-right">
-                    <span className="font-mono text-amber-400">{formatNumber(r.totalValue)} GC</span>
+                    <span className="font-mono text-amber-400">{formatNumber(r.totalValue)} ₴</span>
                     <div className="mt-1 h-0.5 bg-gray-800 rounded-full overflow-hidden">
                       <div className="h-full bg-amber-500/50 rounded-full" style={{ width: `${valuePct}%` }} />
                     </div>
@@ -531,7 +531,7 @@ function AutoSellModal({
           value={price}
           onChange={(e) => setPrice(e.target.value)}
         />
-        <p className="text-xs text-gray-600">Базова ціна: {target.basePrice} GC / {target.unit}</p>
+        <p className="text-xs text-gray-600">Базова ціна: {target.basePrice} ₴ / {target.unit}</p>
         {error && (
           <div className="bg-red-950 border border-red-900 text-red-400 text-sm px-3 py-2 rounded-lg">{error}</div>
         )}
@@ -629,14 +629,14 @@ function EnterpriseInventoryCard({
                         </td>
                         <td className="px-4 py-2.5"><QualityBar value={inv.quality} size="sm" showLabel /></td>
                         <td className="px-4 py-2.5 font-mono text-gray-400 text-sm">
-                          {inv.avgCost > 0 ? `${inv.avgCost.toFixed(2)} GC` : <span className="text-gray-600">—</span>}
+                          {inv.avgCost > 0 ? `${inv.avgCost.toFixed(2)} ₴` : <span className="text-gray-600">—</span>}
                         </td>
                         <td className="px-4 py-2.5 text-sm">
                           {hasAuto ? (
                             <span className="text-emerald-400 font-mono text-xs">
                               {formatNumber(inv.autoSellQty!)} / тік
                               {inv.autoSellPrice != null && (
-                                <span className="text-gray-500"> @ {inv.autoSellPrice} GC</span>
+                                <span className="text-gray-500"> @ {inv.autoSellPrice} ₴</span>
                               )}
                             </span>
                           ) : (
@@ -721,7 +721,7 @@ function EnterpriseInventoryCard({
               </table>
               <div className="px-4 py-2 border-t border-gray-800 text-right">
                 <span className="text-xs text-gray-500">
-                  Вартість запасів: <span className="text-amber-400 font-mono">{formatNumber(totalValue)} GC</span>
+                  Вартість запасів: <span className="text-amber-400 font-mono">{formatNumber(totalValue)} ₴</span>
                 </span>
               </div>
             </>
@@ -835,7 +835,7 @@ export default function WarehousesClient() {
           <div className="rounded-xl border border-violet-900/30 bg-violet-950/10 px-4 py-3">
             <p className="text-[10px] text-gray-600 uppercase tracking-wide mb-1">Найдорожчий товар</p>
             <p className="text-sm font-semibold text-white truncate">{data.summary[0]?.productName ?? "—"}</p>
-            <p className="text-[10px] text-amber-400 font-mono">{formatNumber(data.summary[0]?.totalValue ?? 0)} GC</p>
+            <p className="text-[10px] text-amber-400 font-mono">{formatNumber(data.summary[0]?.totalValue ?? 0)} ₴</p>
           </div>
         </div>
       )}
