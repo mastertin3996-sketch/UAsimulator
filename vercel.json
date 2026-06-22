@@ -1,5 +1,10 @@
 {
   "version": 2,
+  "buildCommand": "npx prisma generate && next build",
+  "outputDirectory": ".next",
+  "devCommand": "next dev",
+  "installCommand": "npm install",
+  "framework": "nextjs",
   "crons": [
     {
       "path": "/api/cron/tick",
