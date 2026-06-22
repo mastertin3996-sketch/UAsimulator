@@ -34,3 +34,7 @@ coverage/
 .vercel/
 
 .vercel
+.next
+.env.local
+virtunomix-api-reference/
+express-legacy/

@@ -258,6 +258,8 @@ model Player {
   email           String   @unique
   username        String   @unique
   passwordHash    String
+  isActive        Boolean  @default(true)
+  lastLoginAt     DateTime?
   companyName     String   @default("Моя компанія")
   // Поточний залишок на рахунку (UAH)
   cashBalance     Decimal  @default(500000) @db.Decimal(18, 2)
