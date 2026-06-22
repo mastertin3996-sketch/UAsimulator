@@ -198,8 +198,10 @@ export class ProductionService {
           });
 
           results.push({
+            enterpriseId:    ent.id,
             workshopId:      ws.id,
             orderId:         order.id,
+            recipeId:        recipe.id,
             unitsProduced:   unitsThisTick,
             outputQuality,
             inputsConsumed,

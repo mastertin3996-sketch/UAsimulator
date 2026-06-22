@@ -17,8 +17,9 @@ export const EMPLOYEE_NET_MULTIPLIER = 1 - TAX_RATES.PIT - TAX_RATES.MILITARY; /
 
 // ─── Tick system ─────────────────────────────────────────────────────────────
 // 1 real hour = 1 game-day tick
-export const TICKS_PER_MONTH = 30n as bigint;   // 30 game-days = 1 in-game month
-export const TICKS_PER_YEAR  = 360n as bigint;
+export const TICKS_PER_MONTH    = 30n as bigint;   // 30 game-days = 1 in-game month
+export const TICKS_PER_YEAR     = 360n as bigint;
+export const TICKS_PER_SNAPSHOT = 24n as bigint;   // DailySnapshot interval (≈1 in-game week)
 
 // ─── Salaries (gross UAH/month, Kyiv baseline 2026) ────────────────────────
 // Regional multiplier applied separately via city.wageCoefficient

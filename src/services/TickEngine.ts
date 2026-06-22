@@ -30,7 +30,8 @@ import { LogisticsService }      from './LogisticsService';
 import { FinanceService }              from './FinanceService';
 import { StateRegulationService }     from './StateRegulationService';
 import { ResearchDevelopmentService } from './ResearchDevelopmentService';
-import { TICKS_PER_MONTH }            from '../constants/economic';
+import { AnalyticsService }           from './AnalyticsService';
+import { TICKS_PER_MONTH, TICKS_PER_SNAPSHOT } from '../constants/economic';
 
 interface TickSummary {
   tickNumber:     bigint;
@@ -54,11 +55,13 @@ export class TickEngine {
   private readonly finance:     FinanceService;
   private readonly regulation:  StateRegulationService;
   private readonly rd:          ResearchDevelopmentService;
+  private readonly analytics:   AnalyticsService;
   private readonly db:          PrismaClient;
 
   constructor(prismaClient: PrismaClient = defaultPrisma) {
     this.db         = prismaClient;
     this.rd         = new ResearchDevelopmentService(prismaClient);
+    this.analytics  = new AnalyticsService(prismaClient);
     this.production = new ProductionService(prismaClient, this.rd);
     this.energy     = new EnergyBillingService(prismaClient, this.rd);
     this.equipment  = new EquipmentService(prismaClient);
@@ -205,7 +208,7 @@ export class TickEngine {
     await this.advanceConstruction(playerId, tickNumber);
 
     // ── b. Production ────────────────────────────────────────────────────
-    const { utilisationByWorkshop, overworkedEnterpriseIds } =
+    const { results: productionResults, utilisationByWorkshop, overworkedEnterpriseIds } =
       await this.production.processProduction(playerId);
 
     // ── c. NPC retail sales ──────────────────────────────────────────────
@@ -225,6 +228,14 @@ export class TickEngine {
 
     // ── i. R&D — generate research points for RD_LABORATORY enterprises ──
     await this.rd.processResearchTick(playerId, tickNumber);
+
+    // ── j. Analytics: record production output + weekly snapshot ─────────
+    await this.analytics.recordProductionResults(playerId, productionResults, tickNumber);
+    if (tickNumber % TICKS_PER_SNAPSHOT === 0n) {
+      await this.analytics.populateDailySnapshot(playerId, tickNumber).catch(e =>
+        console.error(`[Tick ${tickNumber}] Snapshot failed for ${playerId}:`, e),
+      );
+    }
 
     // ── h. Monthly obligations ───────────────────────────────────────────
     if (tickNumber % TICKS_PER_MONTH === 0n) {

@@ -46,8 +46,10 @@ export type PlayerWithBalance = Pick<Player, 'id' | 'cashBalance'>;
 // ─── Production tick result ───────────────────────────────────────────────────
 
 export interface ProductionResult {
+  enterpriseId: string;
   workshopId: string;
   orderId: string;
+  recipeId: string;
   unitsProduced: number;
   outputQuality: number;
   inputsConsumed: Array<{ productId: string; quantity: number }>;

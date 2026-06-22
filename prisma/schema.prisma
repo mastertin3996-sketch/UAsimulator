@@ -215,6 +215,8 @@ model Player {
   complianceRecord  ComplianceRecord?
   taxInspections    TaxInspection[]
   technologies      PlayerTechnology[]
+  dailySnapshots    DailySnapshot[]
+  productionLogs    ProductionLog[]
 
   @@index([username])
 }
@@ -1017,4 +1019,62 @@ model PlayerTechnology {
 
   @@unique([playerId, technologyId])
   @@index([playerId, isUnlocked])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// BI ANALYTICS — pre-aggregated tables for dashboard queries
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Знімок фінансового стану гравця кожні TICKS_PER_SNAPSHOT тиків (≈1 тиждень).
+// Слугує основним джерелом для getFinancialTimeSeries (breakdown = WEEK).
+// Пише AnalyticsService.populateDailySnapshot().
+model DailySnapshot {
+  id                String  @id @default(uuid())
+  playerId          String
+  tickNumber        BigInt
+  gameWeek          BigInt  // tickNumber ÷ TICKS_PER_SNAPSHOT (floor)
+
+  // Balance sheet at snapshot moment
+  cashBalance       Decimal @db.Decimal(18, 2)
+  totalAssetsValue  Decimal @db.Decimal(18, 2)  // cash + equipment + owned land
+
+  // P&L since previous snapshot
+  revenueUah        Decimal @db.Decimal(18, 2)
+  opexUah           Decimal @db.Decimal(18, 2)  // energy + salary + logistics
+  taxPaidUah        Decimal @db.Decimal(18, 2)
+  netProfitUah      Decimal @db.Decimal(18, 2)
+
+  // Operational metrics
+  averageWorkerMood  Float
+  activeEnterprises  Int
+  employeeCount      Int
+
+  recordedAt DateTime @default(now())
+
+  player Player @relation(fields: [playerId], references: [id])
+
+  @@unique([playerId, tickNumber])
+  @@index([playerId, gameWeek])
+  @@index([tickNumber])
+}
+
+// Денормалізований журнал виробництва — один запис на Workshop×Tick.
+// Пише AnalyticsService.recordProductionResults() після кожного processProduction().
+// Слугує джерелом для LaborProductivity KPI та supply-chain аналітики.
+model ProductionLog {
+  id            String   @id @default(uuid())
+  playerId      String
+  enterpriseId  String
+  workshopId    String
+  recipeId      String
+  tickNumber    BigInt
+  unitsProduced Float
+  avgQuality    Float
+  recordedAt    DateTime @default(now())
+
+  player Player @relation(fields: [playerId], references: [id])
+
+  @@index([playerId, tickNumber])
+  @@index([enterpriseId, tickNumber])
+  @@index([tickNumber])
 }
