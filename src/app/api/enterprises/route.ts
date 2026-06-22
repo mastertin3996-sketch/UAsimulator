@@ -1,7 +1,8 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { EnterpriseType } from "@prisma/client";
+import { Decimal } from "@prisma/client/runtime/library";
 
 const CATEGORY_MAP: Record<EnterpriseType, "EXTRACTION" | "PRODUCTION" | "TRADE" | "LOGISTICS"> = {
   OFFICE: "PRODUCTION",
@@ -131,4 +132,133 @@ export async function GET() {
   });
 
   return NextResponse.json({ enterprises: result, currentTick });
+}
+
+// ─── Enterprise creation costs (UAH) ─────────────────────────────────────────
+const ENTERPRISE_COST: Record<string, number> = {
+  OFFICE: 50_000,
+  AGRO_FARM: 200_000,
+  TEXTILE_FACTORY: 300_000,
+  FOOD_PROCESSING: 250_000,
+  RETAIL_STORE: 100_000,
+  WAREHOUSE: 150_000,
+  LOGISTICS_HUB: 200_000,
+  RD_LABORATORY: 400_000,
+};
+
+const DEFAULT_FOOTPRINT: Record<string, number> = {
+  OFFICE: 100,
+  AGRO_FARM: 5_000,
+  TEXTILE_FACTORY: 2_000,
+  FOOD_PROCESSING: 1_500,
+  RETAIL_STORE: 200,
+  WAREHOUSE: 3_000,
+  LOGISTICS_HUB: 4_000,
+  RD_LABORATORY: 500,
+};
+
+export async function POST(req: NextRequest) {
+  const session = await auth();
+  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const playerId = session.user.id;
+  const body = await req.json().catch(() => ({})) as {
+    landPlotId?: string;
+    type?: string;
+    name?: string;
+    footprintM2?: number;
+    totalFloorAreaM2?: number;
+  };
+
+  const { landPlotId, type, name } = body;
+  if (!landPlotId || !type || !name?.trim()) {
+    return NextResponse.json({ error: "Потрібен landPlotId, type, name" }, { status: 400 });
+  }
+
+  const validTypes = Object.values(EnterpriseType) as string[];
+  if (!validTypes.includes(type)) {
+    return NextResponse.json({ error: "Невідомий тип підприємства" }, { status: 400 });
+  }
+
+  const plot = await prisma.landPlot.findUnique({
+    where: { id: landPlotId },
+    include: { city: true },
+  });
+  if (!plot) return NextResponse.json({ error: "Ділянка не знайдена" }, { status: 404 });
+  if (plot.playerId !== playerId) return NextResponse.json({ error: "Не ваша ділянка" }, { status: 403 });
+
+  const footprintM2   = body.footprintM2   ?? DEFAULT_FOOTPRINT[type] ?? 500;
+  const totalFloorAreaM2 = body.totalFloorAreaM2 ?? footprintM2 * 1.5;
+
+  const freeArea = plot.totalAreaM2 - plot.usedAreaM2;
+  if (footprintM2 > freeArea) {
+    return NextResponse.json({ error: `Недостатньо місця на ділянці. Вільно: ${freeArea} м²` }, { status: 400 });
+  }
+
+  const player = await prisma.player.findUniqueOrThrow({ where: { id: playerId } });
+  const balance = new Decimal(player.cashBalance.toString());
+  const cost    = new Decimal(ENTERPRISE_COST[type] ?? 100_000);
+
+  if (balance.lessThan(cost)) {
+    return NextResponse.json({ error: `Недостатньо коштів. Потрібно ${cost.toFixed(0)} ₴, є ${balance.toFixed(0)} ₴` }, { status: 400 });
+  }
+
+  const newBalance = balance.minus(cost);
+
+  // If type is OFFICE, check no office exists yet for this player+city
+  if (type === "OFFICE") {
+    const existingOffice = await prisma.office.findUnique({
+      where: { playerId_cityId: { playerId, cityId: plot.cityId } },
+    });
+    if (existingOffice) {
+      return NextResponse.json({ error: "Офіс у цьому місті вже є" }, { status: 409 });
+    }
+  }
+
+  const enterprise = await prisma.$transaction(async (tx) => {
+    const ent = await tx.enterprise.create({
+      data: {
+        playerId, landPlotId,
+        type: type as EnterpriseType,
+        name: name.trim(),
+        footprintM2, totalFloorAreaM2,
+        isOperational: true,
+        constructedAt: new Date(),
+      },
+    });
+
+    // If OFFICE — create the Office record too
+    if (type === "OFFICE") {
+      await tx.office.create({
+        data: {
+          playerId, cityId: plot.cityId, enterpriseId: ent.id,
+          sizeM2: footprintM2, isOperational: true, openedAt: new Date(),
+        },
+      });
+    }
+
+    // Update land used area
+    await tx.landPlot.update({
+      where: { id: landPlotId },
+      data: { usedAreaM2: { increment: footprintM2 } },
+    });
+
+    // Deduct cost
+    await tx.player.update({ where: { id: playerId }, data: { cashBalance: newBalance } });
+
+    await tx.financialTransaction.create({
+      data: {
+        playerId, type: "CONSTRUCTION_COST",
+        amountUah: cost.negated(),
+        balanceBefore: balance,
+        balanceAfter: newBalance,
+        description: `Будівництво: ${name.trim()} (${TYPE_NAME[type as EnterpriseType] ?? type})`,
+        referenceId: ent.id,
+      },
+    });
+
+    return ent;
+  });
+
+  return NextResponse.json({ ok: true, enterprise: { id: enterprise.id, name: enterprise.name, type: enterprise.type } }, { status: 201 });
 }

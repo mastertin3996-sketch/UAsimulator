@@ -1,25 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft, Building2, Zap, Users, Package, Factory,
   AlertCircle, AlertTriangle, Wrench, Hammer, CheckCircle2,
-  TrendingUp, TrendingDown, Cpu, Leaf,
+  TrendingUp, TrendingDown, Cpu, Leaf, Plus, Trash2,
+  BookOpen, SlidersHorizontal, Loader2, X, ChevronDown,
 } from "lucide-react";
 import { cn, formatUAH, formatNumber } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
 type Tab = "management" | "workshops" | "hr" | "warehouse" | "production" | "supply" | "showcase";
 
-interface Props {
-  enterpriseId: string;
-  initialTab?: Tab;
-  title?: string;
-}
+interface Props { enterpriseId: string; initialTab?: Tab; title?: string }
 
 interface Employee {
   id: string; firstName: string; lastName: string; profession: string;
@@ -32,15 +30,17 @@ interface Equipment {
   energyConsumptionKw: number; marketValueUah: number; isBroken: boolean;
 }
 
+interface ProductionOrder {
+  id: string; targetQuantity: number; completedQuantity: number;
+  outputQuality: number | null; ticksRemaining: number;
+  recipe: { id: string; name: string } | null;
+}
+
 interface Workshop {
   id: string; name: string; footprintM2: number; maxCapacity: number;
   currentVolume: number; isActive: boolean;
   equipment: Equipment[];
-  productionOrders: {
-    id: string; targetQuantity: number; completedQuantity: number;
-    outputQuality: number | null; ticksRemaining: number;
-    recipe: { id: string; name: string } | null;
-  }[];
+  productionOrders: ProductionOrder[];
 }
 
 interface InventoryItem {
@@ -55,7 +55,7 @@ interface FinancialLog {
 
 interface EnterpriseData {
   id: string; name: string; type: string;
-  footprintM2: number; totalFloorAreaM2: number;
+  footprintM2: number; totalFloorAreaM2: number; usedFloorAreaM2: number;
   isOperational: boolean; isSeized: boolean; isFrozenByInspection: boolean;
   isLegallyFrozen: boolean; isCollateral: boolean;
   legalFreezeReason: string | null;
@@ -72,16 +72,30 @@ interface EnterpriseData {
   inventory: InventoryItem[];
 }
 
+interface RecipeOption {
+  id: string; name: string;
+  outputs: { quantityPerUnit: number; product: { nameUa: string; unit: string } }[];
+  inputs:  { quantityPerUnit: number; product: { nameUa: string; unit: string } }[];
+}
+
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
 const PROF_UA: Record<string, string> = {
   ACCOUNTANT: "Бухгалтер", MANAGER: "Менеджер", OPERATOR: "Оператор",
   ENGINEER: "Інженер", AGRONOMIST: "Агроном", LOADER: "Вантажник",
   DRIVER: "Водій", SECURITY_GUARD: "Охоронник", SECURITY_OFFICER: "Нач. охорони",
-  CLEANER: "Прибиральник", SALES_REP: "Торговий представник",
+  CLEANER: "Прибиральник", SALES_REP: "Торг. представник",
   IT_SPECIALIST: "IT-спеціаліст", LAWYER: "Юрист", HR_SPECIALIST: "HR-спеціаліст",
   TECHNICIAN: "Технік", QUALITY_CONTROLLER: "Контролер якості",
   RESEARCHER: "Дослідник", DATA_SCIENTIST: "Data scientist",
+};
+
+const PROF_SALARY: Record<string, number> = {
+  ACCOUNTANT: 25000, MANAGER: 35000, OPERATOR: 18000, ENGINEER: 40000,
+  AGRONOMIST: 22000, LOADER: 15000, DRIVER: 20000, SECURITY_GUARD: 15000,
+  SECURITY_OFFICER: 30000, CLEANER: 12000, SALES_REP: 20000,
+  IT_SPECIALIST: 50000, LAWYER: 45000, HR_SPECIALIST: 28000,
+  TECHNICIAN: 22000, QUALITY_CONTROLLER: 25000, RESEARCHER: 35000, DATA_SCIENTIST: 60000,
 };
 
 const STATUS_COLOR: Record<string, string> = {
@@ -98,10 +112,7 @@ function MoodBar({ value }: { value: number }) {
   return (
     <div className="flex items-center gap-2">
       <div className="flex-1 h-1.5 bg-gray-800 rounded-full overflow-hidden">
-        <div
-          className={cn("h-full rounded-full transition-all", pct >= 70 ? "bg-emerald-500" : pct >= 40 ? "bg-amber-500" : "bg-red-500")}
-          style={{ width: `${pct}%` }}
-        />
+        <div className={cn("h-full rounded-full transition-all", pct >= 70 ? "bg-emerald-500" : pct >= 40 ? "bg-amber-500" : "bg-red-500")} style={{ width: `${pct}%` }} />
       </div>
       <span className="text-xs font-mono text-gray-400 w-8 text-right">{pct}%</span>
     </div>
@@ -113,52 +124,308 @@ function WearBar({ value }: { value: number }) {
   return (
     <div className="flex items-center gap-2">
       <div className="flex-1 h-1.5 bg-gray-800 rounded-full overflow-hidden">
-        <div
-          className={cn("h-full rounded-full transition-all", pct < 30 ? "bg-emerald-500" : pct < 80 ? "bg-amber-500" : "bg-red-500")}
-          style={{ width: `${pct}%` }}
-        />
+        <div className={cn("h-full rounded-full transition-all", pct < 30 ? "bg-emerald-500" : pct < 80 ? "bg-amber-500" : "bg-red-500")} style={{ width: `${pct}%` }} />
       </div>
       <span className="text-xs font-mono text-gray-400 w-8 text-right">{pct}%</span>
     </div>
   );
 }
 
+// ─── Hire Modal ────────────────────────────────────────────────────────────────
+
+function HireModal({
+  enterpriseId, onHired, onClose,
+}: { enterpriseId: string; onHired: () => void; onClose: () => void }) {
+  const professions = Object.entries(PROF_UA);
+  const [profession, setProfession] = useState(professions[0][0]);
+  const [salary, setSalary]         = useState(PROF_SALARY[professions[0][0]] ?? 20000);
+  const [saving, setSaving]         = useState(false);
+  const [err, setErr]               = useState("");
+
+  function handleProfChange(p: string) {
+    setProfession(p);
+    setSalary(PROF_SALARY[p] ?? 20000);
+  }
+
+  async function hire() {
+    setSaving(true); setErr("");
+    const res = await fetch(`/api/enterprises/${enterpriseId}/hire`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ profession, salaryUah: salary }),
+    });
+    const data = await res.json();
+    if (!res.ok) { setErr(data.error ?? "Помилка"); setSaving(false); return; }
+    onHired();
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+      <div className="rounded-2xl border border-gray-800 bg-gray-950 p-6 w-full max-w-md space-y-4 shadow-2xl">
+        <div className="flex items-center justify-between">
+          <h3 className="text-base font-semibold text-white">Найняти співробітника</h3>
+          <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors"><X size={16} /></button>
+        </div>
+
+        {err && <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{err}</p>}
+
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs text-gray-500">Посада</label>
+            <div className="relative mt-1">
+              <select
+                value={profession}
+                onChange={e => handleProfChange(e.target.value)}
+                className="w-full rounded-lg border border-gray-800 bg-gray-900 px-3 py-2 text-sm text-white appearance-none focus:outline-none focus:border-emerald-500 pr-8"
+              >
+                {professions.map(([key, label]) => (
+                  <option key={key} value={key}>{label}</option>
+                ))}
+              </select>
+              <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+            </div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs text-gray-500">Зарплата / місяць</label>
+              <span className="text-xs font-mono text-white">{formatUAH(salary)}</span>
+            </div>
+            <input
+              type="range"
+              min={8000} max={150000} step={1000}
+              value={salary}
+              onChange={e => setSalary(Number(e.target.value))}
+              className="w-full accent-emerald-500"
+            />
+            <div className="flex justify-between text-[10px] text-gray-600 mt-0.5">
+              <span>8 000 ₴</span>
+              <span>150 000 ₴</span>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-gray-800 bg-gray-900 px-3 py-2 text-xs space-y-1">
+            <div className="flex justify-between text-gray-400">
+              <span>ЄСВ 22% (роботодавець)</span>
+              <span className="font-mono text-orange-400">+{formatUAH(salary * 0.22)}</span>
+            </div>
+            <div className="flex justify-between font-medium">
+              <span className="text-white">Витрати / місяць</span>
+              <span className="font-mono text-orange-300">{formatUAH(salary * 1.22)}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex gap-2 pt-1">
+          <Button variant="outline" className="flex-1" onClick={onClose} disabled={saving}>Скасувати</Button>
+          <Button className="flex-1" onClick={hire} disabled={saving}>
+            {saving ? <Loader2 size={13} className="animate-spin mr-1" /> : null}
+            Найняти
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Workshop Add Modal ────────────────────────────────────────────────────────
+
+function AddWorkshopModal({
+  enterprise, onAdded, onClose,
+}: { enterprise: EnterpriseData; onAdded: () => void; onClose: () => void }) {
+  const [name, setName]         = useState("Цех 1");
+  const [footprint, setFootprint] = useState(200);
+  const [capacity, setCapacity] = useState(100);
+  const [saving, setSaving]     = useState(false);
+  const [err, setErr]           = useState("");
+
+  const freeArea = enterprise.totalFloorAreaM2 - enterprise.usedFloorAreaM2;
+
+  async function save() {
+    setSaving(true); setErr("");
+    const res = await fetch(`/api/enterprises/${enterprise.id}/workshop`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: name.trim(), footprintM2: footprint, maxCapacity: capacity }),
+    });
+    const data = await res.json();
+    if (!res.ok) { setErr(data.error ?? "Помилка"); setSaving(false); return; }
+    onAdded();
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+      <div className="rounded-2xl border border-gray-800 bg-gray-950 p-6 w-full max-w-md space-y-4 shadow-2xl">
+        <div className="flex items-center justify-between">
+          <h3 className="text-base font-semibold text-white">Додати цех</h3>
+          <button onClick={onClose} className="text-gray-500 hover:text-white"><X size={16} /></button>
+        </div>
+
+        {err && <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{err}</p>}
+
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs text-gray-500">Назва цеху</label>
+            <input
+              value={name}
+              onChange={e => setName(e.target.value)}
+              className="w-full rounded-lg border border-gray-800 bg-gray-900 px-3 py-2 text-sm text-white mt-1 focus:outline-none focus:border-emerald-500"
+            />
+          </div>
+
+          <div>
+            <div className="flex justify-between mb-1">
+              <label className="text-xs text-gray-500">Площа (м²)</label>
+              <span className="text-xs font-mono text-white">{footprint} м² <span className="text-gray-600">/ {freeArea.toFixed(0)} вільно</span></span>
+            </div>
+            <input type="range" min={50} max={Math.max(50, freeArea)} step={10}
+              value={footprint} onChange={e => setFootprint(Number(e.target.value))}
+              className="w-full accent-emerald-500" />
+          </div>
+
+          <div>
+            <div className="flex justify-between mb-1">
+              <label className="text-xs text-gray-500">Макс. потужність (од/тік)</label>
+              <span className="text-xs font-mono text-white">{capacity}</span>
+            </div>
+            <input type="range" min={10} max={1000} step={10}
+              value={capacity} onChange={e => setCapacity(Number(e.target.value))}
+              className="w-full accent-emerald-500" />
+          </div>
+        </div>
+
+        <div className="flex gap-2 pt-1">
+          <Button variant="outline" className="flex-1" onClick={onClose} disabled={saving}>Скасувати</Button>
+          <Button className="flex-1" onClick={save} disabled={saving || footprint > freeArea}>
+            {saving ? <Loader2 size={13} className="animate-spin mr-1" /> : null}
+            Додати
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Recipe Picker Modal ───────────────────────────────────────────────────────
+
+function RecipeModal({
+  workshop, enterpriseType, onAssigned, onClose,
+}: { workshop: Workshop; enterpriseType: string; onAssigned: () => void; onClose: () => void }) {
+  const [recipes, setRecipes] = useState<RecipeOption[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving]   = useState<string | null>(null);
+  const [err, setErr]         = useState("");
+
+  useEffect(() => {
+    fetch(`/api/recipes?type=${enterpriseType}`)
+      .then(r => r.json())
+      .then(d => setRecipes(d.recipes ?? []))
+      .finally(() => setLoading(false));
+  }, [enterpriseType]);
+
+  async function assign(recipeId: string) {
+    setSaving(recipeId); setErr("");
+    const res = await fetch(`/api/workshops/${workshop.id}/order`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ recipeId, targetQuantity: 999_999 }),
+    });
+    const data = await res.json();
+    if (!res.ok) { setErr(data.error ?? "Помилка"); setSaving(null); return; }
+    onAssigned();
+  }
+
+  const currentRecipeId = workshop.productionOrders[0]?.recipe?.id;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+      <div className="rounded-2xl border border-gray-800 bg-gray-950 w-full max-w-lg max-h-[80vh] flex flex-col shadow-2xl">
+        <div className="flex items-center justify-between p-5 border-b border-gray-800">
+          <h3 className="text-base font-semibold text-white">Обрати рецепт — {workshop.name}</h3>
+          <button onClick={onClose} className="text-gray-500 hover:text-white"><X size={16} /></button>
+        </div>
+
+        {err && <p className="text-sm text-red-400 mx-5 mt-3 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{err}</p>}
+
+        <div className="overflow-y-auto flex-1 p-4 space-y-2">
+          {loading ? (
+            <div className="py-12 flex justify-center"><Loader2 className="animate-spin text-gray-500" /></div>
+          ) : recipes.length === 0 ? (
+            <div className="py-12 text-center">
+              <BookOpen size={24} className="text-gray-700 mx-auto mb-3" />
+              <p className="text-gray-500 text-sm">Рецептів для цього типу підприємства немає</p>
+            </div>
+          ) : recipes.map(r => {
+            const isCurrent = r.id === currentRecipeId;
+            const mainOut   = r.outputs[0];
+            return (
+              <button
+                key={r.id}
+                onClick={() => !isCurrent && assign(r.id)}
+                disabled={!!saving || isCurrent}
+                className={cn(
+                  "w-full rounded-xl border p-4 text-left transition-all",
+                  isCurrent
+                    ? "border-emerald-500/40 bg-emerald-500/8 cursor-default"
+                    : "border-gray-800 bg-gray-900 hover:border-gray-700 hover:bg-gray-800",
+                )}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm font-semibold text-white">{r.name}</p>
+                  {isCurrent ? (
+                    <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">Поточний</span>
+                  ) : saving === r.id ? (
+                    <Loader2 size={13} className="animate-spin text-emerald-400" />
+                  ) : null}
+                </div>
+                {mainOut && (
+                  <p className="text-xs text-emerald-400 mb-1.5">
+                    → {mainOut.quantityPerUnit} {mainOut.product.unit} {mainOut.product.nameUa}
+                  </p>
+                )}
+                {r.inputs.length > 0 && (
+                  <p className="text-xs text-gray-500">
+                    Вхід: {r.inputs.map(i => `${i.quantityPerUnit} ${i.product.nameUa}`).join(" + ")}
+                  </p>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="p-4 border-t border-gray-800">
+          <Button variant="outline" className="w-full" onClick={onClose}>Закрити</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Tabs ──────────────────────────────────────────────────────────────────────
 
-function ManagementTab({ enterprise, stats }: { enterprise: EnterpriseData; stats: { salaryPerTick: number; rentPerTick: number; avgEfficiency: number; avgMood: number } }) {
+function ManagementTab({ enterprise, stats }: {
+  enterprise: EnterpriseData;
+  stats: { salaryPerTick: number; rentPerTick: number; avgEfficiency: number; avgMood: number };
+}) {
   const isActive = enterprise.isOperational && !enterprise.isSeized;
   return (
     <div className="space-y-6">
-      {/* Status alerts */}
       {(enterprise.isSeized || enterprise.isFrozenByInspection || enterprise.isLegallyFrozen) && (
         <div className="space-y-2">
-          {enterprise.isSeized && (
-            <div className="flex items-center gap-2 px-4 py-3 rounded-lg border border-red-500/30 bg-red-500/10 text-red-400 text-sm">
-              <AlertCircle size={15} /> Підприємство вилучено (банкрутство)
-            </div>
-          )}
-          {enterprise.isFrozenByInspection && (
-            <div className="flex items-center gap-2 px-4 py-3 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-400 text-sm">
-              <AlertTriangle size={15} /> Заморожено податковою інспекцією
-            </div>
-          )}
-          {enterprise.isLegallyFrozen && (
-            <div className="flex items-center gap-2 px-4 py-3 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-400 text-sm">
-              <AlertTriangle size={15} /> Судовий арешт {enterprise.legalFreezeReason ? `— ${enterprise.legalFreezeReason}` : ""}
-            </div>
-          )}
+          {enterprise.isSeized && <div className="flex items-center gap-2 px-4 py-3 rounded-lg border border-red-500/30 bg-red-500/10 text-red-400 text-sm"><AlertCircle size={15} /> Підприємство вилучено</div>}
+          {enterprise.isFrozenByInspection && <div className="flex items-center gap-2 px-4 py-3 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-400 text-sm"><AlertTriangle size={15} /> Заморожено інспекцією</div>}
+          {enterprise.isLegallyFrozen && <div className="flex items-center gap-2 px-4 py-3 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-400 text-sm"><AlertTriangle size={15} /> Судовий арешт {enterprise.legalFreezeReason ? `— ${enterprise.legalFreezeReason}` : ""}</div>}
         </div>
       )}
 
-      {/* Info grid */}
       <div className="grid grid-cols-2 gap-3">
         {[
-          { label: "Місто", value: enterprise.landPlot.city.nameUa },
-          { label: "Регіон", value: enterprise.landPlot.city.region },
+          { label: "Місто",       value: enterprise.landPlot.city.nameUa },
+          { label: "Регіон",      value: enterprise.landPlot.city.region },
           { label: "Площа забудови", value: `${enterprise.footprintM2.toLocaleString("uk")} м²` },
-          { label: "Площа будівлі", value: `${enterprise.totalFloorAreaM2.toLocaleString("uk")} м²` },
+          { label: "Площа будівлі",  value: `${enterprise.totalFloorAreaM2.toLocaleString("uk")} м²` },
           { label: "Земельна ділянка", value: enterprise.landPlot.status === "OWNED" ? "Власна" : "Оренда" },
-          { label: "Побудовано", value: enterprise.constructedAt ? new Date(enterprise.constructedAt).toLocaleDateString("uk") : "—" },
+          { label: "Побудовано",  value: enterprise.constructedAt ? new Date(enterprise.constructedAt).toLocaleDateString("uk") : "—" },
           { label: "Тариф ел/е", value: `${Number(enterprise.landPlot.energyTariffUah).toFixed(2)} ₴/кВт·год` },
           { label: "Оренда/місяць", value: formatUAH(enterprise.landPlot.monthlyLeaseCostUah) },
         ].map(({ label, value }) => (
@@ -169,13 +436,12 @@ function ManagementTab({ enterprise, stats }: { enterprise: EnterpriseData; stat
         ))}
       </div>
 
-      {/* Costs per tick */}
       <div className="rounded-xl border border-gray-800 bg-gray-900 p-4 space-y-3">
         <h3 className="text-sm font-semibold text-white">Витрати / тік</h3>
         <div className="space-y-2">
           {[
             { label: "ФОП (зарплата + ЄСВ 22%)", value: stats.salaryPerTick },
-            { label: "Оренда землі", value: stats.rentPerTick },
+            { label: "Оренда землі",              value: stats.rentPerTick },
           ].map(({ label, value }) => (
             <div key={label} className="flex items-center justify-between text-sm">
               <span className="text-gray-400">{label}</span>
@@ -189,7 +455,6 @@ function ManagementTab({ enterprise, stats }: { enterprise: EnterpriseData; stat
         </div>
       </div>
 
-      {/* Staff summary */}
       <div className="grid grid-cols-2 gap-3">
         <div className="rounded-xl border border-gray-800 bg-gray-900 px-4 py-3">
           <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Персонал</p>
@@ -201,11 +466,10 @@ function ManagementTab({ enterprise, stats }: { enterprise: EnterpriseData; stat
           <p className={cn("text-2xl font-bold", stats.avgMood >= 0.7 ? "text-emerald-400" : stats.avgMood >= 0.4 ? "text-amber-400" : "text-red-400")}>
             {Math.round(stats.avgMood * 100)}%
           </p>
-          <p className="text-xs text-gray-500 mt-0.5">{enterprise.employees.filter((e) => e.isOnStrike).length} на страйку</p>
+          <p className="text-xs text-gray-500 mt-0.5">{enterprise.employees.filter(e => e.isOnStrike).length} на страйку</p>
         </div>
       </div>
 
-      {/* Energy */}
       <div className="rounded-xl border border-gray-800 bg-gray-900 p-4 space-y-2">
         <div className="flex items-center gap-2">
           {enterprise.energySourceType === "SOLAR_AUTONOMOUS" ? <Leaf size={14} className="text-emerald-400" /> : <Zap size={14} className="text-yellow-400" />}
@@ -225,119 +489,200 @@ function ManagementTab({ enterprise, stats }: { enterprise: EnterpriseData; stat
   );
 }
 
-function WorkshopsTab({ workshops }: { workshops: Workshop[] }) {
-  if (workshops.length === 0) {
-    return (
-      <div className="py-16 text-center">
-        <Factory size={28} className="text-gray-700 mx-auto mb-3" />
-        <p className="text-gray-500 text-sm">Цехів немає</p>
-      </div>
-    );
+function WorkshopsTab({
+  enterprise, onRefresh,
+}: { enterprise: EnterpriseData; onRefresh: () => void }) {
+  const [recipeModal, setRecipeModal] = useState<Workshop | null>(null);
+  const [addModal,    setAddModal]    = useState(false);
+  const [savingVolume, setSavingVolume] = useState<string | null>(null);
+  const [volumeMap, setVolumeMap]     = useState<Record<string, number>>(() => {
+    const m: Record<string, number> = {};
+    for (const w of enterprise.workshops) m[w.id] = w.currentVolume;
+    return m;
+  });
+  const [cancelSaving, setCancelSaving] = useState<string | null>(null);
+
+  async function saveVolume(workshopId: string) {
+    setSavingVolume(workshopId);
+    await fetch(`/api/workshops/${workshopId}/volume`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ currentVolume: volumeMap[workshopId] ?? 0 }),
+    });
+    setSavingVolume(null);
   }
+
+  async function cancelOrder(workshopId: string, orderId: string) {
+    setCancelSaving(orderId);
+    await fetch(`/api/workshops/${workshopId}/order/${orderId}`, { method: "DELETE" });
+    setCancelSaving(null);
+    onRefresh();
+  }
+
+  const freeArea = enterprise.totalFloorAreaM2 - enterprise.usedFloorAreaM2;
 
   return (
     <div className="space-y-4">
-      {workshops.map((w) => {
-        const allEquip = w.equipment;
-        const brokenCount = allEquip.filter((e) => e.status === "BROKEN").length;
-        const wornCount = allEquip.filter((e) => e.status === "WORN").length;
-        const capacityPct = w.maxCapacity > 0 ? Math.round((w.currentVolume / w.maxCapacity) * 100) : 0;
+      {/* Add workshop button */}
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-gray-500">{enterprise.workshops.length} {enterprise.workshops.length === 1 ? "цех" : "цехи"} · {freeArea.toFixed(0)} м² вільно</p>
+        <Button size="sm" variant="outline" onClick={() => setAddModal(true)}>
+          <Plus size={13} /> Додати цех
+        </Button>
+      </div>
 
-        return (
-          <div key={w.id} className="rounded-xl border border-gray-800 bg-gray-900 overflow-hidden">
-            {/* Workshop header */}
-            <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-semibold text-white">{w.name}</h3>
-                <p className="text-xs text-gray-500 mt-0.5">{w.footprintM2} м² · макс {w.maxCapacity} од/тік</p>
-              </div>
-              <div className="flex items-center gap-2">
-                {brokenCount > 0 && (
-                  <span className="inline-flex items-center gap-1 text-[10px] text-red-400 bg-red-500/10 border border-red-500/15 rounded px-1.5 py-0.5">
-                    <Hammer size={9} /> {brokenCount} зламано
+      {enterprise.workshops.length === 0 ? (
+        <div className="py-16 text-center">
+          <Factory size={28} className="text-gray-700 mx-auto mb-3" />
+          <p className="text-gray-500 text-sm mb-3">Цехів немає</p>
+          <Button size="sm" onClick={() => setAddModal(true)}><Plus size={13} /> Додати перший цех</Button>
+        </div>
+      ) : (
+        enterprise.workshops.map(w => {
+          const brokenCount = w.equipment.filter(e => e.status === "BROKEN").length;
+          const wornCount   = w.equipment.filter(e => e.status === "WORN").length;
+          const vol         = volumeMap[w.id] ?? w.currentVolume;
+          const capacityPct = w.maxCapacity > 0 ? Math.round((vol / w.maxCapacity) * 100) : 0;
+          const activeOrder = w.productionOrders[0] ?? null;
+
+          return (
+            <div key={w.id} className="rounded-xl border border-gray-800 bg-gray-900 overflow-hidden">
+              <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold text-white">{w.name}</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">{w.footprintM2} м² · макс {w.maxCapacity} од/тік</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {brokenCount > 0 && <span className="inline-flex items-center gap-1 text-[10px] text-red-400 bg-red-500/10 border border-red-500/15 rounded px-1.5 py-0.5"><Hammer size={9} /> {brokenCount}</span>}
+                  {wornCount > 0   && <span className="inline-flex items-center gap-1 text-[10px] text-amber-400 bg-amber-500/10 border border-amber-500/15 rounded px-1.5 py-0.5"><Wrench size={9} /> {wornCount}</span>}
+                  <span className={cn("text-[10px] font-medium rounded-full px-2 py-0.5", w.isActive ? "text-emerald-400 bg-emerald-500/10" : "text-gray-500 bg-gray-800")}>
+                    {w.isActive ? "Активний" : "Зупинено"}
                   </span>
-                )}
-                {wornCount > 0 && (
-                  <span className="inline-flex items-center gap-1 text-[10px] text-amber-400 bg-amber-500/10 border border-amber-500/15 rounded px-1.5 py-0.5">
-                    <Wrench size={9} /> {wornCount} зношено
-                  </span>
-                )}
-                <span className={cn(
-                  "text-[10px] font-medium rounded-full px-2 py-0.5",
-                  w.isActive ? "text-emerald-400 bg-emerald-500/10" : "text-gray-500 bg-gray-800",
-                )}>
-                  {w.isActive ? "Активний" : "Зупинено"}
-                </span>
+                </div>
               </div>
-            </div>
 
-            {/* Capacity bar */}
-            <div className="px-4 pt-3">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-[10px] text-gray-500 uppercase tracking-wider">Завантаженість</span>
-                <span className="text-[10px] font-mono text-gray-400">{w.currentVolume} / {w.maxCapacity}</span>
-              </div>
-              <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
-                <div
-                  className={cn("h-full rounded-full", capacityPct >= 80 ? "bg-emerald-500" : capacityPct >= 40 ? "bg-amber-500" : "bg-gray-600")}
-                  style={{ width: `${capacityPct}%` }}
-                />
-              </div>
-            </div>
-
-            {/* Active orders */}
-            {w.productionOrders.length > 0 && (
-              <div className="px-4 pt-3 space-y-1">
-                <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Активне виробництво</p>
-                {w.productionOrders.map((o) => (
-                  <div key={o.id} className="flex items-center justify-between text-xs bg-gray-800/50 rounded-lg px-3 py-2">
-                    <span className="text-gray-300">{o.recipe?.name ?? "—"}</span>
-                    <div className="flex items-center gap-3 text-gray-500">
-                      <span>{o.completedQuantity}/{o.targetQuantity} од</span>
-                      {o.outputQuality !== null && <span>якість {o.outputQuality.toFixed(1)}</span>}
-                      <span>{o.ticksRemaining} тіків</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Equipment list */}
-            {allEquip.length > 0 && (
-              <div className="px-4 pt-3 pb-4 space-y-2">
-                <p className="text-[10px] text-gray-500 uppercase tracking-wider">Обладнання</p>
-                {allEquip.map((eq) => (
-                  <div key={eq.id} className="flex items-center gap-3 text-xs border border-gray-800 rounded-lg px-3 py-2">
-                    <Cpu size={12} className="text-gray-500 shrink-0" />
-                    <span className="flex-1 text-gray-300">{eq.name}</span>
-                    <span className={cn("font-medium", STATUS_COLOR[eq.status] ?? "text-gray-400")}>
-                      {STATUS_UA[eq.status] ?? eq.status}
+              <div className="px-4 py-3 space-y-3">
+                {/* Volume control */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                      <SlidersHorizontal size={9} /> Обсяг виробництва
                     </span>
-                    <div className="w-24">
-                      <WearBar value={eq.wearAndTear} />
-                    </div>
-                    <span className="text-gray-600 w-16 text-right">{formatUAH(eq.marketValueUah)}</span>
+                    <span className="text-[10px] font-mono text-gray-400">{vol} / {w.maxCapacity} · {capacityPct}%</span>
                   </div>
-                ))}
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="range"
+                      min={0} max={w.maxCapacity} step={1}
+                      value={vol}
+                      onChange={e => setVolumeMap(m => ({ ...m, [w.id]: Number(e.target.value) }))}
+                      className="flex-1 accent-emerald-500"
+                    />
+                    <button
+                      onClick={() => saveVolume(w.id)}
+                      disabled={savingVolume === w.id || vol === w.currentVolume}
+                      className={cn(
+                        "text-[10px] px-2 py-1 rounded font-medium transition-all",
+                        vol !== w.currentVolume
+                          ? "bg-emerald-600 text-white hover:bg-emerald-500"
+                          : "bg-gray-800 text-gray-600 cursor-default",
+                      )}
+                    >
+                      {savingVolume === w.id ? <Loader2 size={10} className="animate-spin" /> : "Зберегти"}
+                    </button>
+                  </div>
+                  <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden mt-1">
+                    <div className={cn("h-full rounded-full", capacityPct >= 80 ? "bg-emerald-500" : capacityPct >= 40 ? "bg-amber-500" : "bg-gray-600")} style={{ width: `${capacityPct}%` }} />
+                  </div>
+                </div>
+
+                {/* Recipe / Production Order */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-0.5">Рецепт / продукт</p>
+                    {activeOrder?.recipe ? (
+                      <p className="text-sm text-white font-medium">{activeOrder.recipe.name}</p>
+                    ) : (
+                      <p className="text-sm text-amber-400">Рецепт не призначено</p>
+                    )}
+                    {activeOrder && (
+                      <p className="text-xs text-gray-500 mt-0.5">{activeOrder.completedQuantity.toFixed(0)} / {activeOrder.targetQuantity >= 999_000 ? "∞" : activeOrder.targetQuantity} вироблено</p>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    {activeOrder && (
+                      <button
+                        onClick={() => cancelOrder(w.id, activeOrder.id)}
+                        disabled={cancelSaving === activeOrder.id}
+                        className="text-xs text-red-400 hover:text-red-300 bg-red-500/10 border border-red-500/15 rounded px-2 py-1 transition-colors"
+                      >
+                        {cancelSaving === activeOrder.id ? <Loader2 size={11} className="animate-spin" /> : "Зупинити"}
+                      </button>
+                    )}
+                    <Button size="sm" variant="outline" onClick={() => setRecipeModal(w)}>
+                      <BookOpen size={12} /> {activeOrder ? "Змінити" : "Призначити"}
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Equipment */}
+                {w.equipment.length > 0 && (
+                  <div className="space-y-1.5 pt-1 border-t border-gray-800">
+                    <p className="text-[10px] text-gray-500 uppercase tracking-wider">Обладнання</p>
+                    {w.equipment.map(eq => (
+                      <div key={eq.id} className="flex items-center gap-3 text-xs border border-gray-800 rounded-lg px-3 py-2">
+                        <Cpu size={12} className="text-gray-500 shrink-0" />
+                        <span className="flex-1 text-gray-300">{eq.name}</span>
+                        <span className={cn("font-medium", STATUS_COLOR[eq.status] ?? "text-gray-400")}>{STATUS_UA[eq.status] ?? eq.status}</span>
+                        <div className="w-24"><WearBar value={eq.wearAndTear} /></div>
+                        <span className="text-gray-600 w-16 text-right">{formatUAH(eq.marketValueUah)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        );
-      })}
+            </div>
+          );
+        })
+      )}
+
+      {recipeModal && (
+        <RecipeModal
+          workshop={recipeModal}
+          enterpriseType={enterprise.type}
+          onAssigned={() => { setRecipeModal(null); onRefresh(); }}
+          onClose={() => setRecipeModal(null)}
+        />
+      )}
+      {addModal && (
+        <AddWorkshopModal
+          enterprise={enterprise}
+          onAdded={() => { setAddModal(false); onRefresh(); }}
+          onClose={() => setAddModal(false)}
+        />
+      )}
     </div>
   );
 }
 
-function HRTab({ employees }: { employees: Employee[] }) {
-  const onStrike = employees.filter((e) => e.isOnStrike);
+function HRTab({
+  enterprise, onRefresh,
+}: { enterprise: EnterpriseData; onRefresh: () => void }) {
+  const [hireModal, setHireModal]   = useState(false);
+  const [firing, setFiring]         = useState<string | null>(null);
+  const employees = enterprise.employees;
+  const onStrike  = employees.filter(e => e.isOnStrike);
 
-  if (employees.length === 0) {
-    return (
-      <div className="py-16 text-center">
-        <Users size={28} className="text-gray-700 mx-auto mb-3" />
-        <p className="text-gray-500 text-sm">Персоналу немає</p>
-      </div>
-    );
+  async function fireEmployee(employeeId: string) {
+    if (!confirm("Звільнити цього співробітника?")) return;
+    setFiring(employeeId);
+    await fetch(`/api/enterprises/${enterprise.id}/hire`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ employeeId }),
+    });
+    setFiring(null);
+    onRefresh();
   }
 
   return (
@@ -348,34 +693,54 @@ function HRTab({ employees }: { employees: Employee[] }) {
         </div>
       )}
 
-      <div className="rounded-xl border border-gray-800 bg-gray-900 overflow-hidden">
-        {/* Header */}
-        <div className="grid grid-cols-[1fr_140px_100px_100px_80px] px-4 py-2 border-b border-gray-800">
-          {["Співробітник", "Посада", "Зарплата", "Настрій", "Ефект."].map((h) => (
-            <span key={h} className="text-[10px] uppercase tracking-wider text-gray-500">{h}</span>
-          ))}
-        </div>
-        {employees.map((emp) => (
-          <div
-            key={emp.id}
-            className={cn(
-              "grid grid-cols-[1fr_140px_100px_100px_80px] items-center px-4 py-3 border-b border-gray-800 last:border-0",
-              emp.isOnStrike ? "bg-red-500/5" : "hover:bg-gray-800/40 transition-colors",
-            )}
-          >
-            <div>
-              <p className="text-sm text-white font-medium">{emp.firstName} {emp.lastName}</p>
-              {emp.isOnStrike && <p className="text-[10px] text-red-400">На страйку</p>}
-            </div>
-            <span className="text-xs text-gray-400">{PROF_UA[emp.profession] ?? emp.profession}</span>
-            <span className="text-xs font-mono text-gray-300">{formatUAH(emp.salaryUah)}</span>
-            <MoodBar value={emp.mood} />
-            <span className="text-xs font-mono text-gray-400">{Math.round(emp.efficiency * 100)}%</span>
-          </div>
-        ))}
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-gray-400">{employees.length} {employees.length === 1 ? "співробітник" : "співробітники"}</p>
+        <Button size="sm" onClick={() => setHireModal(true)}>
+          <Plus size={13} /> Найняти
+        </Button>
       </div>
 
-      {/* Payroll summary */}
+      {employees.length === 0 ? (
+        <div className="py-16 text-center">
+          <Users size={28} className="text-gray-700 mx-auto mb-3" />
+          <p className="text-gray-500 text-sm mb-3">Персоналу немає</p>
+          <Button size="sm" onClick={() => setHireModal(true)}><Plus size={13} /> Найняти першого</Button>
+        </div>
+      ) : (
+        <div className="rounded-xl border border-gray-800 bg-gray-900 overflow-hidden">
+          <div className="grid grid-cols-[1fr_120px_90px_90px_70px_36px] px-4 py-2 border-b border-gray-800">
+            {["Співробітник", "Посада", "Зарплата", "Настрій", "Ефект.", ""].map(h => (
+              <span key={h} className="text-[10px] uppercase tracking-wider text-gray-500">{h}</span>
+            ))}
+          </div>
+          {employees.map(emp => (
+            <div
+              key={emp.id}
+              className={cn(
+                "grid grid-cols-[1fr_120px_90px_90px_70px_36px] items-center px-4 py-3 border-b border-gray-800 last:border-0",
+                emp.isOnStrike ? "bg-red-500/5" : "hover:bg-gray-800/40 transition-colors",
+              )}
+            >
+              <div>
+                <p className="text-sm text-white font-medium">{emp.firstName} {emp.lastName}</p>
+                {emp.isOnStrike && <p className="text-[10px] text-red-400">На страйку</p>}
+              </div>
+              <span className="text-xs text-gray-400">{PROF_UA[emp.profession] ?? emp.profession}</span>
+              <span className="text-xs font-mono text-gray-300">{formatUAH(emp.salaryUah)}</span>
+              <MoodBar value={emp.mood} />
+              <span className="text-xs font-mono text-gray-400">{Math.round(emp.efficiency * 100)}%</span>
+              <button
+                onClick={() => fireEmployee(emp.id)}
+                disabled={firing === emp.id}
+                className="text-gray-600 hover:text-red-400 transition-colors"
+              >
+                {firing === emp.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="rounded-xl border border-gray-800 bg-gray-900 px-4 py-3">
         <div className="flex items-center justify-between text-sm">
           <span className="text-gray-400">Сумарний ФОП (брутто + ЄСВ 22%)</span>
@@ -384,24 +749,26 @@ function HRTab({ employees }: { employees: Employee[] }) {
           </span>
         </div>
       </div>
+
+      {hireModal && (
+        <HireModal
+          enterpriseId={enterprise.id}
+          onHired={() => { setHireModal(false); onRefresh(); }}
+          onClose={() => setHireModal(false)}
+        />
+      )}
     </div>
   );
 }
 
 function WarehouseTab({ inventory }: { inventory: InventoryItem[] }) {
   if (inventory.length === 0) {
-    return (
-      <div className="py-16 text-center">
-        <Package size={28} className="text-gray-700 mx-auto mb-3" />
-        <p className="text-gray-500 text-sm">Склад порожній</p>
-      </div>
-    );
+    return <div className="py-16 text-center"><Package size={28} className="text-gray-700 mx-auto mb-3" /><p className="text-gray-500 text-sm">Склад порожній</p></div>;
   }
-
   return (
     <div className="rounded-xl border border-gray-800 bg-gray-900 overflow-hidden">
       <div className="grid grid-cols-[1fr_80px_80px_80px] px-4 py-2 border-b border-gray-800">
-        {["Товар", "SKU", "Кількість", "Якість"].map((h) => (
+        {["Товар", "SKU", "Кількість", "Якість"].map(h => (
           <span key={h} className="text-[10px] uppercase tracking-wider text-gray-500">{h}</span>
         ))}
       </div>
@@ -410,9 +777,7 @@ function WarehouseTab({ inventory }: { inventory: InventoryItem[] }) {
           <span className="text-sm text-white">{item.product.nameUa}</span>
           <span className="text-xs text-gray-500 font-mono">{item.product.sku}</span>
           <span className="text-sm font-mono text-gray-300">{formatNumber(item.quantity)} {item.product.unit}</span>
-          <span className={cn("text-sm font-mono", item.quality >= 8 ? "text-emerald-400" : item.quality >= 5 ? "text-amber-400" : "text-red-400")}>
-            {item.quality.toFixed(1)}
-          </span>
+          <span className={cn("text-sm font-mono", item.quality >= 8 ? "text-emerald-400" : item.quality >= 5 ? "text-amber-400" : "text-red-400")}>{item.quality.toFixed(1)}</span>
         </div>
       ))}
     </div>
@@ -421,17 +786,11 @@ function WarehouseTab({ inventory }: { inventory: InventoryItem[] }) {
 
 function LogsTab({ logs }: { logs: FinancialLog[] }) {
   if (logs.length === 0) {
-    return (
-      <div className="py-16 text-center">
-        <TrendingUp size={28} className="text-gray-700 mx-auto mb-3" />
-        <p className="text-gray-500 text-sm">Фінансових записів ще немає</p>
-      </div>
-    );
+    return <div className="py-16 text-center"><TrendingUp size={28} className="text-gray-700 mx-auto mb-3" /><p className="text-gray-500 text-sm">Фінансових записів ще немає</p></div>;
   }
-
   return (
     <div className="space-y-2">
-      {logs.map((l) => {
+      {logs.map(l => {
         const isIncome = l.amountUah > 0;
         return (
           <div key={l.id} className="flex items-center gap-3 px-4 py-3 rounded-xl border border-gray-800 bg-gray-900">
@@ -458,11 +817,10 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "hr",         label: "Персонал" },
   { key: "warehouse",  label: "Склад" },
   { key: "production", label: "Фінанси" },
-  { key: "supply",     label: "Постачання" },
 ];
 
 export default function EnterpriseDetailClient({ enterpriseId, initialTab }: Props) {
-  const [tab, setTab] = useState<Tab>(initialTab ?? "management");
+  const [tab,  setTab]  = useState<Tab>(initialTab ?? "management");
   const [data, setData] = useState<{
     enterprise: EnterpriseData;
     stats: { salaryPerTick: number; rentPerTick: number; avgEfficiency: number; avgMood: number };
@@ -471,13 +829,16 @@ export default function EnterpriseDetailClient({ enterpriseId, initialTab }: Pro
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setLoading(true);
     fetch(`/api/enterprises/${enterpriseId}`)
-      .then((r) => r.json())
+      .then(r => r.json())
       .then(setData)
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [enterpriseId]);
+
+  useEffect(() => { load(); }, [load]);
 
   if (loading) {
     return (
@@ -498,9 +859,7 @@ export default function EnterpriseDetailClient({ enterpriseId, initialTab }: Pro
       <div className="py-16 text-center space-y-4">
         <Building2 size={28} className="text-gray-700 mx-auto" />
         <p className="text-gray-400">Підприємство не знайдено</p>
-        <Link href="/enterprises" className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm transition-colors">
-          Назад
-        </Link>
+        <Link href="/enterprises" className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm transition-colors">Назад</Link>
       </div>
     );
   }
@@ -510,7 +869,6 @@ export default function EnterpriseDetailClient({ enterpriseId, initialTab }: Pro
 
   return (
     <div className="space-y-5">
-      {/* Header */}
       <div className="flex items-start gap-3">
         <button onClick={() => router.back()} className="mt-1 p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-gray-800 transition-colors">
           <ArrowLeft size={16} />
@@ -523,21 +881,18 @@ export default function EnterpriseDetailClient({ enterpriseId, initialTab }: Pro
                 <CheckCircle2 size={11} /> Активне
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 bg-gray-800 rounded-full px-2 py-0.5">
-                Неактивне
-              </span>
+              <span className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 bg-gray-800 rounded-full px-2 py-0.5">Неактивне</span>
             )}
           </div>
           <p className="text-gray-500 text-sm mt-0.5">{enterprise.landPlot.city.nameUa} · {enterprise.type}</p>
         </div>
       </div>
 
-      {/* Quick stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: "Цехів", value: enterprise.workshops.length.toString() },
-          { label: "Персонал", value: enterprise.employees.length.toString() },
-          { label: "Витрати/тік", value: formatUAH(stats.salaryPerTick + stats.rentPerTick), color: "text-orange-400" },
+          { label: "Цехів",        value: enterprise.workshops.length.toString() },
+          { label: "Персонал",     value: enterprise.employees.length.toString() },
+          { label: "Витрати/тік",  value: formatUAH(stats.salaryPerTick + stats.rentPerTick), color: "text-orange-400" },
           { label: "Ефективність", value: `${Math.round(stats.avgEfficiency * 100)}%`, color: stats.avgEfficiency >= 0.7 ? "text-emerald-400" : "text-amber-400" },
         ].map(({ label, value, color }) => (
           <div key={label} className="rounded-xl border border-gray-800 bg-gray-900 px-4 py-3">
@@ -547,7 +902,6 @@ export default function EnterpriseDetailClient({ enterpriseId, initialTab }: Pro
         ))}
       </div>
 
-      {/* Tabs */}
       <div className="flex gap-1 border-b border-gray-800 overflow-x-auto">
         {TABS.map(({ key, label }) => (
           <button
@@ -555,9 +909,7 @@ export default function EnterpriseDetailClient({ enterpriseId, initialTab }: Pro
             onClick={() => setTab(key)}
             className={cn(
               "shrink-0 px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px",
-              tab === key
-                ? "text-emerald-400 border-emerald-400"
-                : "text-gray-500 border-transparent hover:text-white",
+              tab === key ? "text-emerald-400 border-emerald-400" : "text-gray-500 border-transparent hover:text-white",
             )}
           >
             {label}
@@ -565,17 +917,11 @@ export default function EnterpriseDetailClient({ enterpriseId, initialTab }: Pro
         ))}
       </div>
 
-      {/* Tab content */}
       {tab === "management" && <ManagementTab enterprise={enterprise} stats={stats} />}
-      {tab === "workshops"  && <WorkshopsTab  workshops={enterprise.workshops} />}
-      {tab === "hr"         && <HRTab          employees={enterprise.employees} />}
-      {tab === "warehouse"  && <WarehouseTab   inventory={enterprise.inventory} />}
-      {tab === "production" && <LogsTab         logs={logs} />}
-      {tab === "supply" && (
-        <div className="py-16 text-center">
-          <p className="text-gray-500 text-sm">Маршрути постачання — розробляється</p>
-        </div>
-      )}
+      {tab === "workshops"  && <WorkshopsTab enterprise={enterprise} onRefresh={load} />}
+      {tab === "hr"         && <HRTab enterprise={enterprise} onRefresh={load} />}
+      {tab === "warehouse"  && <WarehouseTab inventory={enterprise.inventory} />}
+      {tab === "production" && <LogsTab logs={logs} />}
     </div>
   );
 }
