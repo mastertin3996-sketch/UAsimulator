@@ -33,6 +33,7 @@ import { ResearchDevelopmentService } from './ResearchDevelopmentService';
 import { AnalyticsService }           from './AnalyticsService';
 import { ERPAutomationService }       from './ERPAutomationService';
 import { FiscalBudgetService }        from './FiscalBudgetService';
+import { ForeignTradeService }        from './ForeignTradeService';
 import { TICKS_PER_MONTH, TICKS_PER_SNAPSHOT } from '../constants/economic';
 
 interface TickSummary {
@@ -60,6 +61,7 @@ export class TickEngine {
   private readonly analytics:   AnalyticsService;
   private readonly erp:         ERPAutomationService;
   private readonly fiscal:      FiscalBudgetService;
+  private readonly foreign:     ForeignTradeService;
   private readonly db:          PrismaClient;
 
   constructor(prismaClient: PrismaClient = defaultPrisma) {
@@ -78,6 +80,7 @@ export class TickEngine {
     this.regulation = new StateRegulationService(prismaClient);
     this.erp        = new ERPAutomationService(prismaClient);
     this.fiscal     = new FiscalBudgetService(prismaClient);
+    this.foreign    = new ForeignTradeService(prismaClient);
   }
 
   /**
@@ -196,6 +199,22 @@ export class TickEngine {
         (regulationSummary.macroEvent.fired
           ? `macro event: ${regulationSummary.macroEvent.type}.`
           : 'no macro event.'),
+      );
+    }
+
+    // ── 3g. Foreign trade: commodity tickers, FX rate, customs clearing ─────
+    const tradeSummary = await this.foreign.processTradeTick(tickNumber)
+      .catch(e => {
+        console.error(`[Tick ${tickNumber}] ForeignTrade tick failed:`, e);
+        return null;
+      });
+    if (tradeSummary) {
+      console.log(
+        `[Tick ${tickNumber}] ForeignTrade: FX ₴${tradeSummary.fxRate.toFixed(4)}/$ ` +
+        `| exports cleared ${tradeSummary.exportsCleared} ` +
+        `| imports cleared ${tradeSummary.importsCleared} ` +
+        `| frozen ${tradeSummary.frozenImportsClearAttempted} ` +
+        `| storage fees ${tradeSummary.storageFeesCharged}.`,
       );
     }
 

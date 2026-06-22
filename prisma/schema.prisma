@@ -107,6 +107,24 @@ enum TransactionType {
   RD_INVESTMENT      // Витрати на R&D-лабораторію (з/п дослідників, обладнання)
   AUTO_PROCUREMENT   // Автоматична B2B-закупівля за AutoContract
   STATE_SUBSIDY      // Субсидія / cashback від державної програми підтримки
+  FX_EXCHANGE_BUY    // Купівля USD за UAH (міжбанк + 0.5% спред)
+  FX_EXCHANGE_SELL   // Продаж USD за UAH (міжбанк − 0.5% спред)
+  CUSTOMS_DUTY       // Ввізне мито 10% (→ StateBudget)
+  CUSTOMS_VAT        // ПДВ при імпорті 20% (→ StateBudget)
+  CUSTOMS_STORAGE_FEE // Складська плата при замороженні вантажу (500 UAH/тік)
+  EXPORT_SALE        // Виручка від експорту (USD, зараховується після митниці)
+  IMPORT_PURCHASE    // Оплата імпорту міжнародному постачальнику (USD)
+}
+
+enum CustomsType {
+  IMPORT
+  EXPORT
+}
+
+enum CustomsStatus {
+  PENDING   // на митниці
+  CLEARED   // пропущено
+  REJECTED  // відхилено
 }
 
 enum SubsidyType {
@@ -187,6 +205,8 @@ model Player {
   companyName     String   @default("Моя компанія")
   // Поточний залишок на рахунку (UAH)
   cashBalance     Decimal  @default(500000) @db.Decimal(18, 2)
+  // Валютний рахунок (USD). Поповнюється через FX-обмін або експортний виторг.
+  balanceUsd      Decimal  @default(0)      @db.Decimal(18, 4)
   // Чиста вартість: готівка + активи − борги. Перераховується щомісяця.
   netWorth        Decimal  @default(500000) @db.Decimal(18, 2)
   creditRating    Float    @default(7.0)   // 0–10
@@ -228,6 +248,7 @@ model Player {
   autoContracts        AutoContract[]
   hrPolicy             HRAutomationPolicy?
   subsidyApplications  SubsidyApplication[]
+  customsDeclarations  CustomsDeclaration[]
 
   @@index([username])
 }
@@ -1139,6 +1160,8 @@ model StateBudget {
   accumulatedOpexTaxes    Decimal   @default(0) @db.Decimal(22, 2)   // CIT + ЄСВ + ПДФО + Вій.збір
   // Видаткова частина
   allocatedSubsidiesTotal Decimal   @default(0) @db.Decimal(22, 2)
+  // Митні надходження (мито + ПДВ при імпорті) — Step 15
+  customsRevenueUah       Decimal   @default(0) @db.Decimal(22, 2)
   // Мітки останньої агрегації
   lastAggregatedTick      BigInt?
   lastAggregatedAt        DateTime?
@@ -1182,4 +1205,64 @@ model SubsidyApplication {
   @@index([playerId, subsidyType])
   @@index([enterpriseId])
   @@index([appliedAtTick])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// FOREIGN TRADE, FX MARKET & CUSTOMS — Step 15
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Singleton: поточний курс USD/UAH та накопичений торговельний баланс.
+model FxRateSingleton {
+  id                   String   @id   // fixed 'fx-rate-singleton'
+  usdToUah             Decimal  @db.Decimal(10, 4)   // поточний міжбанківський курс
+  baseRate             Decimal  @db.Decimal(10, 4)   // якірний курс (41.50)
+  // Накопичений торговельний баланс з початку гри
+  cumulativeExportUsd  Decimal  @default(0) @db.Decimal(22, 4)
+  cumulativeImportUsd  Decimal  @default(0) @db.Decimal(22, 4)
+  lastUpdatedTick      BigInt?
+  updatedAt            DateTime @updatedAt
+}
+
+// Котирування ключових commodity на світовому ринку (USD/одиниця).
+model GlobalMarketTicker {
+  id               String   @id @default(uuid())
+  commodity        String   @unique  // збігається з Product.sku або власний код
+  priceUsd         Decimal  @db.Decimal(12, 4)
+  previousPriceUsd Decimal  @db.Decimal(12, 4)
+  baselineUsd      Decimal  @db.Decimal(12, 4)   // рівноважна ціна (mean-reversion)
+  volatilityPct    Float    @default(0.02)         // σ цінового кроку за тік
+  changePercent    Float    @default(0)
+  updatedAtTick    BigInt?
+  updatedAt        DateTime @updatedAt
+}
+
+// Митна декларація: відстежує кожне імпортне або експортне відправлення.
+model CustomsDeclaration {
+  id                   String        @id @default(uuid())
+  playerId             String
+  type                 CustomsType
+  status               CustomsStatus @default(PENDING)
+  resourceType         String        // SKU / commodity code
+  quantity             Float
+  // Вартість партії в USD (quantity × ticker price at creation)
+  customsValueUsd      Decimal       @db.Decimal(18, 4)
+  // Митний збір та ПДВ (UAH) — 0 поки вантаж заморожений
+  dutyPaidUah          Decimal       @default(0) @db.Decimal(14, 2)
+  vatPaidUah           Decimal       @default(0) @db.Decimal(14, 2)
+  // Акумульована складська плата (500 UAH/тік при заморожуванні)
+  storageFeeAccruedUah Decimal       @default(0) @db.Decimal(14, 2)
+  fxRateAtCreation     Decimal       @db.Decimal(10, 4)
+  // Для імпорту: місто призначення
+  destinationCityId    String?
+  // Тік появи на кордоні (скидається при сплаті мита заморожених декларацій)
+  createdAtTick        BigInt
+  clearedAtTick        BigInt?
+  rejectionReason      String?
+  createdAt            DateTime      @default(now())
+
+  player Player @relation(fields: [playerId], references: [id])
+
+  @@index([playerId, status])
+  @@index([status, createdAtTick])
+  @@index([createdAtTick])
 }
