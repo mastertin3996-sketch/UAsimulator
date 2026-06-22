@@ -106,6 +106,13 @@ enum TransactionType {
   MACRO_EVENT_BONUS
   RD_INVESTMENT      // Витрати на R&D-лабораторію (з/п дослідників, обладнання)
   AUTO_PROCUREMENT   // Автоматична B2B-закупівля за AutoContract
+  STATE_SUBSIDY      // Субсидія / cashback від державної програми підтримки
+}
+
+enum SubsidyType {
+  AGRO_DEVELOPMENT   // Держпідтримка агросектору (аналог «Аграрного фонду»)
+  GREEN_TRANSITION   // Компенсація за «зелене» обладнання (ЄБРР/USAID аналог)
+  REGIONAL_STIMULUS  // Регіональні гранти (аналог «Великого будівництва»)
 }
 
 enum LicenseType {
@@ -218,8 +225,9 @@ model Player {
   technologies      PlayerTechnology[]
   dailySnapshots    DailySnapshot[]
   productionLogs    ProductionLog[]
-  autoContracts     AutoContract[]
-  hrPolicy          HRAutomationPolicy?
+  autoContracts        AutoContract[]
+  hrPolicy             HRAutomationPolicy?
+  subsidyApplications  SubsidyApplication[]
 
   @@index([username])
 }
@@ -370,6 +378,7 @@ model Enterprise {
   warehouse            Warehouse?
   collateralLoans      Loan[]     @relation("CollateralEnterprise")
   licenses             License[]
+  subsidyApplications  SubsidyApplication[]
 
   @@index([playerId])
   @@index([landPlotId])
@@ -1115,4 +1124,62 @@ model HRAutomationPolicy {
   updatedAt          DateTime @updatedAt
 
   player Player @relation(fields: [playerId], references: [id])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// FISCAL MACRO-BUDGET & STATE SUBSIDIES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Singleton: один рядок на всю гру. id = FISCAL_BUDGET_SINGLETON_ID (фіксований рядок).
+model StateBudget {
+  id                      String    @id
+  // Накопичені надходження з початку гри
+  totalTaxRevenue         Decimal   @default(0) @db.Decimal(22, 2)
+  accumulatedPdv          Decimal   @default(0) @db.Decimal(22, 2)   // ПДВ
+  accumulatedOpexTaxes    Decimal   @default(0) @db.Decimal(22, 2)   // CIT + ЄСВ + ПДФО + Вій.збір
+  // Видаткова частина
+  allocatedSubsidiesTotal Decimal   @default(0) @db.Decimal(22, 2)
+  // Мітки останньої агрегації
+  lastAggregatedTick      BigInt?
+  lastAggregatedAt        DateTime?
+  updatedAt               DateTime  @updatedAt
+}
+
+// Активна держпрограма підтримки бізнесу з лімітованим пулом коштів.
+model SubsidyProgram {
+  id                 String      @id @default(uuid())
+  type               SubsidyType @unique
+  isActive           Boolean     @default(true)
+  availableFundsUah  Decimal     @db.Decimal(22, 2)
+  subsidyPercentage  Float       // 0.25 = 25% cashback від базових капітальних витрат
+  description        String
+  // JSON-масив рядків EnterpriseType: [] = будь-який тип
+  enterpriseTypes    String      @default("[]")
+  minComplianceScore Float       @default(0.90)
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+
+  applications SubsidyApplication[]
+}
+
+// Запис поданої заявки (запобігає повторному отриманню субсидії для того ж підприємства).
+model SubsidyApplication {
+  id               String      @id @default(uuid())
+  playerId         String
+  enterpriseId     String
+  programId        String
+  subsidyType      SubsidyType
+  baseCapexUah     Decimal     @db.Decimal(18, 2)
+  subsidyAmountUah Decimal     @db.Decimal(14, 2)
+  appliedAtTick    BigInt
+  createdAt        DateTime    @default(now())
+
+  player     Player         @relation(fields: [playerId],     references: [id])
+  enterprise Enterprise     @relation(fields: [enterpriseId], references: [id])
+  program    SubsidyProgram @relation(fields: [programId],    references: [id])
+
+  @@unique([playerId, enterpriseId, subsidyType])
+  @@index([playerId, subsidyType])
+  @@index([enterpriseId])
+  @@index([appliedAtTick])
 }

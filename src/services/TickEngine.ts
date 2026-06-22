@@ -32,6 +32,7 @@ import { StateRegulationService }     from './StateRegulationService';
 import { ResearchDevelopmentService } from './ResearchDevelopmentService';
 import { AnalyticsService }           from './AnalyticsService';
 import { ERPAutomationService }       from './ERPAutomationService';
+import { FiscalBudgetService }        from './FiscalBudgetService';
 import { TICKS_PER_MONTH, TICKS_PER_SNAPSHOT } from '../constants/economic';
 
 interface TickSummary {
@@ -58,6 +59,7 @@ export class TickEngine {
   private readonly rd:          ResearchDevelopmentService;
   private readonly analytics:   AnalyticsService;
   private readonly erp:         ERPAutomationService;
+  private readonly fiscal:      FiscalBudgetService;
   private readonly db:          PrismaClient;
 
   constructor(prismaClient: PrismaClient = defaultPrisma) {
@@ -75,6 +77,7 @@ export class TickEngine {
     this.finance    = new FinanceService(prismaClient);
     this.regulation = new StateRegulationService(prismaClient);
     this.erp        = new ERPAutomationService(prismaClient);
+    this.fiscal     = new FiscalBudgetService(prismaClient);
   }
 
   /**
@@ -194,6 +197,39 @@ export class TickEngine {
           ? `macro event: ${regulationSummary.macroEvent.type}.`
           : 'no macro event.'),
       );
+    }
+
+    // ── 3e. Fiscal: aggregate taxes into StateBudget every 24 ticks ────────
+    if (tickNumber % TICKS_PER_SNAPSHOT === 0n) {
+      const fiscalSummary = await this.fiscal.collectTaxesAndAggregate(tickNumber)
+        .catch(e => {
+          console.error(`[Tick ${tickNumber}] Fiscal aggregation failed:`, e);
+          return null;
+        });
+      if (fiscalSummary) {
+        console.log(
+          `[Tick ${tickNumber}] Fiscal: +₴${fiscalSummary.newTotalUah.toFixed(0)} ` +
+          `(ПДВ ₴${fiscalSummary.newVatUah.toFixed(0)} + OPEX ₴${fiscalSummary.newOpexTaxUah.toFixed(0)}), ` +
+          `net budget ₴${fiscalSummary.budgetBalance.toFixed(0)}.`,
+        );
+      }
+    }
+
+    // ── 3f. Fiscal: inflation & tariff adjustment every 30 ticks ────────────
+    if (tickNumber % TICKS_PER_MONTH === 0n) {
+      const inflationResult = await this.fiscal.calculateInflationAndTariffIndex()
+        .catch(e => {
+          console.error(`[Tick ${tickNumber}] Inflation calc failed:`, e);
+          return null;
+        });
+      if (inflationResult) {
+        console.log(
+          `[Tick ${tickNumber}] Inflation [${inflationResult.pressureCategory}]: ` +
+          `tariff ${inflationResult.tariffDeltaPct >= 0 ? '+' : ''}${inflationResult.tariffDeltaPct.toFixed(1)}%, ` +
+          `wage ${inflationResult.wageDeltaPct >= 0 ? '+' : ''}${inflationResult.wageDeltaPct.toFixed(1)}% ` +
+          `(avg tariff ₴${inflationResult.newAvgTariffUah.toFixed(4)}/kWh).`,
+        );
+      }
     }
 
     // ── 4. Collect overdue taxes from all players ─────────────────────────
