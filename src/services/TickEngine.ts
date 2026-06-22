@@ -27,8 +27,9 @@ import { MarketService }         from './MarketService';
 import { TaxService }            from './TaxService';
 import { LoanService }           from './LoanService';
 import { LogisticsService }      from './LogisticsService';
-import { FinanceService }        from './FinanceService';
-import { TICKS_PER_MONTH }       from '../constants/economic';
+import { FinanceService }           from './FinanceService';
+import { StateRegulationService }  from './StateRegulationService';
+import { TICKS_PER_MONTH }         from '../constants/economic';
 
 interface TickSummary {
   tickNumber:     bigint;
@@ -50,6 +51,7 @@ export class TickEngine {
   private readonly loans:       LoanService;
   private readonly logistics:   LogisticsService;
   private readonly finance:     FinanceService;
+  private readonly regulation:  StateRegulationService;
   private readonly db:          PrismaClient;
 
   constructor(prismaClient: PrismaClient = defaultPrisma) {
@@ -63,6 +65,7 @@ export class TickEngine {
     this.loans      = new LoanService(prismaClient);
     this.logistics  = new LogisticsService(prismaClient);
     this.finance    = new FinanceService(prismaClient);
+    this.regulation = new StateRegulationService(prismaClient);
   }
 
   /**
@@ -132,6 +135,23 @@ export class TickEngine {
         `${financeSummary.newInsolvencies} new insolvencies, ` +
         `${financeSummary.newBankruptcies} bankruptcies, ` +
         `${financeSummary.recoveries} recoveries.`,
+      );
+    }
+
+    // ── 3d. Regulation tick: compliance, licenses, macro events ──────────
+    const regulationSummary = await this.regulation.processRegulationTick(tickNumber)
+      .catch(e => {
+        console.error(`[Tick ${tickNumber}] Regulation tick failed:`, e);
+        return null;
+      });
+    if (regulationSummary) {
+      console.log(
+        `[Tick ${tickNumber}] Regulation: ${regulationSummary.auditsTriggered} audits, ` +
+        `${regulationSummary.licenseExpiries} licenses expired, ` +
+        `${regulationSummary.enterprisesUnfrozen} unfrozen, ` +
+        (regulationSummary.macroEvent.fired
+          ? `macro event: ${regulationSummary.macroEvent.type}.`
+          : 'no macro event.'),
       );
     }
 

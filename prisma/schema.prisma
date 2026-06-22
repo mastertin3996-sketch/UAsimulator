@@ -97,6 +97,33 @@ enum TransactionType {
   FREIGHT_PAYMENT
   BANKRUPTCY_LIQUIDATION
   LOAN_INTEREST_PAYMENT
+  REGULATORY_FINE
+  LICENSE_FEE
+  MACRO_EVENT_CHARGE
+  MACRO_EVENT_BONUS
+}
+
+enum LicenseType {
+  AGRO_PERMIT            // AGRO_FARM, FOOD_PROCESSING
+  MANUFACTURING_LICENSE  // TEXTILE_FACTORY
+  RETAIL_PERMIT          // RETAIL_STORE
+}
+
+enum LicenseStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+}
+
+enum MacroEventType {
+  POWER_OUTAGE           // Аварійне відключення електроенергії
+  LOGISTICS_BOTTLENECK   // Затримки на маршруті
+  GRAIN_MARKET_BOOM      // Ціновий спалах на зернові
+}
+
+enum MacroEventStatus {
+  ACTIVE
+  EXPIRED
 }
 
 enum LoanStatus {
@@ -169,6 +196,9 @@ model Player {
   warehouses        Warehouse[]
   pendingDeliveries PendingDelivery[]
   financialLogs     FinancialLog[]
+  licenses          License[]
+  complianceRecord  ComplianceRecord?
+  taxInspections    TaxInspection[]
 
   @@index([username])
 }
@@ -304,6 +334,10 @@ model Enterprise {
   isCollateral     Boolean        @default(false)
   // True after bankruptcy seizure; enterprise becomes inoperable
   isSeized         Boolean        @default(false)
+  // ── State regulation flags ─────────────────────────────────────────────────
+  // True when frozen by a tax inspection; sales + production blocked
+  isFrozenByInspection    Boolean  @default(false)
+  inspectionFreezeUntilTick BigInt?
 
   player               Player                @relation(fields: [playerId], references: [id])
   landPlot             LandPlot              @relation(fields: [landPlotId], references: [id])
@@ -314,6 +348,7 @@ model Enterprise {
   constructionProjects ConstructionProject[]
   warehouse            Warehouse?
   collateralLoans      Loan[]     @relation("CollateralEnterprise")
+  licenses             License[]
 
   @@index([playerId])
   @@index([landPlotId])
@@ -846,4 +881,87 @@ model FinancialLog {
   @@index([playerId, category, tickNumber])
   @@index([playerId, tickNumber])
   @@index([tickNumber])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// STATE REGULATION — licenses, compliance, tax inspections, macro events
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Державна ліцензія / дозвіл на діяльність підприємства.
+// Термін дії: 30 тиків (30 ігрових днів).
+model License {
+  id            String        @id @default(uuid())
+  playerId      String
+  enterpriseId  String
+  type          LicenseType
+  status        LicenseStatus @default(ACTIVE)
+  issuedAtTick  BigInt
+  expiresAtTick BigInt
+  revokedAtTick BigInt?
+  feePaidUah    Decimal       @db.Decimal(14, 2)
+  issuedAt      DateTime      @default(now())
+
+  player     Player     @relation(fields: [playerId],     references: [id])
+  enterprise Enterprise @relation(fields: [enterpriseId], references: [id])
+
+  @@index([playerId, status])
+  @@index([enterpriseId, type, status])
+  @@index([expiresAtTick])
+}
+
+// Рейтинг відповідності гравця регуляторним вимогам (0.0–1.0).
+// Один запис на гравця; оновлюється щотіково в processRegulationTick().
+model ComplianceRecord {
+  id                    String   @id @default(uuid())
+  playerId              String   @unique
+  score                 Float    @default(1.0)   // 0.0 = повна невідповідність, 1.0 = ідеал
+  lastAuditTick         BigInt?
+  consecutiveViolations Int      @default(0)     // тики поспіль з порушеннями
+  updatedAt             DateTime @updatedAt
+
+  player Player @relation(fields: [playerId], references: [id])
+
+  @@index([score])
+}
+
+// Акт перевірки ДПС: зафіксовані порушення та нараховані штрафи.
+model TaxInspection {
+  id              String   @id @default(uuid())
+  playerId        String
+  triggerReason   String
+  // Сума виявленого ухилення (неоплачені податки + незадекларована зарплата)
+  evadedAmountUah Decimal  @db.Decimal(18, 2)
+  // Штраф = evadedAmount × 2 (200%)
+  fineAmountUah   Decimal  @db.Decimal(18, 2)
+  isPaid          Boolean  @default(false)
+  paidAtTick      BigInt?
+  conductedAtTick BigInt
+  // Перелік заморожених підприємств (JSON-масив enterpriseId)
+  frozenEnterpriseIds String   @default("[]")
+  createdAt       DateTime @default(now())
+
+  player Player @relation(fields: [playerId], references: [id])
+
+  @@index([playerId, isPaid])
+  @@index([conductedAtTick])
+}
+
+// Активна макроекономічна подія, що впливає на всіх або на конкретне місто / маршрут.
+model MacroEvent {
+  id           String          @id @default(uuid())
+  type         MacroEventType
+  status       MacroEventStatus @default(ACTIVE)
+  // Для POWER_OUTAGE — постраждале місто
+  affectedCityId   String?
+  // Для LOGISTICS_BOTTLENECK — маршрут
+  affectedFromCityId String?
+  affectedToCityId   String?
+  // Для GRAIN_MARKET_BOOM — коефіцієнт попиту (наприклад 1.35)
+  demandMultiplier Float        @default(1.0)
+  startTick    BigInt
+  endTick      BigInt
+  description  String
+
+  @@index([status, endTick])
+  @@index([type, status])
 }
