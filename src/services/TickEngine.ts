@@ -38,6 +38,7 @@ import { EnergyMarketService }        from './EnergyMarketService';
 import { CorporateSecurityService }   from './CorporateSecurityService';
 import { CompanyValuationService }    from './CompanyValuationService';
 import { BankingLiquidityService }   from './BankingLiquidityService';
+import { StockExchangeService }      from './StockExchangeService';
 import { TICKS_PER_MONTH, TICKS_PER_SNAPSHOT } from '../constants/economic';
 
 interface TickSummary {
@@ -70,6 +71,7 @@ export class TickEngine {
   private readonly corpSecurity:   CorporateSecurityService;
   private readonly valuation:      CompanyValuationService;
   private readonly banking:        BankingLiquidityService;
+  private readonly stockExchange:  StockExchangeService;
   private readonly db:             PrismaClient;
 
   constructor(prismaClient: PrismaClient = defaultPrisma) {
@@ -93,6 +95,7 @@ export class TickEngine {
     this.corpSecurity  = new CorporateSecurityService(prismaClient);
     this.valuation     = new CompanyValuationService(prismaClient);
     this.banking       = new BankingLiquidityService(prismaClient);
+    this.stockExchange = new StockExchangeService(prismaClient);
   }
 
   /**
@@ -336,6 +339,21 @@ export class TickEngine {
       if (msgs.length > 0) {
         console.log(`[Tick ${tickNumber}] Banking: ${msgs.join(' | ')}.`);
       }
+    }
+
+    // ── 3l. Stock Exchange: NPC price correction + order matching ─────────
+    const stockSummary = await this.stockExchange.processStockMarketTick(tickNumber)
+      .catch(e => {
+        console.error(`[Tick ${tickNumber}] StockExchange tick failed:`, e);
+        return null;
+      });
+    if (stockSummary && (stockSummary.totalTradesExecuted > 0 || stockSummary.npcCorrections > 0)) {
+      console.log(
+        `[Tick ${tickNumber}] StockExchange: ${stockSummary.tickersProcessed} tickers ` +
+        `| ${stockSummary.totalTradesExecuted} trades ` +
+        `₴${stockSummary.totalVolumeUah.toFixed(0)} vol ` +
+        `| ${stockSummary.npcCorrections} NPC corrections.`,
+      );
     }
 
     // ── 4. Collect overdue taxes from all players ─────────────────────────

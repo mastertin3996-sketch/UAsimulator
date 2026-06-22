@@ -129,11 +129,27 @@ enum TransactionType {
   REVENUE_INTEREST         // Відсотковий дохід за депозитом (частина DEPOSIT_MATURITY)
   OVERDRAFT_DRAWDOWN       // Автоматичне покриття дефіциту балансу через овердрафт
   OVERDRAFT_INTEREST       // Нарахування відсотків на залишок овердрафту (36% р./р.)
+  IPO_PROCEEDS             // Надходження засновнику від продажу акцій публічного float
+  STOCK_BUY                // Купівля акцій на вторинному ринку (дебет покупця)
+  STOCK_SELL               // Продаж акцій на вторинному ринку (кредит продавця)
+  DIVIDEND_PAYMENT         // Засновник виплачує дивіденди з власного балансу
 }
 
 enum DepositCurrency {
   UAH
   USD
+}
+
+enum StockOrderType {
+  BUY
+  SELL
+}
+
+enum StockOrderStatus {
+  OPEN
+  PARTIALLY_FILLED
+  FILLED
+  CANCELLED
 }
 
 enum CustomsType {
@@ -309,6 +325,9 @@ model Player {
   maDealAsBuyer           MaDeal[]      @relation("MaDealBuyer")
   maDealAsSeller          MaDeal[]      @relation("MaDealSeller")
   deposits                Deposit[]
+  ownedTickers            StockTicker[]
+  shareholdings           ShareholderRegistry[]
+  stockOrders             StockOrderBook[] @relation("PlayerStockOrders")
 
   @@index([username])
 }
@@ -1502,4 +1521,74 @@ model Deposit {
 
   @@index([playerId, isMatured])
   @@index([isMatured, startTick])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// STOCK EXCHANGE — IPO, ORDER BOOK, DIVIDENDS — Step 20
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Тікер публічної компанії на фондовій біржі UAeconomy.
+// Один гравець — максимум один тікер.
+model StockTicker {
+  id                 String   @id @default(uuid())
+  playerId           String   @unique          // засновник / емітент (не може мати два тікери)
+  symbol             String   @unique          // напр. "UAGR", "UKR_MET"
+  totalSharesIssued  BigInt                    // загальна кількість акцій в обігу
+  // Акції у вільному обігу (treasury / float, не розподілені між гравцями).
+  // Зменшується при купівлі float-ордерів; збільшується при відкликанні.
+  freeFloatShares    BigInt   @default(0)
+  lastTradedPriceUah Decimal  @db.Decimal(18, 4)
+  // Фундаментальна оцінка (оновлюється з Player.companyValuationUah щотіку)
+  targetValuationUah Decimal  @db.Decimal(22, 2)
+  // Ринкова капіталізація = totalSharesIssued × lastTradedPriceUah
+  marketCapUah       Decimal  @db.Decimal(22, 2)
+  isActive           Boolean  @default(true)
+  ipoExecutedAtTick  BigInt?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  player       Player                @relation(fields: [playerId],  references: [id])
+  shareholders ShareholderRegistry[]
+  orderBook    StockOrderBook[]
+
+  @@index([isActive])
+  @@index([symbol])
+}
+
+// Реєстр акціонерів: скільки акцій якого тікера має кожен гравець.
+model ShareholderRegistry {
+  id          String @id @default(uuid())
+  playerId    String
+  tickerId    String
+  sharesCount BigInt
+
+  player Player      @relation(fields: [playerId], references: [id])
+  ticker StockTicker @relation(fields: [tickerId], references: [id])
+
+  @@unique([playerId, tickerId])
+  @@index([tickerId])
+  @@index([playerId])
+}
+
+// Активна книга ордерів для торгівлі акціями.
+// placedByPlayerId = null означає ордер від treasury/float компанії (IPO-продаж або NPC).
+model StockOrderBook {
+  id               String           @id @default(uuid())
+  tickerId         String
+  type             StockOrderType
+  placedByPlayerId String?          // null = treasury/float ордер (IPO або NPC)
+  pricePerShareUah Decimal          @db.Decimal(18, 4)
+  quantity         BigInt
+  filledQuantity   BigInt           @default(0)
+  status           StockOrderStatus @default(OPEN)
+  createdAtTick    BigInt
+  filledAtTick     BigInt?
+  cancelledAtTick  BigInt?
+
+  ticker         StockTicker @relation(fields: [tickerId],          references: [id])
+  placedByPlayer Player?     @relation("PlayerStockOrders", fields: [placedByPlayerId], references: [id])
+
+  @@index([tickerId, status, type])
+  @@index([placedByPlayerId, status])
+  @@index([createdAtTick])
 }
