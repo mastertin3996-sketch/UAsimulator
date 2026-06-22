@@ -4,7 +4,8 @@
   "description": "Realistic Ukrainian economic simulator",
   "main": "dist/index.js",
   "scripts": {
-    "build":      "tsc",
+    "postinstall": "prisma generate",
+    "build":      "prisma generate && tsc",
     "dev":        "ts-node src/index.ts",
     "tick":       "ts-node src/tick-runner.ts",
     "test":       "jest",
