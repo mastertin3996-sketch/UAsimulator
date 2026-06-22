@@ -1,9 +1,11 @@
 /**
- * Vercel Serverless entry-point — re-exports the Express app.
- *
- * Vercel detects the default export as a Node.js HTTP handler and wraps it
- * in a serverless function automatically.
+ * Vercel Serverless entry-point.
+ * Seeds the tech tree on cold start (idempotent upserts, safe to repeat).
  */
-import app from '../src/app';
+import app            from '../src/app';
+import { prisma }     from '../src/lib/prisma';
+import { ResearchDevelopmentService } from '../src/services/ResearchDevelopmentService';
+
+new ResearchDevelopmentService(prisma).seedTechTree().catch(console.error);
 
 export default app;

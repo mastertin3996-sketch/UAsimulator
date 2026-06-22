@@ -25,6 +25,7 @@ import {
   getDistance,
   getDefaultRiskFactor,
 }                                from '../constants/logistics';
+import type { ResearchDevelopmentService } from './ResearchDevelopmentService';
 
 // ── Domain errors ─────────────────────────────────────────────────────────────
 
@@ -107,7 +108,10 @@ type DeliveryWithWarehouses = Prisma.PendingDeliveryGetPayload<{ include: typeof
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export class LogisticsService {
-  constructor(private readonly db: PrismaClient) {}
+  constructor(
+    private readonly db:        PrismaClient,
+    private readonly rdService?: ResearchDevelopmentService,
+  ) {}
 
   // ── Public: initiate inter-city freight ────────────────────────────────────
 
@@ -158,7 +162,11 @@ export class LogisticsService {
     }
 
     // ── Cost & timing ─────────────────────────────────────────────────────────
-    const freightCostUah   = this.calcFreightCost(route.distanceKm);
+    // ADVANCED_LOGISTICS tech reduces freight cost by 10% (×0.90)
+    const fuelMod        = this.rdService
+      ? await this.rdService.getLogisticsFuelModifier(playerId)
+      : 1.0;
+    const freightCostUah = this.calcFreightCost(route.distanceKm).times(fuelMod);
     const deliveryTicks    = this.calcDeliveryTicks(route.distanceKm, route.roadQuality);
     const lastTick         = await this.db.gameTick.findFirst({ orderBy: { tickNumber: 'desc' } });
     const currentTick      = lastTick?.tickNumber ?? 0n;

@@ -27,9 +27,10 @@ import { MarketService }         from './MarketService';
 import { TaxService }            from './TaxService';
 import { LoanService }           from './LoanService';
 import { LogisticsService }      from './LogisticsService';
-import { FinanceService }           from './FinanceService';
-import { StateRegulationService }  from './StateRegulationService';
-import { TICKS_PER_MONTH }         from '../constants/economic';
+import { FinanceService }              from './FinanceService';
+import { StateRegulationService }     from './StateRegulationService';
+import { ResearchDevelopmentService } from './ResearchDevelopmentService';
+import { TICKS_PER_MONTH }            from '../constants/economic';
 
 interface TickSummary {
   tickNumber:     bigint;
@@ -52,18 +53,20 @@ export class TickEngine {
   private readonly logistics:   LogisticsService;
   private readonly finance:     FinanceService;
   private readonly regulation:  StateRegulationService;
+  private readonly rd:          ResearchDevelopmentService;
   private readonly db:          PrismaClient;
 
   constructor(prismaClient: PrismaClient = defaultPrisma) {
     this.db         = prismaClient;
-    this.production = new ProductionService(prismaClient);
-    this.energy     = new EnergyBillingService(prismaClient);
+    this.rd         = new ResearchDevelopmentService(prismaClient);
+    this.production = new ProductionService(prismaClient, this.rd);
+    this.energy     = new EnergyBillingService(prismaClient, this.rd);
     this.equipment  = new EquipmentService(prismaClient);
     this.hr         = new HRService(prismaClient);
     this.market     = new MarketService(prismaClient);
     this.tax        = new TaxService(prismaClient);
     this.loans      = new LoanService(prismaClient);
-    this.logistics  = new LogisticsService(prismaClient);
+    this.logistics  = new LogisticsService(prismaClient, this.rd);
     this.finance    = new FinanceService(prismaClient);
     this.regulation = new StateRegulationService(prismaClient);
   }
@@ -94,6 +97,10 @@ export class TickEngine {
       select: { id: true },
       // In production, you'd only process players active in the last N hours
     });
+
+    // Pre-load all unlocked technologies into memory once before the player loop.
+    // Modifier getters (getProductionQualityModifier etc.) then do O(1) Map lookups.
+    await this.rd.warmTickCache(players.map(p => p.id));
 
     for (const { id: playerId } of players) {
       try {
@@ -215,6 +222,9 @@ export class TickEngine {
 
     // ── g. Перевірка прострочених кредитів (щотіково) ───────────────────
     await this.loans.checkOverdueLoans(playerId, tickNumber);
+
+    // ── i. R&D — generate research points for RD_LABORATORY enterprises ──
+    await this.rd.processResearchTick(playerId, tickNumber);
 
     // ── h. Monthly obligations ───────────────────────────────────────────
     if (tickNumber % TICKS_PER_MONTH === 0n) {

@@ -1,9 +1,13 @@
 import { PrismaClient } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import type { EnergyBillingResult } from '../types';
+import type { ResearchDevelopmentService } from './ResearchDevelopmentService';
 
 export class EnergyBillingService {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(
+    private readonly prisma:    PrismaClient,
+    private readonly rdService?: ResearchDevelopmentService,
+  ) {}
 
   /**
    * Calculates and charges energy consumption per city for one game-day tick.
@@ -28,6 +32,11 @@ export class EnergyBillingService {
       },
     });
 
+    // GREEN_ENERGY tech: reduces all electricity consumption by 15%
+    const energyMod = this.rdService
+      ? await this.rdService.getEnergyConsumptionModifier(playerId)
+      : 1.0;
+
     // Зведення кВт·год по місту
     const kwhByCity = new Map<string, { cityId: string; kwh: number; tariff: Decimal }>();
 
@@ -50,10 +59,11 @@ export class EnergyBillingService {
       }
 
       const existing = kwhByCity.get(city.id);
+      const kwhNet   = kwhForEnt * energyMod;   // GREEN_ENERGY: ×0.85 or ×1.0
       if (existing) {
-        existing.kwh += kwhForEnt;
+        existing.kwh += kwhNet;
       } else {
-        kwhByCity.set(city.id, { cityId: city.id, kwh: kwhForEnt, tariff });
+        kwhByCity.set(city.id, { cityId: city.id, kwh: kwhNet, tariff });
       }
     }
 

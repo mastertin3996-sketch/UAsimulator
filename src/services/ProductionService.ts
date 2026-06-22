@@ -4,12 +4,16 @@ import { EquipmentService } from './EquipmentService';
 import { HRService } from './HRService';
 import type { ProductionResult } from '../types';
 import { clamp, weightedAvgQuality } from '../types';
+import type { ResearchDevelopmentService } from './ResearchDevelopmentService';
 
 export class ProductionService {
   private readonly equipmentSvc: EquipmentService;
   private readonly hrSvc: HRService;
 
-  constructor(private readonly prisma: PrismaClient) {
+  constructor(
+    private readonly prisma:    PrismaClient,
+    private readonly rdService?: ResearchDevelopmentService,
+  ) {
     this.equipmentSvc = new EquipmentService(prisma);
     this.hrSvc        = new HRService(prisma);
   }
@@ -123,10 +127,15 @@ export class ProductionService {
 
           // ── Quality derivation ────────────────────────────────────────
           // quality = w_eq * equipQuality + w_mood * moodFactor + w_input * inputQuality
+          //           + rdBonus (HIGH_TECH_AGRO: +1.5 for agro enterprises)
+          const rdBonus = this.rdService
+            ? await this.rdService.getProductionQualityModifier(playerId, ent.type)
+            : 0;
           const outputQuality = clamp(
             QUALITY_WEIGHTS.EQUIPMENT * equipQuality +
             QUALITY_WEIGHTS.MOOD      * moodFactor   +
-            QUALITY_WEIGHTS.INPUT     * inputQualityFactor,
+            QUALITY_WEIGHTS.INPUT     * inputQualityFactor +
+            rdBonus,
             0, 10,
           );
 

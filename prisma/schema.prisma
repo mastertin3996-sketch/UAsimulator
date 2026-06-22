@@ -27,6 +27,8 @@ enum Profession {
   HR_SPECIALIST
   TECHNICIAN
   QUALITY_CONTROLLER
+  RESEARCHER       // RD_LABORATORY: generates 5 RP/tick
+  DATA_SCIENTIST   // RD_LABORATORY: generates 10 RP/tick
 }
 
 enum EnterpriseType {
@@ -37,6 +39,7 @@ enum EnterpriseType {
   RETAIL_STORE     // роздрібна торгівля
   WAREHOUSE        // склад
   LOGISTICS_HUB    // логістичний термінал
+  RD_LABORATORY    // науково-дослідна лабораторія — генерує очки досліджень (RP)
 }
 
 enum LandStatus {
@@ -101,6 +104,7 @@ enum TransactionType {
   LICENSE_FEE
   MACRO_EVENT_CHARGE
   MACRO_EVENT_BONUS
+  RD_INVESTMENT      // Витрати на R&D-лабораторію (з/п дослідників, обладнання)
 }
 
 enum LicenseType {
@@ -124,6 +128,13 @@ enum MacroEventType {
 enum MacroEventStatus {
   ACTIVE
   EXPIRED
+}
+
+enum TechCode {
+  LEAN_PRODUCTION     // Tier 1 — підвищує ефективність RP-генерації (+20%)
+  GREEN_ENERGY        // Tier 1 — зменшує споживання ел/е всіх підприємств (×0.85)
+  ADVANCED_LOGISTICS  // Tier 2 (потребує LEAN_PRODUCTION) — паливо -10% (×0.90)
+  HIGH_TECH_AGRO      // Tier 2 (потребує LEAN_PRODUCTION) — якість аграрного вир-ва +1.5
 }
 
 enum LoanStatus {
@@ -174,6 +185,10 @@ model Player {
   reputationScore Float    @default(5.0)   // 0–10
   createdAt       DateTime @default(now())
   lastActiveAt    DateTime @default(now())
+  // ── R&D state ──────────────────────────────────────────────────────────────
+  // ID технології (Technology.id), яка зараз досліджується; null = дослідження не ведеться
+  activeResearchTechId String?
+
   // ── Insolvency state ───────────────────────────────────────────────────────
   // Consecutive ticks with negative cashBalance (reset when positive)
   insolvencyTickCount  Int      @default(0)
@@ -199,6 +214,7 @@ model Player {
   licenses          License[]
   complianceRecord  ComplianceRecord?
   taxInspections    TaxInspection[]
+  technologies      PlayerTechnology[]
 
   @@index([username])
 }
@@ -964,4 +980,41 @@ model MacroEvent {
 
   @@index([status, endTick])
   @@index([type, status])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// R&D — Technology Tree
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Глобальний каталог технологій (заповнюється сидом при старті).
+// prerequisites — JSON-масив TechCode[], перевіряється в сервісі.
+model Technology {
+  id                    String   @id @default(uuid())
+  code                  TechCode @unique
+  name                  String
+  description           String
+  requiredResearchPoints Float
+  tier                  Int
+  prerequisites         String   @default("[]")
+
+  players PlayerTechnology[]
+
+  @@index([tier])
+}
+
+// Прогрес конкретного гравця по конкретній технології.
+model PlayerTechnology {
+  id                    String   @id @default(uuid())
+  playerId              String
+  technologyId          String
+  currentProgressPoints Float    @default(0)
+  isUnlocked            Boolean  @default(false)
+  unlockedAtTick        BigInt?
+  updatedAt             DateTime @updatedAt
+
+  player     Player     @relation(fields: [playerId],     references: [id])
+  technology Technology @relation(fields: [technologyId], references: [id])
+
+  @@unique([playerId, technologyId])
+  @@index([playerId, isUnlocked])
 }
