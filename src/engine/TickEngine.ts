@@ -157,7 +157,8 @@ export class TickEngine {
       );
     }
 
-    for (const { id: playerId } of players) {
+    // Parallel player processing — players operate on disjoint data rows
+    await Promise.all(players.map(async ({ id: playerId }) => {
       try {
         await this.processPlayerTick(playerId, tickNumber, gameDay);
       } catch (err) {
@@ -165,7 +166,7 @@ export class TickEngine {
         errors.push({ playerId, error: message });
         console.error(`[Tick ${tickNumber}] Player ${playerId} failed:`, message);
       }
-    }
+    }));
 
     // ── 2b. Training sessions tick ───────────────────────────────────────
     await this.processTrainingSessions().catch(e =>
@@ -184,198 +185,75 @@ export class TickEngine {
     // ── 3. Global B2B market matching ────────────────────────────────────
     const trades = await this.market.matchOrders();
 
-    // ── 3b. Advance pending deliveries (global, all players) ─────────────
-    const logisticsSummary = await this.logistics.processLogisticsTick(tickNumber)
-      .catch(e => {
-        console.error(`[Tick ${tickNumber}] Logistics tick failed:`, e);
-        return null;
-      });
-    if (logisticsSummary) {
-      console.log(
-        `[Tick ${tickNumber}] Logistics: ${logisticsSummary.arrivals} arrivals, ` +
-        `${logisticsSummary.spoilageEvents} spoilage events, ` +
-        `${logisticsSummary.failedDeliveries} failed.`,
-      );
-    }
+    // ── 3b–3i. Independent global services in parallel ───────────────────
+    const [logisticsSummary, financeSummary, regulationSummary, energySummary, securitySummary, tradeSummary] =
+      await Promise.all([
+        this.logistics.processLogisticsTick(tickNumber)
+          .catch(e => { console.error(`[Tick ${tickNumber}] Logistics tick failed:`, e); return null; }),
+        this.finance.processFinancialTick(tickNumber)
+          .catch(e => { console.error(`[Tick ${tickNumber}] Finance tick failed:`, e); return null; }),
+        this.regulation.processRegulationTick(tickNumber)
+          .catch(e => { console.error(`[Tick ${tickNumber}] Regulation tick failed:`, e); return null; }),
+        this.energyMarket.processEnergyMarketTick(tickNumber)
+          .catch(e => { console.error(`[Tick ${tickNumber}] EnergyMarket tick failed:`, e); return null; }),
+        this.corpSecurity.processSecurityTick(tickNumber)
+          .catch(e => { console.error(`[Tick ${tickNumber}] CorporateSecurity tick failed:`, e); return null; }),
+        this.foreign.processTradeTick(tickNumber)
+          .catch(e => { console.error(`[Tick ${tickNumber}] ForeignTrade tick failed:`, e); return null; }),
+      ]);
 
-    // ── 3c. Finance tick: daily loan payments + insolvency/bankruptcy checks ─
-    const financeSummary = await this.finance.processFinancialTick(tickNumber)
-      .catch(e => {
-        console.error(`[Tick ${tickNumber}] Finance tick failed:`, e);
-        return null;
-      });
-    if (financeSummary) {
-      console.log(
-        `[Tick ${tickNumber}] Finance: ${financeSummary.loanPaymentsCount} loan payments ` +
-        `(₴${financeSummary.totalDeductedUah.toFixed(0)}), ` +
-        `${financeSummary.newInsolvencies} new insolvencies, ` +
-        `${financeSummary.newBankruptcies} bankruptcies, ` +
-        `${financeSummary.recoveries} recoveries.`,
-      );
-    }
+    if (logisticsSummary) console.log(`[Tick ${tickNumber}] Logistics: ${logisticsSummary.arrivals} arrivals, ${logisticsSummary.spoilageEvents} spoilage, ${logisticsSummary.failedDeliveries} failed.`);
+    if (financeSummary)  console.log(`[Tick ${tickNumber}] Finance: ${financeSummary.loanPaymentsCount} loans (₴${financeSummary.totalDeductedUah.toFixed(0)}), ${financeSummary.newInsolvencies} insolvencies, ${financeSummary.newBankruptcies} bankruptcies, ${financeSummary.recoveries} recoveries.`);
+    if (regulationSummary) console.log(`[Tick ${tickNumber}] Regulation: ${regulationSummary.auditsTriggered} audits, ${regulationSummary.licenseExpiries} expired, ${regulationSummary.enterprisesUnfrozen} unfrozen${regulationSummary.macroEvent.fired ? `, macro: ${regulationSummary.macroEvent.type}` : ''}.`);
+    if (energySummary)   console.log(`[Tick ${tickNumber}] EnergyMarket: ☀${energySummary.sunCoefficient.toFixed(3)} | solar ${energySummary.solarEnterprisesCount}ent | diesel ₴${energySummary.totalDieselCostUah.toFixed(0)} | saved ₴${energySummary.totalSolarSavingsUah.toFixed(0)}.`);
+    if (securitySummary) console.log(`[Tick ${tickNumber}] CorpSecurity: ${securitySummary.systemsCharged} systems ₴${securitySummary.totalMaintenanceUah.toFixed(0)} | +${securitySummary.newFreezes} freezes | −${securitySummary.liftedFreezes} lifted.`);
+    if (tradeSummary)    console.log(`[Tick ${tickNumber}] ForeignTrade: FX ₴${tradeSummary.fxRate.toFixed(4)}/$ | exports ${tradeSummary.exportsCleared} | imports ${tradeSummary.importsCleared} | storage ${tradeSummary.storageFeesCharged}.`);
 
-    // ── 3d. Regulation tick: compliance, licenses, macro events ──────────
-    const regulationSummary = await this.regulation.processRegulationTick(tickNumber)
-      .catch(e => {
-        console.error(`[Tick ${tickNumber}] Regulation tick failed:`, e);
-        return null;
-      });
-    if (regulationSummary) {
-      console.log(
-        `[Tick ${tickNumber}] Regulation: ${regulationSummary.auditsTriggered} audits, ` +
-        `${regulationSummary.licenseExpiries} licenses expired, ` +
-        `${regulationSummary.enterprisesUnfrozen} unfrozen, ` +
-        (regulationSummary.macroEvent.fired
-          ? `macro event: ${regulationSummary.macroEvent.type}.`
-          : 'no macro event.'),
-      );
-    }
+    // ── 3e/3f. Fiscal + inflation (conditional, can run together) ──────────
+    const [fiscalSummary, inflationResult] = await Promise.all([
+      (tickNumber % TICKS_PER_SNAPSHOT === 0n)
+        ? this.fiscal.collectTaxesAndAggregate(tickNumber).catch(e => { console.error(`[Tick ${tickNumber}] Fiscal aggregation failed:`, e); return null; })
+        : Promise.resolve(null),
+      (tickNumber % TICKS_PER_MONTH === 0n)
+        ? this.fiscal.calculateInflationAndTariffIndex().catch(e => { console.error(`[Tick ${tickNumber}] Inflation calc failed:`, e); return null; })
+        : Promise.resolve(null),
+    ]);
+    if (fiscalSummary)    console.log(`[Tick ${tickNumber}] Fiscal: +₴${fiscalSummary.newTotalUah.toFixed(0)} (ПДВ ₴${fiscalSummary.newVatUah.toFixed(0)} + OPEX ₴${fiscalSummary.newOpexTaxUah.toFixed(0)}), net ₴${fiscalSummary.budgetBalance.toFixed(0)}.`);
+    if (inflationResult)  console.log(`[Tick ${tickNumber}] Inflation [${inflationResult.pressureCategory}]: tariff ${inflationResult.tariffDeltaPct >= 0 ? '+' : ''}${inflationResult.tariffDeltaPct.toFixed(1)}%, wage ${inflationResult.wageDeltaPct >= 0 ? '+' : ''}${inflationResult.wageDeltaPct.toFixed(1)}%.`);
 
-    // ── 3h. Energy market: solar battery update, diesel billing, SOLAR/DIESEL enterprises ─
-    const energySummary = await this.energyMarket.processEnergyMarketTick(tickNumber)
-      .catch(e => {
-        console.error(`[Tick ${tickNumber}] EnergyMarket tick failed:`, e);
-        return null;
-      });
-    if (energySummary) {
-      console.log(
-        `[Tick ${tickNumber}] EnergyMarket: ☀ coeff ${energySummary.sunCoefficient.toFixed(3)} ` +
-        `| solar ${energySummary.solarEnterprisesCount} ent (${energySummary.totalGenerationKwh.toFixed(0)} kWh gen) ` +
-        `| diesel ${energySummary.dieselEnterprisesCount} ent (₴${energySummary.totalDieselCostUah.toFixed(0)}) ` +
-        `| saved ₴${energySummary.totalSolarSavingsUah.toFixed(0)} ` +
-        (energySummary.outageAffectedCities.length
-          ? `| outage cities: ${energySummary.outageAffectedCities.length}`
-          : ''),
-      );
-    }
+    // ── 3j. Company valuation + 3k. Banking in parallel ──────────────────
+    // Banking runs last to capture overdrafts from billing; valuation is independent.
+    const [, bankingSummary, stockSummary] = await Promise.all([
+      (tickNumber % TICKS_PER_SNAPSHOT === 0n)
+        ? Promise.all(players.map(({ id: playerId }) =>
+            this.valuation.calculateCompanyValuation(playerId).catch(e =>
+              console.error(`[Tick ${tickNumber}] Valuation failed for ${playerId}:`, e),
+            ),
+          ))
+        : Promise.resolve([]),
+      // Banking captures all overdrafts from parallel billing above
+      this.banking.processBankingTick(tickNumber).catch(e => { console.error(`[Tick ${tickNumber}] Banking tick failed:`, e); return null; }),
+      this.stockExchange.processStockMarketTick(tickNumber).catch(e => { console.error(`[Tick ${tickNumber}] StockExchange tick failed:`, e); return null; }),
+    ]);
 
-    // ── 3i. Corporate security: maintenance, patent freeze, hostile asset freeze ─
-    const securitySummary = await this.corpSecurity.processSecurityTick(tickNumber)
-      .catch(e => {
-        console.error(`[Tick ${tickNumber}] CorporateSecurity tick failed:`, e);
-        return null;
-      });
-    if (securitySummary) {
-      console.log(
-        `[Tick ${tickNumber}] CorpSecurity: ` +
-        `${securitySummary.systemsCharged} systems ₴${securitySummary.totalMaintenanceUah.toFixed(0)} ` +
-        `| +${securitySummary.newFreezes} freezes ` +
-        `| −${securitySummary.liftedFreezes} lifted ` +
-        `| ${securitySummary.totalFrozenCount} total frozen.`,
-      );
-    }
-
-    // ── 3g. Foreign trade: commodity tickers, FX rate, customs clearing ─────
-    const tradeSummary = await this.foreign.processTradeTick(tickNumber)
-      .catch(e => {
-        console.error(`[Tick ${tickNumber}] ForeignTrade tick failed:`, e);
-        return null;
-      });
-    if (tradeSummary) {
-      console.log(
-        `[Tick ${tickNumber}] ForeignTrade: FX ₴${tradeSummary.fxRate.toFixed(4)}/$ ` +
-        `| exports cleared ${tradeSummary.exportsCleared} ` +
-        `| imports cleared ${tradeSummary.importsCleared} ` +
-        `| frozen ${tradeSummary.frozenImportsClearAttempted} ` +
-        `| storage fees ${tradeSummary.storageFeesCharged}.`,
-      );
-    }
-
-    // ── 3e. Fiscal: aggregate taxes into StateBudget every 24 ticks ────────
-    if (tickNumber % TICKS_PER_SNAPSHOT === 0n) {
-      const fiscalSummary = await this.fiscal.collectTaxesAndAggregate(tickNumber)
-        .catch(e => {
-          console.error(`[Tick ${tickNumber}] Fiscal aggregation failed:`, e);
-          return null;
-        });
-      if (fiscalSummary) {
-        console.log(
-          `[Tick ${tickNumber}] Fiscal: +₴${fiscalSummary.newTotalUah.toFixed(0)} ` +
-          `(ПДВ ₴${fiscalSummary.newVatUah.toFixed(0)} + OPEX ₴${fiscalSummary.newOpexTaxUah.toFixed(0)}), ` +
-          `net budget ₴${fiscalSummary.budgetBalance.toFixed(0)}.`,
-        );
-      }
-    }
-
-    // ── 3j. Company Valuation: recalculate every TICKS_PER_SNAPSHOT ──────────
-    if (tickNumber % TICKS_PER_SNAPSHOT === 0n) {
-      for (const { id: playerId } of players) {
-        await this.valuation.calculateCompanyValuation(playerId).catch(e =>
-          console.error(`[Tick ${tickNumber}] Valuation failed for ${playerId}:`, e),
-        );
-      }
-    }
-
-    // ── 3f. Fiscal: inflation & tariff adjustment every 30 ticks ────────────
-    if (tickNumber % TICKS_PER_MONTH === 0n) {
-      const inflationResult = await this.fiscal.calculateInflationAndTariffIndex()
-        .catch(e => {
-          console.error(`[Tick ${tickNumber}] Inflation calc failed:`, e);
-          return null;
-        });
-      if (inflationResult) {
-        console.log(
-          `[Tick ${tickNumber}] Inflation [${inflationResult.pressureCategory}]: ` +
-          `tariff ${inflationResult.tariffDeltaPct >= 0 ? '+' : ''}${inflationResult.tariffDeltaPct.toFixed(1)}%, ` +
-          `wage ${inflationResult.wageDeltaPct >= 0 ? '+' : ''}${inflationResult.wageDeltaPct.toFixed(1)}% ` +
-          `(avg tariff ₴${inflationResult.newAvgTariffUah.toFixed(4)}/kWh).`,
-        );
-      }
-    }
-
-    // ── 3k. Banking: mature deposits + overdraft coverage + interest accrual ─
-    // Виконується ПІСЛЯ всіх billing-сервісів, щоб захопити всі від'ємні залишки.
-    const bankingSummary = await this.banking.processBankingTick(tickNumber)
-      .catch(e => {
-        console.error(`[Tick ${tickNumber}] Banking tick failed:`, e);
-        return null;
-      });
     if (bankingSummary) {
       const msgs: string[] = [];
-      if (bankingSummary.depositsMatured > 0) {
-        msgs.push(
-          `${bankingSummary.depositsMatured} dep matured ` +
-          `(UAH ₴${bankingSummary.interestPaidUah.toFixed(0)} + ` +
-          `USD $${bankingSummary.interestPaidUsd.toFixed(2)} interest)`,
-        );
-      }
-      if (bankingSummary.overdraftDrawdowns > 0) {
-        msgs.push(
-          `${bankingSummary.overdraftDrawdowns} OD draws ₴${bankingSummary.overdraftDrawnUah.toFixed(0)}`,
-        );
-      }
-      if (bankingSummary.overdraftInterestUah.gt(0)) {
-        msgs.push(`OD interest ₴${bankingSummary.overdraftInterestUah.toFixed(2)}`);
-      }
-      if (bankingSummary.limitBreachPlayers.length > 0) {
-        msgs.push(`OD LIMIT BREACH: ${bankingSummary.limitBreachPlayers.join(', ')}`);
-      }
-      if (msgs.length > 0) {
-        console.log(`[Tick ${tickNumber}] Banking: ${msgs.join(' | ')}.`);
-      }
+      if (bankingSummary.depositsMatured > 0)      msgs.push(`${bankingSummary.depositsMatured} dep matured (UAH ₴${bankingSummary.interestPaidUah.toFixed(0)} + USD $${bankingSummary.interestPaidUsd.toFixed(2)})`);
+      if (bankingSummary.overdraftDrawdowns > 0)   msgs.push(`${bankingSummary.overdraftDrawdowns} OD draws ₴${bankingSummary.overdraftDrawnUah.toFixed(0)}`);
+      if (bankingSummary.overdraftInterestUah.gt(0)) msgs.push(`OD interest ₴${bankingSummary.overdraftInterestUah.toFixed(2)}`);
+      if (bankingSummary.limitBreachPlayers.length > 0) msgs.push(`LIMIT BREACH: ${bankingSummary.limitBreachPlayers.join(', ')}`);
+      if (msgs.length > 0) console.log(`[Tick ${tickNumber}] Banking: ${msgs.join(' | ')}.`);
     }
-
-    // ── 3l. Stock Exchange: NPC price correction + order matching ─────────
-    const stockSummary = await this.stockExchange.processStockMarketTick(tickNumber)
-      .catch(e => {
-        console.error(`[Tick ${tickNumber}] StockExchange tick failed:`, e);
-        return null;
-      });
     if (stockSummary && (stockSummary.totalTradesExecuted > 0 || stockSummary.npcCorrections > 0)) {
-      console.log(
-        `[Tick ${tickNumber}] StockExchange: ${stockSummary.tickersProcessed} tickers ` +
-        `| ${stockSummary.totalTradesExecuted} trades ` +
-        `₴${stockSummary.totalVolumeUah.toFixed(0)} vol ` +
-        `| ${stockSummary.npcCorrections} NPC corrections.`,
-      );
+      console.log(`[Tick ${tickNumber}] StockExchange: ${stockSummary.tickersProcessed} tickers | ${stockSummary.totalTradesExecuted} trades ₴${stockSummary.totalVolumeUah.toFixed(0)} | ${stockSummary.npcCorrections} NPC corrections.`);
     }
 
-    // ── 4. Collect overdue taxes from all players ─────────────────────────
-    for (const { id: playerId } of players) {
-      await this.tax.collectOverdueTaxes(playerId).catch(e =>
+    // ── 4. Collect overdue taxes — parallel per player ────────────────────
+    await Promise.all(players.map(({ id: playerId }) =>
+      this.tax.collectOverdueTaxes(playerId).catch(e =>
         console.error(`[Tick ${tickNumber}] Tax collection failed for ${playerId}:`, e),
-      );
-    }
+      ),
+    ));
 
     // ── 5. Complete tick record ───────────────────────────────────────────
     const durationMs = Date.now() - startMs;
@@ -456,11 +334,19 @@ export class TickEngine {
       include: { enterprise: true },
     });
 
+    if (projects.length === 0) return;
+
+    // Pre-fetch player balance ONCE — avoids N round-trips inside the loop.
+    const playerData = await this.db.player.findUniqueOrThrow({
+      where:  { id: playerId },
+      select: { cashBalance: true },
+    });
+    let runningBalance = new Decimal(playerData.cashBalance.toString());
+
     for (const proj of projects) {
       const newRemaining = proj.ticksRemaining - 1;
 
       if (newRemaining <= 0) {
-        // Construction complete — activate the target entity
         await this.db.constructionProject.update({
           where: { id: proj.id },
           data:  { ticksRemaining: 0, status: 'COMPLETED', completedAt: new Date() },
@@ -471,8 +357,6 @@ export class TickEngine {
             where: { id: proj.targetId },
             data:  { isOperational: true, constructedAt: new Date() },
           });
-
-          // If this is an OFFICE enterprise, mark the Office row operational too
           const ent = await this.db.enterprise.findUnique({ where: { id: proj.targetId } });
           if (ent?.type === 'OFFICE') {
             await this.db.office.updateMany({
@@ -481,44 +365,34 @@ export class TickEngine {
             });
           }
         } else if (proj.targetType === 'WORKSHOP') {
-          // Deduct footprint from enterprise used area
-          await this.db.workshop.update({
-            where: { id: proj.targetId },
-            data:  { isActive: true },
-          });
+          await this.db.workshop.update({ where: { id: proj.targetId }, data: { isActive: true } });
           await this.db.enterprise.update({
             where: { id: proj.enterpriseId },
             data:  { usedFloorAreaM2: { increment: proj.footprintM2 } },
           });
         }
       } else {
-        await this.db.constructionProject.update({
-          where: { id: proj.id },
-          data:  { ticksRemaining: newRemaining },
-        });
-
-        // Charge daily construction cost installment (spread over ticksRequired)
         const dailyCost = new Decimal(proj.totalCostUah.toString()).dividedBy(proj.ticksRequired);
-        const player    = await this.db.player.findUniqueOrThrow({ where: { id: proj.enterprise.playerId } });
-        const before    = new Decimal(player.cashBalance.toString());
+        const before    = runningBalance;
         const after     = before.minus(dailyCost);
+        runningBalance  = after; // track running balance to avoid re-fetching
 
         await this.db.$transaction([
           this.db.player.update({
-            where: { id: proj.enterprise.playerId },
-            data:  { cashBalance: { decrement: dailyCost } },   // Decimal ✓
+            where: { id: playerId },
+            data:  { cashBalance: after },      // absolute value — safe because we track locally
           }),
           this.db.constructionProject.update({
             where: { id: proj.id },
-            data:  { paidCostUah: { increment: dailyCost } },   // Decimal ✓
+            data:  { ticksRemaining: newRemaining, paidCostUah: { increment: dailyCost } },
           }),
           this.db.financialTransaction.create({
             data: {
-              playerId:      proj.enterprise.playerId,
+              playerId,
               type:          'CONSTRUCTION_COST',
-              amountUah:     dailyCost.negated(),                // Decimal ✓
-              balanceBefore: before,                             // Decimal ✓
-              balanceAfter:  after,                              // Decimal ✓
+              amountUah:     dailyCost.negated(),
+              balanceBefore: before,
+              balanceAfter:  after,
               description:   `Construction installment: ${proj.name} (tick ${tickNumber})`,
               referenceId:   proj.id,
             },
@@ -591,74 +465,86 @@ export class TickEngine {
 
   private async processTrainingSessions(): Promise<void> {
     const sessions = await this.db.trainingSession.findMany({
-      where: { isCompleted: false },
+      where:  { isCompleted: false },
       select: { id: true, employeeId: true, targetLevel: true, ticksRemaining: true },
     });
+    if (sessions.length === 0) return;
 
-    for (const s of sessions) {
-      const newRemaining = s.ticksRemaining - 1;
-      if (newRemaining <= 0) {
-        // Complete training: upgrade employee qualificationLevel + boost baseEfficiency
-        const BONUS: Record<number, number> = { 1: 0.05, 2: 0.10, 3: 0.15, 4: 0.20, 5: 0.25 };
-        const bonus = BONUS[s.targetLevel] ?? 0;
-        await this.db.$transaction([
-          this.db.trainingSession.update({
-            where: { id: s.id },
-            data:  { isCompleted: true, ticksRemaining: 0, completedAt: new Date() },
-          }),
-          this.db.employee.update({
-            where: { id: s.employeeId },
-            data:  {
-              qualificationLevel: s.targetLevel,
-              baseEfficiency: { increment: bonus },
-              efficiency:     { increment: bonus },
-            },
-          }),
-        ]);
-      } else {
-        await this.db.trainingSession.update({
+    const completing = sessions.filter((s) => s.ticksRemaining <= 1);
+    const ongoing    = sessions.filter((s) => s.ticksRemaining > 1);
+
+    // Bulk decrement ongoing sessions with one raw UPDATE
+    if (ongoing.length > 0) {
+      const ids = ongoing.map((s) => s.id);
+      await this.db.$executeRaw`
+        UPDATE "TrainingSession"
+        SET "ticksRemaining" = "ticksRemaining" - 1
+        WHERE id = ANY(${ids}::uuid[])
+      `;
+    }
+
+    // Complete finishing sessions individually (small set)
+    const BONUS: Record<number, number> = { 1: 0.05, 2: 0.10, 3: 0.15, 4: 0.20, 5: 0.25 };
+    for (const s of completing) {
+      const bonus = BONUS[s.targetLevel] ?? 0;
+      await this.db.$transaction([
+        this.db.trainingSession.update({
           where: { id: s.id },
-          data:  { ticksRemaining: newRemaining },
-        });
-      }
+          data:  { isCompleted: true, ticksRemaining: 0, completedAt: new Date() },
+        }),
+        this.db.employee.update({
+          where: { id: s.employeeId },
+          data:  {
+            qualificationLevel: s.targetLevel,
+            baseEfficiency:     { increment: bonus },
+            efficiency:         { increment: bonus },
+          },
+        }),
+      ]);
     }
   }
 
   private async processSupplyRoutes(): Promise<number> {
     const routes = await this.db.supplyRoute.findMany({
-      where: { isActive: true },
-      select: {
-        id:                 true,
-        sourceEnterpriseId: true,
-        targetEnterpriseId: true,
-        productId:          true,
-        qtyPerTick:         true,
-      },
+      where:  { isActive: true },
+      select: { id: true, sourceEnterpriseId: true, targetEnterpriseId: true, productId: true, qtyPerTick: true },
     });
+    if (routes.length === 0) return 0;
+
+    // Batch-fetch all required source inventories in ONE query instead of N findUnique calls
+    const srcInventories = await this.db.enterpriseInventory.findMany({
+      where: {
+        OR: routes.map((r) => ({ enterpriseId: r.sourceEnterpriseId, productId: r.productId })),
+      },
+      select: { enterpriseId: true, productId: true, quantity: true, avgQuality: true },
+    });
+    const invMap = new Map(
+      srcInventories.map((inv) => [`${inv.enterpriseId}:${inv.productId}`, inv]),
+    );
 
     let transfers = 0;
     for (const route of routes) {
-      const srcInv = await this.db.enterpriseInventory.findUnique({
-        where: { enterpriseId_productId: { enterpriseId: route.sourceEnterpriseId, productId: route.productId } },
-      });
+      const srcInv = invMap.get(`${route.sourceEnterpriseId}:${route.productId}`);
       if (!srcInv || Number(srcInv.quantity) < route.qtyPerTick) continue;
 
       const qty     = route.qtyPerTick;
       const quality = Number(srcInv.avgQuality);
 
       await this.db.$transaction([
-        // Deduct from source
         this.db.enterpriseInventory.update({
           where: { enterpriseId_productId: { enterpriseId: route.sourceEnterpriseId, productId: route.productId } },
           data:  { quantity: { decrement: qty } },
         }),
-        // Credit to target (upsert)
         this.db.enterpriseInventory.upsert({
           where:  { enterpriseId_productId: { enterpriseId: route.targetEnterpriseId, productId: route.productId } },
           create: { enterpriseId: route.targetEnterpriseId, productId: route.productId, quantity: qty, avgQuality: quality },
           update: { quantity: { increment: qty } },
         }),
       ]);
+
+      // Update local map so same-tick checks are accurate
+      const newQty = Number(srcInv.quantity) - qty;
+      srcInv.quantity = newQty as unknown as typeof srcInv.quantity;
       transfers++;
     }
     return transfers;
