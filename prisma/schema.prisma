@@ -346,6 +346,9 @@ model Player {
   replenishRules          ReplenishRule[]
   withdrawalRequests      WithdrawalRequest[]
   supplyRoutes            SupplyRoute[]
+  trainingSessions        TrainingSession[]
+  syndicateLeadership     Syndicate?          @relation("SyndicateLeader")
+  syndicateMembership     SyndicateMember?
 
   @@index([username])
 }
@@ -608,8 +611,12 @@ model Employee {
   // Накопичена зарплата, ще не виплачена (поденне нарахування)
   accruedSalaryUah Decimal  @default(0) @db.Decimal(12, 2)
 
-  player     Player     @relation(fields: [playerId], references: [id])
-  enterprise Enterprise @relation(fields: [enterpriseId], references: [id])
+  // Рівень кваліфікації: 0 = без навчання, 5 = майстер
+  qualificationLevel Int @default(0)
+
+  player          Player            @relation(fields: [playerId],     references: [id])
+  enterprise      Enterprise        @relation(fields: [enterpriseId], references: [id])
+  trainingSessions TrainingSession[]
 
   @@index([playerId])
   @@index([enterpriseId])
@@ -1268,6 +1275,68 @@ model ProductionLog {
   @@index([playerId, tickNumber])
   @@index([enterpriseId, tickNumber])
   @@index([tickNumber])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// QUALIFICATION (навчання працівників)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model TrainingSession {
+  id             String   @id @default(uuid())
+  employeeId     String
+  playerId       String
+  targetLevel    Int      // 1-5
+  costUah        Decimal  @db.Decimal(12, 2)
+  ticksRequired  Int
+  ticksRemaining Int
+  isCompleted    Boolean  @default(false)
+  startedAt      DateTime @default(now())
+  completedAt    DateTime?
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+  player   Player   @relation(fields: [playerId],   references: [id])
+
+  @@index([playerId, isCompleted])
+  @@index([employeeId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SYNDICATE (гравецькі об'єднання)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+enum SyndicateRole {
+  LEADER
+  OFFICER
+  MEMBER
+}
+
+model Syndicate {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  leaderId    String   @unique
+  maxMembers  Int      @default(20)
+  isPublic    Boolean  @default(true)
+  treasury    Decimal  @default(0) @db.Decimal(18, 2)
+  createdAt   DateTime @default(now())
+
+  leader  Player            @relation("SyndicateLeader", fields: [leaderId], references: [id])
+  members SyndicateMember[]
+
+  @@index([isPublic])
+}
+
+model SyndicateMember {
+  id          String        @id @default(uuid())
+  syndicateId String
+  playerId    String        @unique
+  role        SyndicateRole @default(MEMBER)
+  joinedAt    DateTime      @default(now())
+
+  syndicate Syndicate @relation(fields: [syndicateId], references: [id])
+  player    Player    @relation(fields: [playerId],    references: [id])
+
+  @@index([syndicateId])
 }
 
 // Маршрут внутрішнього постачання: автоматичний трансфер товару між підприємствами гравця кожен тік.

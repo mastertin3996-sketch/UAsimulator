@@ -167,7 +167,12 @@ export class TickEngine {
       }
     }
 
-    // ── 2b. Supply route transfers (intra-company, per player) ──────────
+    // ── 2b. Training sessions tick ───────────────────────────────────────
+    await this.processTrainingSessions().catch(e =>
+      console.error(`[Tick ${tickNumber}] Training sessions failed:`, e)
+    );
+
+    // ── 2c. Supply route transfers (intra-company, per player) ──────────
     const supplyTransfers = await this.processSupplyRoutes().catch(e => {
       console.error(`[Tick ${tickNumber}] Supply routes failed:`, e);
       return 0;
@@ -581,6 +586,41 @@ export class TickEngine {
           },
         }),
       ]);
+    }
+  }
+
+  private async processTrainingSessions(): Promise<void> {
+    const sessions = await this.db.trainingSession.findMany({
+      where: { isCompleted: false },
+      select: { id: true, employeeId: true, targetLevel: true, ticksRemaining: true },
+    });
+
+    for (const s of sessions) {
+      const newRemaining = s.ticksRemaining - 1;
+      if (newRemaining <= 0) {
+        // Complete training: upgrade employee qualificationLevel + boost baseEfficiency
+        const BONUS: Record<number, number> = { 1: 0.05, 2: 0.10, 3: 0.15, 4: 0.20, 5: 0.25 };
+        const bonus = BONUS[s.targetLevel] ?? 0;
+        await this.db.$transaction([
+          this.db.trainingSession.update({
+            where: { id: s.id },
+            data:  { isCompleted: true, ticksRemaining: 0, completedAt: new Date() },
+          }),
+          this.db.employee.update({
+            where: { id: s.employeeId },
+            data:  {
+              qualificationLevel: s.targetLevel,
+              baseEfficiency: { increment: bonus },
+              efficiency:     { increment: bonus },
+            },
+          }),
+        ]);
+      } else {
+        await this.db.trainingSession.update({
+          where: { id: s.id },
+          data:  { ticksRemaining: newRemaining },
+        });
+      }
     }
   }
 
