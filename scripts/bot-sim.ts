@@ -54,7 +54,7 @@ async function getOrCreatePlayer(username: string, company: string): Promise<str
   return player.id;
 }
 
-async function setupBot(def: typeof BOT_DEFINITIONS[0], plots: Array<{ id: string; cityId: string; purchasePriceUah: string }>, plotIdx: number): Promise<BotState> {
+async function setupBot(def: typeof BOT_DEFINITIONS[0], plots: Array<{ id: string; cityId: string; purchasePriceUah: unknown }>, plotIdx: number): Promise<BotState> {
   const playerId = await getOrCreatePlayer(def.username, def.company);
 
   // Check if already set up
@@ -300,7 +300,7 @@ async function getSnapshot(bots: BotState[]) {
     map.set(bot.playerId, {
       balance:      Number(player?.cashBalance ?? 0),
       produced:     Math.round(produced),
-      creditRating: player?.creditRating ?? null,
+      creditRating: player?.creditRating != null ? String(player.creditRating) : null,
     });
   }
   return map;
