@@ -1,9 +1,10 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import Sidebar from "@/components/layout/Sidebar";
-import TopBar from "@/components/layout/TopBar";
 import { prisma } from "@/lib/prisma";
 import { SessionProvider } from "next-auth/react";
+import GameShell from "@/components/layout/GameShell";
+
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? "mastertin3996@gmail.com";
 
 export default async function GameLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
@@ -14,19 +15,18 @@ export default async function GameLayout({ children }: { children: React.ReactNo
     select: { cashBalance: true, balanceUsd: true, companyName: true },
   });
 
+  const isAdmin = session.user.email === ADMIN_EMAIL;
+
   return (
     <SessionProvider>
-      <div className="min-h-screen bg-gray-950 text-white">
-        <Sidebar />
-        <TopBar
-          cashBalance={Number(player?.cashBalance ?? 0)}
-          balanceUsd={Number(player?.balanceUsd ?? 0)}
-          companyName={player?.companyName}
-        />
-        <main className="ml-60 pt-14 min-h-screen">
-          <div className="p-6">{children}</div>
-        </main>
-      </div>
+      <GameShell
+        cashBalance={Number(player?.cashBalance ?? 0)}
+        balanceUsd={Number(player?.balanceUsd ?? 0)}
+        companyName={player?.companyName ?? undefined}
+        isAdmin={isAdmin}
+      >
+        {children}
+      </GameShell>
     </SessionProvider>
   );
 }
