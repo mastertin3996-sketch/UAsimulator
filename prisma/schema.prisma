@@ -345,6 +345,7 @@ model Player {
   stockOrders             StockOrderBook[] @relation("PlayerStockOrders")
   replenishRules          ReplenishRule[]
   withdrawalRequests      WithdrawalRequest[]
+  supplyRoutes            SupplyRoute[]
 
   @@index([username])
 }
@@ -511,6 +512,8 @@ model Enterprise {
   energyContracts      EnergyContract[]
   securitySystem       SecuritySystem?
   replenishRules       ReplenishRule[]
+  supplyRoutesAsSource SupplyRoute[]        @relation("SupplyRouteSource")
+  supplyRoutesAsTarget SupplyRoute[]        @relation("SupplyRouteTarget")
 
   @@index([playerId])
   @@index([landPlotId])
@@ -637,6 +640,7 @@ model Product {
   npcDemand           NpcDemand[]
   pendingDeliveries   PendingDelivery[]
   replenishRules      ReplenishRule[]
+  supplyRoutes        SupplyRoute[]
 
   @@index([category])
   @@index([sku])
@@ -1264,6 +1268,28 @@ model ProductionLog {
   @@index([playerId, tickNumber])
   @@index([enterpriseId, tickNumber])
   @@index([tickNumber])
+}
+
+// Маршрут внутрішнього постачання: автоматичний трансфер товару між підприємствами гравця кожен тік.
+model SupplyRoute {
+  id                 String   @id @default(uuid())
+  playerId           String
+  sourceEnterpriseId String
+  targetEnterpriseId String
+  productId          String
+  qtyPerTick         Float
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  player           Player     @relation(fields: [playerId],           references: [id])
+  sourceEnterprise Enterprise @relation("SupplyRouteSource", fields: [sourceEnterpriseId], references: [id])
+  targetEnterprise Enterprise @relation("SupplyRouteTarget", fields: [targetEnterpriseId], references: [id])
+  product          Product    @relation(fields: [productId],          references: [id])
+
+  @@index([playerId, isActive])
+  @@index([sourceEnterpriseId])
+  @@index([targetEnterpriseId])
 }
 
 model AutoContract {

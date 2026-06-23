@@ -167,6 +167,15 @@ export class TickEngine {
       }
     }
 
+    // ── 2b. Supply route transfers (intra-company, per player) ──────────
+    const supplyTransfers = await this.processSupplyRoutes().catch(e => {
+      console.error(`[Tick ${tickNumber}] Supply routes failed:`, e);
+      return 0;
+    });
+    if (supplyTransfers > 0) {
+      console.log(`[Tick ${tickNumber}] Supply routes: ${supplyTransfers} transfers executed.`);
+    }
+
     // ── 3. Global B2B market matching ────────────────────────────────────
     const trades = await this.market.matchOrders();
 
@@ -573,5 +582,45 @@ export class TickEngine {
         }),
       ]);
     }
+  }
+
+  private async processSupplyRoutes(): Promise<number> {
+    const routes = await this.db.supplyRoute.findMany({
+      where: { isActive: true },
+      select: {
+        id:                 true,
+        sourceEnterpriseId: true,
+        targetEnterpriseId: true,
+        productId:          true,
+        qtyPerTick:         true,
+      },
+    });
+
+    let transfers = 0;
+    for (const route of routes) {
+      const srcInv = await this.db.enterpriseInventory.findUnique({
+        where: { enterpriseId_productId: { enterpriseId: route.sourceEnterpriseId, productId: route.productId } },
+      });
+      if (!srcInv || Number(srcInv.quantity) < route.qtyPerTick) continue;
+
+      const qty     = route.qtyPerTick;
+      const quality = Number(srcInv.avgQuality);
+
+      await this.db.$transaction([
+        // Deduct from source
+        this.db.enterpriseInventory.update({
+          where: { enterpriseId_productId: { enterpriseId: route.sourceEnterpriseId, productId: route.productId } },
+          data:  { quantity: { decrement: qty } },
+        }),
+        // Credit to target (upsert)
+        this.db.enterpriseInventory.upsert({
+          where:  { enterpriseId_productId: { enterpriseId: route.targetEnterpriseId, productId: route.productId } },
+          create: { enterpriseId: route.targetEnterpriseId, productId: route.productId, quantity: qty, avgQuality: quality },
+          update: { quantity: { increment: qty } },
+        }),
+      ]);
+      transfers++;
+    }
+    return transfers;
   }
 }

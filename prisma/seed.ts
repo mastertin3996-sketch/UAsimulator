@@ -362,7 +362,7 @@ async function main() {
         where:  { cityId_productId: { cityId: city.id, productId } },
         update: {},
         create: {
-          cityId,
+          cityId: city.id,
           productId,
           baseUnitsPerDay: scaledUnits,
           // Ціна масштабується із зарплатним коефіцієнтом міста
@@ -385,7 +385,7 @@ async function main() {
         where:  { cityId_productId: { cityId: city.id, productId } },
         update: {},
         create: {
-          cityId,
+          cityId: city.id,
           productId,
           baseUnitsPerDay: scaledUnits,
           referencePrice:  spec.priceUah, // оптова ціна не залежить від міського коефіцієнта
