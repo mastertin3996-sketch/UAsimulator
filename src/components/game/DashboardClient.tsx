@@ -3,35 +3,40 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
-  Building2, TrendingUp, TrendingDown, Play, Loader2, CheckCircle2, AlertCircle, AlertTriangle, Wrench, Hammer,
-  ChevronRight, ArrowUpRight, ArrowDownRight, RefreshCw, Star, DollarSign, ChevronDown, ChevronUp,
+  Building2, TrendingUp, TrendingDown, Play, Loader2, CheckCircle2,
+  AlertCircle, AlertTriangle, Wrench, Hammer, ChevronRight, ArrowUpRight,
+  ArrowDownRight, RefreshCw, Star, DollarSign, ChevronDown, ChevronUp,
+  Users, Factory, Smile, Calendar, Zap, BarChart2,
 } from "lucide-react";
 import { StatCard } from "@/components/game/StatCard";
 import { RevenueChart } from "@/components/game/charts/FinanceChart";
+import { NetWorthChart, PnLChart } from "@/components/game/charts/NetWorthChart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn, formatUAH, formatUSD, formatNumber } from "@/lib/utils";
 
 interface Warning {
   type: "EQUIPMENT_WORN" | "EQUIPMENT_BROKEN";
   severity: "error" | "warning";
-  enterpriseId: string;
-  enterpriseName: string;
-  detail: string;
+  enterpriseId: string; enterpriseName: string; detail: string;
 }
-
+interface SnapshotPoint {
+  tick: number; cashBalance: number; totalAssets: number;
+  revenue: number; opex: number; netProfit: number;
+}
 interface DashData {
   player: {
-    companyName: string;
-    cashBalance: number; balanceUsd: number; netWorth: number;
-    creditRating: number; reputationScore: number;
-    companyValuationUah: number;
+    companyName: string; cashBalance: number; balanceUsd: number; netWorth: number;
+    creditRating: number; reputationScore: number; companyValuationUah: number;
     isOperationsFrozen: boolean; isBankrupt: boolean;
   };
-  enterprises: { id: string; name: string; type: string; city: string; isActive: boolean; isFrozen: boolean; employees: number }[];
+  enterprises: { id: string; name: string; type: string; city: string; isActive: boolean; isFrozen: boolean; employees: number; workshops: number }[];
   chartData: { date: string; revenue: number; expenses: number; profit: number }[];
+  snapshotChart: SnapshotPoint[];
   currentTick: number;
   warnings: Warning[];
   recentTxns: { type: string; amount: number; description: string | null; date: string }[];
+  stats: { employeeCount: number; avgEfficiency: number; avgMood: number; totalUnitsThisTick: number; avgQualityThisTick: number; ticksUntilMonth: number };
+  pnl: { revenue: number; opex: number; netProfit: number; employees: number; mood: number } | null;
 }
 
 function WarningsBanner({ warnings }: { warnings: Warning[] }) {
@@ -64,9 +69,7 @@ function WarningsBanner({ warnings }: { warnings: Warning[] }) {
                     <span className={cn("text-xs font-semibold", w.severity === "error" ? "text-red-400" : "text-amber-400")}>
                       {w.type === "EQUIPMENT_BROKEN" ? "Зламано" : "Знос"}
                     </span>
-                    <Link href={`/enterprises/${w.enterpriseId}`} className="text-xs text-gray-400 hover:text-white underline">
-                      {w.enterpriseName}
-                    </Link>
+                    <Link href={`/enterprises/${w.enterpriseId}`} className="text-xs text-gray-400 hover:text-white underline">{w.enterpriseName}</Link>
                   </div>
                   <p className="text-xs text-gray-500 mt-0.5">{w.detail}</p>
                 </div>
@@ -80,7 +83,6 @@ function WarningsBanner({ warnings }: { warnings: Warning[] }) {
 }
 
 type TickState = "idle" | "loading" | "done" | "error";
-
 function NextTickButton({ onDone }: { onDone: () => void }) {
   const [state, setState] = useState<TickState>("idle");
   const [info, setInfo]   = useState("");
@@ -91,7 +93,7 @@ function NextTickButton({ onDone }: { onDone: () => void }) {
       const res  = await fetch("/api/admin/tick", { method: "POST" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Помилка");
-      setInfo(`Тік ${data.tickNumber} виконано за ${data.durationMs}мс`);
+      setInfo(`Тік ${data.tickNumber} — ${data.durationMs}мс`);
       setState("done");
       setTimeout(() => { setState("idle"); onDone(); }, 2500);
     } catch (e: unknown) {
@@ -110,8 +112,7 @@ function NextTickButton({ onDone }: { onDone: () => void }) {
     <div className="flex items-center gap-2">
       {(state === "done" || state === "error") && (
         <span className={cn("text-xs flex items-center gap-1", state === "done" ? "text-emerald-400" : "text-red-400")}>
-          {state === "done" ? <CheckCircle2 size={12} /> : <AlertCircle size={12} />}
-          {info}
+          {state === "done" ? <CheckCircle2 size={12} /> : <AlertCircle size={12} />} {info}
         </span>
       )}
       <button onClick={run} disabled={state === "loading"}
@@ -124,13 +125,13 @@ function NextTickButton({ onDone }: { onDone: () => void }) {
 }
 
 function RefreshCountdown({ onRefresh }: { onRefresh: () => void }) {
-  const [secs, setSecs] = useState(30);
+  const [secs, setSecs] = useState(60);
   useEffect(() => {
-    const t = setInterval(() => setSecs((s) => { if (s <= 1) { onRefresh(); return 30; } return s - 1; }), 1000);
+    const t = setInterval(() => setSecs((s) => { if (s <= 1) { onRefresh(); return 60; } return s - 1; }), 1000);
     return () => clearInterval(t);
   }, [onRefresh]);
   return (
-    <button onClick={() => { onRefresh(); setSecs(30); }} className="flex items-center gap-1 text-xs text-gray-600 hover:text-gray-400">
+    <button onClick={() => { onRefresh(); setSecs(60); }} className="flex items-center gap-1 text-xs text-gray-600 hover:text-gray-400">
       <RefreshCw size={10} /> {secs}с
     </button>
   );
@@ -141,25 +142,26 @@ const TYPE_LABELS: Record<string, string> = {
   FOOD_PROCESSING: "Харчова переробка", RETAIL_STORE: "Магазин",
   WAREHOUSE: "Склад", LOGISTICS_HUB: "Логістика", RD_LABORATORY: "R&D",
 };
-
 const TXN_LABELS: Record<string, { label: string; color: string }> = {
-  MARKET_SALE:      { label: "Продаж",            color: "text-emerald-400" },
-  MARKET_PURCHASE:  { label: "Закупівля",          color: "text-red-400"    },
-  SALARY_PAYMENT:   { label: "Зарплата",           color: "text-amber-400"  },
-  TAX_PAYMENT:      { label: "Податки",            color: "text-orange-400" },
-  ENERGY_BILL:      { label: "Електроенергія",     color: "text-blue-400"   },
-  LOAN_DISBURSEMENT:{ label: "Кредит",             color: "text-violet-400" },
-  DEPOSIT_MATURITY: { label: "Депозит",            color: "text-emerald-300"},
-  IPO_PROCEEDS:     { label: "IPO",               color: "text-emerald-400"},
-  DIVIDEND_PAYMENT: { label: "Дивіденди",          color: "text-amber-400"  },
-  NPC_SALE:         { label: "NPC продаж",         color: "text-emerald-400"},
-  INITIAL_DEPOSIT:  { label: "Початковий депозит", color: "text-emerald-400"},
+  MARKET_SALE:      { label: "Продаж",        color: "text-emerald-400" },
+  MARKET_PURCHASE:  { label: "Закупівля",     color: "text-red-400"    },
+  SALARY_PAYMENT:   { label: "Зарплата",      color: "text-amber-400"  },
+  TAX_PAYMENT:      { label: "Податки",       color: "text-orange-400" },
+  ENERGY_BILL:      { label: "Електрика",     color: "text-blue-400"   },
+  LOAN_DISBURSEMENT:{ label: "Кредит",        color: "text-violet-400" },
+  DEPOSIT_MATURITY: { label: "Депозит",       color: "text-emerald-300"},
+  IPO_PROCEEDS:     { label: "IPO",           color: "text-emerald-400"},
+  DIVIDEND_PAYMENT: { label: "Дивіденди",     color: "text-amber-400"  },
+  NPC_SALE:         { label: "NPC продаж",    color: "text-emerald-400"},
+  INITIAL_DEPOSIT:  { label: "Стартовий",     color: "text-emerald-400"},
+  GM_ADJUSTMENT:    { label: "GM коригув.",   color: "text-violet-400" },
 };
 
 export default function DashboardClient() {
   const [data, setData]         = useState<DashData | null>(null);
   const [loading, setLoading]   = useState(true);
   const [liveTick, setLiveTick] = useState<number | null>(null);
+  const [chartTab, setChartTab] = useState<"networth" | "pnl" | "revenue">("networth");
   const esRef = useRef<EventSource | null>(null);
 
   const loadData = useCallback(() => {
@@ -172,7 +174,7 @@ export default function DashboardClient() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // SSE — listen for tick events and auto-refresh
+  // SSE — live tick events
   useEffect(() => {
     function connect() {
       const es = new EventSource("/api/events/tick");
@@ -180,15 +182,9 @@ export default function DashboardClient() {
       es.onmessage = (e) => {
         try {
           const msg = JSON.parse(e.data) as { type: string; tickNumber?: number };
-          if (msg.type === "tick" && msg.tickNumber) {
-            setLiveTick(msg.tickNumber);
-            loadData();
-          }
-          if (msg.type === "reconnect") {
-            es.close();
-            setTimeout(connect, 1000);
-          }
-        } catch { /* ignore malformed */ }
+          if (msg.type === "tick" && msg.tickNumber) { setLiveTick(msg.tickNumber); loadData(); }
+          if (msg.type === "reconnect") { es.close(); setTimeout(connect, 1000); }
+        } catch { /* ignore */ }
       };
       es.onerror = () => { es.close(); setTimeout(connect, 5000); };
     }
@@ -196,30 +192,26 @@ export default function DashboardClient() {
     return () => { esRef.current?.close(); };
   }, [loadData]);
 
-  if (loading) {
+  if (loading && !data) {
     return (
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="h-28 rounded-xl bg-gray-900 border border-gray-800 animate-pulse" />
-        ))}
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-28 rounded-xl bg-gray-900 border border-gray-800 animate-pulse" />)}
+        </div>
       </div>
     );
   }
 
   if (!data?.player) {
-    return (
-      <div className="max-w-xl mx-auto mt-24 text-center space-y-5">
-        <Building2 size={32} className="text-gray-600 mx-auto" />
-        <p className="text-gray-500">Помилка завантаження даних</p>
-      </div>
-    );
+    return <div className="flex items-center justify-center min-h-[60vh] gap-2 text-gray-500"><AlertCircle size={18} /> Помилка завантаження</div>;
   }
 
-  const { player, enterprises, chartData, currentTick, warnings, recentTxns } = data;
+  const { player, enterprises, chartData, snapshotChart, currentTick, warnings, recentTxns, stats, pnl } = data;
   const displayTick = liveTick ?? currentTick;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
+      {/* ── Header ──────────────────────────────────────────────── */}
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-white">{player.companyName}</h1>
@@ -227,32 +219,70 @@ export default function DashboardClient() {
             <span className="flex items-center gap-1 text-xs bg-gray-800 text-gray-300 px-2 py-0.5 rounded-full">
               <Star size={10} className="text-yellow-400" /> Рейтинг {player.creditRating.toFixed(1)}
             </span>
-            <span className={cn("text-xs px-2 py-0.5 rounded-full flex items-center gap-1", liveTick ? "bg-emerald-950 text-emerald-400" : "bg-gray-800 text-gray-400")}>
+            <span className={cn("text-xs px-2 py-0.5 rounded-full flex items-center gap-1",
+              liveTick ? "bg-emerald-950 text-emerald-400" : "bg-gray-800 text-gray-400")}>
               {liveTick && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />}
               Тік #{displayTick}
             </span>
-            {player.isOperationsFrozen && (
-              <span className="text-xs bg-red-950 text-red-400 border border-red-800 px-2 py-0.5 rounded-full">Операції заморожені</span>
-            )}
-            {player.isBankrupt && (
-              <span className="text-xs bg-red-950 text-red-400 border border-red-800 px-2 py-0.5 rounded-full">БАНКРУТСТВО</span>
-            )}
+            {player.isOperationsFrozen && <span className="text-xs bg-red-950 text-red-400 border border-red-800 px-2 py-0.5 rounded-full">Операції заморожені</span>}
+            {player.isBankrupt && <span className="text-xs bg-red-950 text-red-400 border border-red-800 px-2 py-0.5 rounded-full">БАНКРУТСТВО</span>}
             <RefreshCountdown onRefresh={loadData} />
           </div>
         </div>
         <NextTickButton onDone={loadData} />
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* ── Top stats row 1: financial ───────────────────────────── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard label="Баланс (UAH)" value={formatUAH(player.cashBalance)} icon={TrendingUp} iconColor="text-yellow-400" iconBg="bg-yellow-950" subtext="Гривневий рахунок" />
         <StatCard label="Баланс (USD)" value={formatUSD(player.balanceUsd)} icon={DollarSign} iconColor="text-emerald-400" iconBg="bg-emerald-950" subtext="Валютний рахунок" />
-        <StatCard label="Підприємств" value={enterprises.length} icon={Building2} iconColor="text-blue-400" iconBg="bg-blue-950" subtext={`${enterprises.filter((e) => e.isActive).length} активних`} />
-        <StatCard label="Оцінка компанії" value={formatUAH(player.companyValuationUah)} icon={Star} iconColor="text-violet-400" iconBg="bg-violet-950" subtext={`Репутація ${player.reputationScore.toFixed(1)}`} />
+        <StatCard label="Чистий капітал" value={formatUAH(player.netWorth)} icon={BarChart2} iconColor="text-violet-400" iconBg="bg-violet-950"
+          subtext={pnl ? `Прибуток: ${pnl.netProfit >= 0 ? "+" : ""}₴${formatNumber(Math.round(pnl.netProfit))}` : "Оцінка компанії"} />
+        <StatCard label="Оцінка компанії" value={formatUAH(player.companyValuationUah)} icon={Star} iconColor="text-blue-400" iconBg="bg-blue-950"
+          subtext={`Репутація ${player.reputationScore.toFixed(1)}`} />
+      </div>
+
+      {/* ── Top stats row 2: operational ────────────────────────── */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="rounded-xl border border-gray-800 bg-gray-900 p-3 flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-blue-950 flex items-center justify-center shrink-0"><Users size={15} className="text-blue-400" /></div>
+          <div>
+            <p className="text-xs text-gray-500">Працівників</p>
+            <p className="text-lg font-bold text-white">{stats.employeeCount}</p>
+            <p className="text-[10px] text-gray-600">еф. {(stats.avgEfficiency * 100).toFixed(0)}%</p>
+          </div>
+        </div>
+        <div className="rounded-xl border border-gray-800 bg-gray-900 p-3 flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-amber-950 flex items-center justify-center shrink-0"><Smile size={15} className="text-amber-400" /></div>
+          <div>
+            <p className="text-xs text-gray-500">Настрій</p>
+            <p className="text-lg font-bold text-white">{(stats.avgMood * 100).toFixed(0)}%</p>
+            <p className="text-[10px] text-gray-600">{stats.avgMood >= 0.7 ? "Відмінний" : stats.avgMood >= 0.4 ? "Нормальний" : "Поганий"}</p>
+          </div>
+        </div>
+        <div className="rounded-xl border border-gray-800 bg-gray-900 p-3 flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-emerald-950 flex items-center justify-center shrink-0"><Factory size={15} className="text-emerald-400" /></div>
+          <div>
+            <p className="text-xs text-gray-500">Вироблено (тік)</p>
+            <p className="text-lg font-bold text-white">{formatNumber(Math.round(stats.totalUnitsThisTick))}</p>
+            <p className="text-[10px] text-gray-600">{stats.totalUnitsThisTick > 0 ? `якість ${(stats.avgQualityThisTick * 100).toFixed(0)}%` : "ще не виробляли"}</p>
+          </div>
+        </div>
+        <div className="rounded-xl border border-gray-800 bg-gray-900 p-3 flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-orange-950 flex items-center justify-center shrink-0"><Calendar size={15} className="text-orange-400" /></div>
+          <div>
+            <p className="text-xs text-gray-500">До місячних виплат</p>
+            <p className="text-lg font-bold text-white">{stats.ticksUntilMonth}</p>
+            <p className="text-[10px] text-gray-600">тіків (зарплата, оренда)</p>
+          </div>
+        </div>
       </div>
 
       {warnings.length > 0 && <WarningsBanner warnings={warnings} />}
 
+      {/* ── Main content grid ────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Left: enterprises */}
         <div className="lg:col-span-2 space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wider">Підприємства</h2>
@@ -271,16 +301,19 @@ export default function DashboardClient() {
                   <div className={cn("rounded-xl border bg-gray-900 p-4 hover:border-gray-600 transition-all cursor-pointer",
                     e.isFrozen ? "border-red-800/60 opacity-70" : e.isActive ? "border-gray-800" : "border-gray-800 opacity-60")}>
                     <div className="flex items-start justify-between gap-2 mb-2">
-                      <div>
-                        <p className="text-sm font-semibold text-white">{e.name}</p>
-                        <p className="text-xs text-gray-500">{TYPE_LABELS[e.type] ?? e.type} - {e.city}</p>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-white truncate">{e.name}</p>
+                        <p className="text-xs text-gray-500">{TYPE_LABELS[e.type] ?? e.type} · {e.city}</p>
                       </div>
-                      <span className={cn("text-xs px-1.5 py-0.5 rounded-full font-medium",
+                      <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0",
                         e.isFrozen ? "bg-red-950 text-red-400" : e.isActive ? "bg-emerald-950 text-emerald-400" : "bg-gray-800 text-gray-500")}>
                         {e.isFrozen ? "Заморожено" : e.isActive ? "Активне" : "Неактивне"}
                       </span>
                     </div>
-                    <p className="text-xs text-gray-500">Працівників: {e.employees}</p>
+                    <div className="flex items-center gap-4 text-[11px] text-gray-500">
+                      <span className="flex items-center gap-1"><Users size={10} /> {e.employees}</span>
+                      <span className="flex items-center gap-1"><Zap size={10} /> {e.workshops} цехів</span>
+                    </div>
                   </div>
                 </Link>
               ))}
@@ -288,21 +321,54 @@ export default function DashboardClient() {
           )}
         </div>
 
+        {/* Right: charts */}
         <div className="space-y-3">
-          <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wider">Фінанси</h2>
-          {chartData.length === 0 ? (
-            <Card><CardContent className="flex items-center justify-center h-48 text-gray-600 text-sm">Дані після першого тіку</CardContent></Card>
-          ) : (
-            <Card>
-              <CardHeader className="pb-0"><CardTitle className="text-xs text-gray-400 uppercase tracking-wider">Дохід / Витрати</CardTitle></CardHeader>
-              <CardContent className="pt-2">
-                <RevenueChart data={chartData.map((d) => ({ tick: 0, ...d }))} compact />
-              </CardContent>
-            </Card>
+          <div className="flex items-center gap-1 bg-gray-900 border border-gray-800 rounded-xl p-1">
+            {(["networth", "pnl", "revenue"] as const).map((t) => {
+              const labels = { networth: "Капітал", pnl: "P&L", revenue: "Дохід/Витрати" };
+              return (
+                <button key={t} onClick={() => setChartTab(t)}
+                  className={cn("flex-1 text-[11px] py-1 rounded-lg font-medium transition-colors",
+                    chartTab === t ? "bg-gray-800 text-white" : "text-gray-600 hover:text-gray-400")}>
+                  {labels[t]}
+                </button>
+              );
+            })}
+          </div>
+
+          <Card>
+            <CardContent className="pt-4">
+              {chartTab === "networth" && <NetWorthChart data={snapshotChart} />}
+              {chartTab === "pnl"      && <PnLChart data={snapshotChart} />}
+              {chartTab === "revenue"  && (
+                chartData.length === 0
+                  ? <div className="flex items-center justify-center h-36 text-gray-600 text-xs">Дані після першого тіку</div>
+                  : <RevenueChart data={chartData.map((d) => ({ tick: 0, ...d }))} compact />
+              )}
+            </CardContent>
+          </Card>
+
+          {pnl && (
+            <div className="rounded-xl border border-gray-800 bg-gray-900 p-4 space-y-2">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Останній період P&L</p>
+              {[
+                { label: "Дохід",    value: pnl.revenue,   color: "text-emerald-400" },
+                { label: "Витрати",  value: pnl.opex,      color: "text-red-400"     },
+                { label: "Прибуток", value: pnl.netProfit, color: pnl.netProfit >= 0 ? "text-emerald-400" : "text-red-400" },
+              ].map(({ label, value, color }) => (
+                <div key={label} className="flex items-center justify-between">
+                  <span className="text-xs text-gray-500">{label}</span>
+                  <span className={cn("text-xs font-mono font-semibold", color)}>
+                    {value >= 0 ? "+" : ""}₴{formatNumber(Math.round(value))}
+                  </span>
+                </div>
+              ))}
+            </div>
           )}
         </div>
       </div>
 
+      {/* ── Recent transactions ──────────────────────────────────── */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -341,18 +407,21 @@ export default function DashboardClient() {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      {/* ── Quick links ──────────────────────────────────────────── */}
+      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
         {[
-          { href: "/enterprises", label: "Підприємства", icon: Building2,    color: "text-blue-400",    bg: "bg-blue-950"    },
-          { href: "/market",      label: "Ринок",        icon: TrendingUp,   color: "text-emerald-400", bg: "bg-emerald-950" },
-          { href: "/finances",    label: "Фінанси",      icon: TrendingDown, color: "text-amber-400",   bg: "bg-amber-950"   },
-          { href: "/banking",     label: "Банківська",   icon: Star,         color: "text-violet-400",  bg: "bg-violet-950"  },
+          { href: "/enterprises",   label: "Підприємства", icon: Building2,   color: "text-blue-400",    bg: "bg-blue-950"    },
+          { href: "/market",        label: "Ринок",        icon: TrendingUp,  color: "text-emerald-400", bg: "bg-emerald-950" },
+          { href: "/finances",      label: "Фінанси",      icon: TrendingDown,color: "text-amber-400",   bg: "bg-amber-950"   },
+          { href: "/banking",       label: "Банківська",   icon: DollarSign,  color: "text-violet-400",  bg: "bg-violet-950"  },
+          { href: "/supply-routes", label: "Маршрути",     icon: ChevronRight,color: "text-cyan-400",    bg: "bg-cyan-950"    },
+          { href: "/qualification", label: "Кваліфікація", icon: Star,        color: "text-purple-400",  bg: "bg-purple-950"  },
         ].map(({ href, label, icon: Icon, color, bg }) => (
-          <Link key={href} href={href} className="rounded-xl border border-gray-800 bg-gray-900 p-4 flex items-center gap-3 hover:border-gray-600 transition-all">
-            <div className={cn("w-9 h-9 rounded-lg flex items-center justify-center", bg)}>
-              <Icon size={18} className={color} />
+          <Link key={href} href={href} className="rounded-xl border border-gray-800 bg-gray-900 p-3 flex flex-col items-center gap-2 hover:border-gray-600 transition-all">
+            <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center", bg)}>
+              <Icon size={16} className={color} />
             </div>
-            <span className="text-sm font-medium text-gray-300">{label}</span>
+            <span className="text-[11px] font-medium text-gray-400 text-center leading-tight">{label}</span>
           </Link>
         ))}
       </div>
