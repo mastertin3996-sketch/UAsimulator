@@ -163,6 +163,19 @@ enum MaDealStatus {
   CANCELED   // продавець відкликав або угода скасована
 }
 
+enum WithdrawalStatus {
+  PENDING
+  PROCESSING
+  APPROVED
+  REJECTED
+}
+
+enum PayoutMethod {
+  USDT_TRC20
+  USDT_ERC20
+  PAYPAL
+}
+
 enum LegalActionStatus {
   PLAINTIFF_WON  // позивач переміг; штраф списаний з відповідача
   DEFENDANT_WON  // відповідач переміг; справу закрито без фінансових наслідків
@@ -330,6 +343,8 @@ model Player {
   ownedTickers            StockTicker[]
   shareholdings           ShareholderRegistry[]
   stockOrders             StockOrderBook[] @relation("PlayerStockOrders")
+  replenishRules          ReplenishRule[]
+  withdrawalRequests      WithdrawalRequest[]
 
   @@index([username])
 }
@@ -495,6 +510,7 @@ model Enterprise {
   subsidyApplications  SubsidyApplication[]
   energyContracts      EnergyContract[]
   securitySystem       SecuritySystem?
+  replenishRules       ReplenishRule[]
 
   @@index([playerId])
   @@index([landPlotId])
@@ -620,6 +636,7 @@ model Product {
   enterpriseInventory EnterpriseInventory[]
   npcDemand           NpcDemand[]
   pendingDeliveries   PendingDelivery[]
+  replenishRules      ReplenishRule[]
 
   @@index([category])
   @@index([sku])
@@ -716,6 +733,48 @@ model EnterpriseInventory {
   product    Product    @relation(fields: [productId], references: [id])
 
   @@unique([enterpriseId, productId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// AUTO-REPLENISH RULES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model ReplenishRule {
+  id               String    @id @default(uuid())
+  playerId         String
+  enterpriseId     String
+  productId        String
+  isActive         Boolean   @default(true)
+  minStockTicks    Float     @default(3)
+  maxPricePerUnit  Decimal   @db.Decimal(14, 4)
+  lastTriggeredAt  DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  player     Player     @relation(fields: [playerId],     references: [id])
+  enterprise Enterprise @relation(fields: [enterpriseId], references: [id])
+  product    Product    @relation(fields: [productId],    references: [id])
+
+  @@unique([enterpriseId, productId])
+  @@index([playerId, isActive])
+}
+
+model WithdrawalRequest {
+  id             String           @id @default(uuid())
+  playerId       String
+  amountPC       Float
+  amountUSD      Float
+  payoutMethod   PayoutMethod
+  payoutAddress  String
+  status         WithdrawalStatus @default(PENDING)
+  adminNote      String?
+  createdAt      DateTime         @default(now())
+  processedAt    DateTime?
+
+  player Player @relation(fields: [playerId], references: [id])
+
+  @@index([playerId, status])
+  @@index([status, createdAt])
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
