@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   Building2, TrendingUp, TrendingDown, Play, Loader2, CheckCircle2, AlertCircle, AlertTriangle, Wrench, Hammer,
@@ -157,8 +157,10 @@ const TXN_LABELS: Record<string, { label: string; color: string }> = {
 };
 
 export default function DashboardClient() {
-  const [data, setData]       = useState<DashData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [data, setData]         = useState<DashData | null>(null);
+  const [loading, setLoading]   = useState(true);
+  const [liveTick, setLiveTick] = useState<number | null>(null);
+  const esRef = useRef<EventSource | null>(null);
 
   const loadData = useCallback(() => {
     setLoading(true);
@@ -169,6 +171,30 @@ export default function DashboardClient() {
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  // SSE — listen for tick events and auto-refresh
+  useEffect(() => {
+    function connect() {
+      const es = new EventSource("/api/events/tick");
+      esRef.current = es;
+      es.onmessage = (e) => {
+        try {
+          const msg = JSON.parse(e.data) as { type: string; tickNumber?: number };
+          if (msg.type === "tick" && msg.tickNumber) {
+            setLiveTick(msg.tickNumber);
+            loadData();
+          }
+          if (msg.type === "reconnect") {
+            es.close();
+            setTimeout(connect, 1000);
+          }
+        } catch { /* ignore malformed */ }
+      };
+      es.onerror = () => { es.close(); setTimeout(connect, 5000); };
+    }
+    connect();
+    return () => { esRef.current?.close(); };
+  }, [loadData]);
 
   if (loading) {
     return (
@@ -190,6 +216,7 @@ export default function DashboardClient() {
   }
 
   const { player, enterprises, chartData, currentTick, warnings, recentTxns } = data;
+  const displayTick = liveTick ?? currentTick;
 
   return (
     <div className="space-y-6">
@@ -200,7 +227,10 @@ export default function DashboardClient() {
             <span className="flex items-center gap-1 text-xs bg-gray-800 text-gray-300 px-2 py-0.5 rounded-full">
               <Star size={10} className="text-yellow-400" /> Рейтинг {player.creditRating.toFixed(1)}
             </span>
-            <span className="text-xs bg-gray-800 text-gray-400 px-2 py-0.5 rounded-full">Тік #{currentTick}</span>
+            <span className={cn("text-xs px-2 py-0.5 rounded-full flex items-center gap-1", liveTick ? "bg-emerald-950 text-emerald-400" : "bg-gray-800 text-gray-400")}>
+              {liveTick && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />}
+              Тік #{displayTick}
+            </span>
             {player.isOperationsFrozen && (
               <span className="text-xs bg-red-950 text-red-400 border border-red-800 px-2 py-0.5 rounded-full">Операції заморожені</span>
             )}
