@@ -377,6 +377,11 @@ export class TickEngine {
       console.error(`[Tick ${tickNumber}] Auto-sell failed for ${playerId}:`, e)
     );
 
+    // ── c3. Auto-replenish: place BUY orders when stock falls below min ────
+    await this.processAutoReplenish(playerId).catch(e =>
+      console.error(`[Tick ${tickNumber}] Auto-replenish failed for ${playerId}:`, e)
+    );
+
     // ── d. Energy billing ────────────────────────────────────────────────
     await this.energy.calculateAndBillEnergy(playerId, tickNumber, utilisationByWorkshop);
 
@@ -638,6 +643,119 @@ export class TickEngine {
       transfers++;
     }
     return transfers;
+  }
+
+  private async processAutoReplenish(playerId: string): Promise<void> {
+    const rules = await this.db.replenishRule.findMany({
+      where: { playerId, isActive: true },
+      select: {
+        id: true, enterpriseId: true, productId: true,
+        minStockTicks: true, maxPricePerUnit: true,
+        product: { select: { sku: true } },
+      },
+    });
+    if (rules.length === 0) return;
+
+    // Batch-fetch inventories and workshops in one pass
+    const enterpriseIds = [...new Set(rules.map(r => r.enterpriseId))];
+    const productIds    = [...new Set(rules.map(r => r.productId))];
+
+    const [inventories, workshops, openBuyOrders] = await Promise.all([
+      this.db.enterpriseInventory.findMany({
+        where: { enterpriseId: { in: enterpriseIds }, productId: { in: productIds } },
+        select: { enterpriseId: true, productId: true, quantity: true },
+      }),
+      this.db.workshop.findMany({
+        where: { enterpriseId: { in: enterpriseIds }, isActive: true },
+        select: {
+          enterpriseId: true, maxCapacity: true,
+          productionOrders: {
+            where: { status: "IN_PROGRESS" },
+            select: {
+              recipe: {
+                select: {
+                  inputs: { select: { productId: true, quantityPerUnit: true } },
+                },
+              },
+            },
+          },
+        },
+      }),
+      this.db.marketOrder.findMany({
+        where: { playerId, type: "BUY", status: { in: ["OPEN", "PARTIALLY_FILLED"] }, productId: { in: productIds } },
+        select: { productId: true },
+      }),
+    ]);
+
+    const invMap = new Map(inventories.map(i => [`${i.enterpriseId}:${i.productId}`, Number(i.quantity)]));
+    const openBuySet = new Set(openBuyOrders.map(o => o.productId));
+
+    for (const rule of rules) {
+      // Skip if open BUY order already exists for this product
+      if (openBuySet.has(rule.productId)) continue;
+
+      const currentQty = invMap.get(`${rule.enterpriseId}:${rule.productId}`) ?? 0;
+
+      // Estimate consumption per tick from active workshops at this enterprise
+      const entWorkshops = workshops.filter(w => w.enterpriseId === rule.enterpriseId);
+      let consumptionPerTick = 0;
+      for (const ws of entWorkshops) {
+        for (const order of ws.productionOrders) {
+          for (const input of order.recipe.inputs) {
+            if (input.productId === rule.productId) {
+              consumptionPerTick += input.quantityPerUnit * ws.maxCapacity;
+            }
+          }
+        }
+      }
+      // Fallback: if no active production found, use a minimal default (10/tick)
+      if (consumptionPerTick === 0) consumptionPerTick = 10;
+
+      const desiredQty = rule.minStockTicks * consumptionPerTick;
+      if (currentQty >= desiredQty) continue;
+
+      const buyQty = Math.ceil(desiredQty - currentQty);
+      const maxPrice = Number(rule.maxPricePerUnit);
+
+      // Check if any SELL offers exist at or below maxPrice
+      const cheapestSell = await this.db.marketOrder.findFirst({
+        where: {
+          productId: rule.productId,
+          type:      "SELL",
+          status:    { in: ["OPEN", "PARTIALLY_FILLED"] },
+          pricePerUnit: { lte: maxPrice },
+          expiresAt: { gt: new Date() },
+        },
+        select: { id: true },
+      });
+      if (!cheapestSell) continue; // no supply at acceptable price
+
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 3);
+
+      await Promise.all([
+        this.db.marketOrder.create({
+          data: {
+            playerId,
+            productId:      rule.productId,
+            resourceType:   rule.product.sku,
+            type:           "BUY",
+            status:         "OPEN",
+            pricePerUnit:   maxPrice,
+            qualityMin:     0,
+            quantityTotal:  buyQty,
+            quantityFilled: 0,
+            expiresAt,
+          },
+        }),
+        this.db.replenishRule.update({
+          where: { id: rule.id },
+          data:  { lastTriggeredAt: new Date() },
+        }),
+      ]);
+
+      openBuySet.add(rule.productId); // prevent duplicate orders in same tick
+    }
   }
 
   private async processAutoSell(playerId: string): Promise<void> {
