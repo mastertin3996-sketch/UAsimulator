@@ -168,7 +168,7 @@ async function setupBot(def: typeof BOT_DEFINITIONS[0], plots: Array<{ id: strin
         firstName:    `Працівник`,
         lastName:     `${i + 1}`,
         profession:      'OPERATOR' as const,
-        salaryUah:       18_000,
+        salaryUah:       22_000,
         mood:            0.8,
         baseEfficiency:  0.85,
         efficiency:      0.85,
