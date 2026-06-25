@@ -395,7 +395,16 @@ export class TickEngine {
     await this.loans.checkOverdueLoans(playerId, tickNumber);
 
     // ── i. R&D — generate research points for RD_LABORATORY enterprises ──
-    await this.rd.processResearchTick(playerId, tickNumber);
+    const rdResult = await this.rd.processResearchTick(playerId, tickNumber);
+    if (rdResult.justUnlocked) {
+      await this.db.notification.create({ data: {
+        playerId,
+        type:    'RESEARCH_COMPLETE',
+        title:   'Дослідження завершено',
+        body:    `Технологія "${rdResult.activeResearchCode}" успішно розроблена!`,
+        entityId: null,
+      }}).catch(() => {});
+    }
 
     // ── j. Analytics: record production output + weekly snapshot ─────────
     await this.analytics.recordProductionResults(playerId, productionResults, tickNumber);

@@ -181,6 +181,24 @@ export class StateRegulationService {
         const auditResult = await this.auditPlayerCompliance(playerId, currentTick);
         summary.auditResults.push(auditResult);
         summary.auditsTriggered++;
+
+        if (auditResult.type === 'FINE_ISSUED') {
+          await this.db.notification.create({ data: {
+            playerId,
+            type:    'AUDIT_FINE',
+            title:   'Штраф від ДПС',
+            body:    `Аудит виявив порушення. Штраф ₴${Number(auditResult.fineAmountUah).toFixed(0)}. Заморожено підприємств: ${auditResult.frozenEnterpriseIds.length}.`,
+            entityId: null,
+          }}).catch(() => {});
+        } else {
+          await this.db.notification.create({ data: {
+            playerId,
+            type:    'AUDIT_CLEAN',
+            title:   'Аудит пройдено успішно',
+            body:    'ДПС провела перевірку. Порушень не виявлено.',
+            entityId: null,
+          }}).catch(() => {});
+        }
       }
     }
 

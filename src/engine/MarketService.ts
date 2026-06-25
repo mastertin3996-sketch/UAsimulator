@@ -41,6 +41,7 @@ export class MarketService {
     });
 
     const allTrades: TradeResult[] = [];
+    const filledNotifs: { playerId: string; orderType: string; productId: string; qty: number; price: number; unit?: string; name?: string }[] = [];
 
     for (const { id: productId } of products) {
       const sells = await this.prisma.marketOrder.findMany({
@@ -206,9 +207,34 @@ export class MarketService {
           productId,
         });
 
-        if (sells[si].quantityFilled >= sells[si].quantityTotal - 0.001) si++;
-        if (buys[bi].quantityFilled  >= buys[bi].quantityTotal  - 0.001) bi++;
+        const sellDone = sells[si].quantityFilled + (sells[si].quantityFilled >= sells[si].quantityTotal - 0.001 ? 0 : 0);
+        if (sells[si].quantityFilled >= sells[si].quantityTotal - 0.001) {
+          filledNotifs.push({ playerId: sells[si].playerId, orderType: 'SELL', productId, qty: sells[si].quantityTotal, price: Number(sells[si].pricePerUnit) });
+          si++;
+        }
+        if (buys[bi].quantityFilled >= buys[bi].quantityTotal - 0.001) {
+          filledNotifs.push({ playerId: buys[bi].playerId, orderType: 'BUY', productId, qty: buys[bi].quantityTotal, price: Number(buys[bi].pricePerUnit) });
+          bi++;
+        }
+        void sellDone;
       }
+    }
+
+    // Batch create fill notifications
+    if (filledNotifs.length > 0) {
+      const productIds = [...new Set(filledNotifs.map(n => n.productId))];
+      const prods = await this.prisma.product.findMany({ where: { id: { in: productIds } }, select: { id: true, nameUa: true, unit: true } });
+      const prodMap = new Map(prods.map(p => [p.id, p]));
+      await Promise.all(filledNotifs.map(n => {
+        const p = prodMap.get(n.productId);
+        return this.prisma.notification.create({ data: {
+          playerId: n.playerId,
+          type:     'ORDER_FILLED',
+          title:    'Ордер виконано',
+          body:     `${n.orderType}-ордер ${p?.nameUa ?? n.productId}: ${n.qty} ${p?.unit ?? ''} @ ₴${n.price.toFixed(0)}/од.`,
+          entityId: null,
+        }}).catch(() => {});
+      }));
     }
 
     return allTrades;
