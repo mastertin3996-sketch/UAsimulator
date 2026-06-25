@@ -215,6 +215,13 @@ export class TickEngine {
       await this.db.notification.createMany({ data: notifRows });
     }
 
+    // ── 3a2. NPC market buying — скуповує SELL-ордери до referencePrice ──
+    const npcMarketUnits = await this.market.matchNpcMarketOrders()
+      .catch(e => { console.error(`[Tick ${tickNumber}] NPC market buy failed:`, e); return 0; });
+    if (npcMarketUnits > 0) {
+      console.log(`[Tick ${tickNumber}] NPC market: bought ${npcMarketUnits.toFixed(0)} units.`);
+    }
+
     // ── 3b–3i. Independent global services in parallel ───────────────────
     const [logisticsSummary, financeSummary, regulationSummary, energySummary, securitySummary, tradeSummary] =
       await Promise.all([
@@ -861,9 +868,16 @@ export class TickEngine {
       expiresAt.setDate(expiresAt.getDate() + 3);
 
       await this.db.$transaction([
+        // Remove from enterprise inventory
         this.db.enterpriseInventory.update({
           where: { enterpriseId_productId: { enterpriseId: item.enterpriseId, productId: item.productId } },
           data:  { quantity: { decrement: sellQty } },
+        }),
+        // Escrow in player inventory (matchOrders checks here)
+        this.db.playerInventory.upsert({
+          where:  { playerId_productId: { playerId, productId: item.productId } },
+          update: { quantity: { increment: sellQty } },
+          create: { playerId, productId: item.productId, quantity: sellQty, avgQuality: Number(item.avgQuality) },
         }),
         this.db.marketOrder.create({
           data: {
@@ -880,6 +894,49 @@ export class TickEngine {
           },
         }),
       ]);
+    }
+
+    // Re-list goods stuck in playerInventory with no active sell order
+    // (happens when orders are cancelled externally, e.g. by compliance)
+    const playerInvItems = await this.db.playerInventory.findMany({
+      where: { playerId, quantity: { gt: 1 } },
+      select: { productId: true, quantity: true, avgQuality: true,
+                product: { select: { sku: true } } },
+    });
+
+    for (const pItem of playerInvItems) {
+      const openOrder = await this.db.marketOrder.findFirst({
+        where: { playerId, productId: pItem.productId, type: 'SELL', status: { in: ['OPEN', 'PARTIALLY_FILLED'] } },
+        select: { id: true },
+      });
+      if (openOrder) continue;
+
+      // Look up auto-sell price from enterprise inventory config
+      const entInv = await this.db.enterpriseInventory.findFirst({
+        where: { enterprise: { playerId }, productId: pItem.productId, autoSellPriceUah: { not: null } },
+        select: { autoSellPriceUah: true },
+      });
+      if (!entInv?.autoSellPriceUah) continue;
+
+      const qty   = Number(pItem.quantity);
+      const price = Number(entInv.autoSellPriceUah);
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 3);
+
+      await this.db.marketOrder.create({
+        data: {
+          playerId,
+          productId:     pItem.productId,
+          resourceType:  pItem.product.sku,
+          type:          'SELL',
+          status:        'OPEN',
+          pricePerUnit:  price,
+          quality:       Number(pItem.avgQuality),
+          quantityTotal: qty,
+          quantityFilled: 0,
+          expiresAt,
+        },
+      });
     }
   }
 }

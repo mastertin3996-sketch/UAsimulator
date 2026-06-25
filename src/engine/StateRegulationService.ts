@@ -58,6 +58,7 @@ const SALARY_UNDERPAY_LOOKBACK = 7;                 // ticks assumed underpaid
 const AUDIT_THRESHOLD_PROBABLE  = 0.70;  // random 15% audit chance below this
 const AUDIT_THRESHOLD_GUARANTEED = 0.40; // audit guaranteed below this
 const AUDIT_PROBABILITY          = 0.15;
+const AUDIT_COOLDOWN_TICKS       = 15;   // minimum ticks between audits per player
 
 // Score adjustments per tick
 const PENALTY_NO_LICENSE   = 0.10;
@@ -184,12 +185,18 @@ export class StateRegulationService {
     });
 
     for (const { id: playerId } of players) {
-      const newScore = await this.updateComplianceScore(playerId, currentTick);
+      const { score: newScore, lastAuditTick } = await this.updateComplianceScore(playerId, currentTick);
       summary.complianceUpdates++;
 
+      const ticksSinceAudit = lastAuditTick != null
+        ? Number(currentTick - lastAuditTick)
+        : AUDIT_COOLDOWN_TICKS; // no prior audit → eligible
+
       const shouldAudit =
-        newScore < AUDIT_THRESHOLD_GUARANTEED ||
-        (newScore < AUDIT_THRESHOLD_PROBABLE && Math.random() < AUDIT_PROBABILITY);
+        ticksSinceAudit >= AUDIT_COOLDOWN_TICKS && (
+          newScore < AUDIT_THRESHOLD_GUARANTEED ||
+          (newScore < AUDIT_THRESHOLD_PROBABLE && Math.random() < AUDIT_PROBABILITY)
+        );
 
       if (shouldAudit) {
         const auditResult = await this.auditPlayerCompliance(playerId, currentTick);
@@ -714,7 +721,7 @@ export class StateRegulationService {
   private async updateComplianceScore(
     playerId:    string,
     currentTick: bigint,
-  ): Promise<number> {
+  ): Promise<{ score: number; lastAuditTick: bigint | null }> {
 
     const [existing, unpaidTaxes, employees, activeLoans, enterprises] = await Promise.all([
       this.db.complianceRecord.findUnique({ where: { playerId } }),
@@ -776,16 +783,7 @@ export class StateRegulationService {
       if (!hasLicense) {
         score      -= PENALTY_NO_LICENSE;
         hasViolations = true;
-
-        // Cancel all open SELL orders for this player (no per-enterprise filter on MarketOrder)
-        await this.db.marketOrder.updateMany({
-          where: {
-            playerId,
-            type:      'SELL',
-            status:    { in: ['OPEN', 'PARTIALLY_FILLED'] },
-          },
-          data: { status: 'CANCELLED' },
-        });
+        // Sell order cancellation happens only during audit/freeze, not every score update
       }
     }
 
@@ -807,6 +805,6 @@ export class StateRegulationService {
       create: { playerId, score, consecutiveViolations: newViolationStreak },
     });
 
-    return score;
+    return { score, lastAuditTick: existing?.lastAuditTick ?? null };
   }
 }

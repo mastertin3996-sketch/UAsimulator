@@ -329,4 +329,116 @@ export class MarketService {
 
     return results;
   }
+
+  /**
+   * NPC купує у виробників через ринок SELL-ордерів.
+   * Об'єднує попит по всіх містах для кожного продукту і скуповує доступні SELL-ордери
+   * за ціною ≤ referencePrice, симулюючи кінцевих споживачів та дистриб'юторів.
+   */
+  async matchNpcMarketOrders(): Promise<number> {
+    // Aggregate total NPC demand by product across all cities
+    const demands = await this.prisma.npcDemand.groupBy({
+      by:     ['productId'],
+      _sum:   { baseUnitsPerDay: true },
+      _avg:   { referencePrice: true },
+    });
+
+    let totalTraded = 0;
+
+    for (const d of demands) {
+      const totalDemand  = d._sum.baseUnitsPerDay ?? 0;
+      const refPrice     = new Decimal(String(d._avg.referencePrice ?? 0));
+      if (totalDemand <= 0 || refPrice.lte(0)) continue;
+
+      // Find cheapest SELL orders for this product at or below reference price
+      const sells = await this.prisma.marketOrder.findMany({
+        where: {
+          productId:    d.productId,
+          type:         'SELL',
+          status:       { in: ['OPEN', 'PARTIALLY_FILLED'] },
+          pricePerUnit: { lte: refPrice },
+        },
+        orderBy: [{ pricePerUnit: 'asc' }, { createdAt: 'asc' }],
+        take: 20,
+      });
+
+      let remaining = totalDemand;
+
+      for (const sell of sells) {
+        if (remaining <= 0.001) break;
+
+        const available  = sell.quantityTotal - sell.quantityFilled;
+        const tradeQty   = Math.min(available, remaining);
+        if (tradeQty <= 0.001) continue;
+
+        const price      = new Decimal(sell.pricePerUnit.toString());
+        const tradeValue = price.times(tradeQty);
+
+        // Credit seller
+        const seller = await this.prisma.player.findUnique({
+          where:  { id: sell.playerId },
+          select: { cashBalance: true },
+        });
+        if (!seller) continue;
+
+        const sellerBal      = new Decimal(seller.cashBalance.toString());
+        const sellerBalAfter = sellerBal.plus(tradeValue);
+        const newFilled      = sell.quantityFilled + tradeQty;
+        const isFilled       = newFilled >= sell.quantityTotal - 0.001;
+
+        await this.prisma.$transaction(async (tx) => {
+          // Update sell order
+          await tx.marketOrder.update({
+            where: { id: sell.id },
+            data: {
+              quantityFilled: newFilled,
+              status:   isFilled ? 'FILLED' : 'PARTIALLY_FILLED',
+              filledAt: isFilled ? new Date() : null,
+            },
+          });
+
+          // Decrement seller's player inventory escrow
+          await tx.playerInventory.updateMany({
+            where: { playerId: sell.playerId, productId: d.productId },
+            data:  { quantity: { decrement: tradeQty } },
+          });
+
+          // Credit seller balance + transaction record
+          await tx.player.update({
+            where: { id: sell.playerId },
+            data:  { cashBalance: sellerBalAfter },
+          });
+          await tx.financialTransaction.create({
+            data: {
+              playerId:      sell.playerId,
+              type:          'NPC_SALE',
+              amountUah:     tradeValue,
+              balanceBefore: sellerBal,
+              balanceAfter:  sellerBalAfter,
+              description:   `NPC купівля: ${tradeQty.toFixed(1)} од. @ ₴${price.toFixed(0)}/од.`,
+              referenceId:   sell.id,
+            },
+          });
+
+          // Notification if fully filled
+          if (isFilled) {
+            await tx.notification.create({
+              data: {
+                playerId: sell.playerId,
+                type:     'ORDER_FILLED',
+                title:    'Ордер виконано',
+                body:     `NPC викупив ${tradeQty.toFixed(0)} од. @ ₴${price.toFixed(0)}/од.`,
+                entityId: null,
+              },
+            }).catch(() => {});
+          }
+        });
+
+        remaining   -= tradeQty;
+        totalTraded += tradeQty;
+      }
+    }
+
+    return totalTraded;
+  }
 }

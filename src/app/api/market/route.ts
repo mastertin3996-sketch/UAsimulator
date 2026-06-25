@@ -81,11 +81,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `Недостатньо товару (є ${inv?.quantity ?? 0})` }, { status: 400 });
   }
 
-  // Deduct from enterprise inventory
-  await prisma.enterpriseInventory.update({
-    where: { enterpriseId_productId: { enterpriseId, productId } },
-    data: { quantity: { decrement: quantity } },
-  });
+  // Deduct from enterprise inventory + escrow in playerInventory (matchOrders checks here)
+  await prisma.$transaction([
+    prisma.enterpriseInventory.update({
+      where: { enterpriseId_productId: { enterpriseId, productId } },
+      data: { quantity: { decrement: quantity } },
+    }),
+    prisma.playerInventory.upsert({
+      where:  { playerId_productId: { playerId, productId } },
+      update: { quantity: { increment: quantity } },
+      create: { playerId, productId, quantity, avgQuality: inv.avgQuality },
+    }),
+  ]);
 
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + Math.max(1, Math.min(30, daysValid ?? 7)));
