@@ -28,6 +28,7 @@ interface Employee {
 interface Equipment {
   id: string; name: string; status: string; wearAndTear: number;
   energyConsumptionKw: number; marketValueUah: number; isBroken: boolean;
+  maintenanceCostUah: number;
 }
 
 interface ProductionOrder {
@@ -500,7 +501,29 @@ function WorkshopsTab({
     for (const w of enterprise.workshops) m[w.id] = w.currentVolume;
     return m;
   });
-  const [cancelSaving, setCancelSaving] = useState<string | null>(null);
+  const [cancelSaving,  setCancelSaving]  = useState<string | null>(null);
+  const [equipBusy,     setEquipBusy]     = useState<string | null>(null);
+  const [equipMsg,      setEquipMsg]      = useState<{ id: string; ok: boolean; text: string } | null>(null);
+
+  async function doEquipAction(eqId: string, action: "maintenance" | "repair") {
+    setEquipBusy(eqId);
+    setEquipMsg(null);
+    const res = await fetch(`/api/equipment/${eqId}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action }),
+    });
+    const d = await res.json();
+    setEquipBusy(null);
+    if (res.ok) {
+      const label = action === "repair" ? "відремонтовано" : "ТО виконано";
+      setEquipMsg({ id: eqId, ok: true, text: `✓ ${label}` });
+      window.dispatchEvent(new CustomEvent("game:balance"));
+      onRefresh();
+    } else {
+      setEquipMsg({ id: eqId, ok: false, text: d.error ?? "Помилка" });
+    }
+  }
 
   async function saveVolume(workshopId: string) {
     setSavingVolume(workshopId);
@@ -629,15 +652,45 @@ function WorkshopsTab({
                 {w.equipment.length > 0 && (
                   <div className="space-y-1.5 pt-1 border-t border-gray-800">
                     <p className="text-[10px] text-gray-500 uppercase tracking-wider">Обладнання</p>
-                    {w.equipment.map(eq => (
-                      <div key={eq.id} className="flex items-center gap-3 text-xs border border-gray-800 rounded-lg px-3 py-2">
-                        <Cpu size={12} className="text-gray-500 shrink-0" />
-                        <span className="flex-1 text-gray-300">{eq.name}</span>
-                        <span className={cn("font-medium", STATUS_COLOR[eq.status] ?? "text-gray-400")}>{STATUS_UA[eq.status] ?? eq.status}</span>
-                        <div className="w-24"><WearBar value={eq.wearAndTear} /></div>
-                        <span className="text-gray-600 w-16 text-right">{formatUAH(eq.marketValueUah)}</span>
-                      </div>
-                    ))}
+                    {w.equipment.map(eq => {
+                      const busy = equipBusy === eq.id;
+                      const msg  = equipMsg?.id === eq.id ? equipMsg : null;
+                      const maintCost = Number(eq.maintenanceCostUah);
+                      return (
+                        <div key={eq.id} className="border border-gray-800 rounded-lg overflow-hidden">
+                          <div className="flex items-center gap-3 text-xs px-3 py-2">
+                            <Cpu size={12} className="text-gray-500 shrink-0" />
+                            <span className="flex-1 text-gray-300 truncate">{eq.name}</span>
+                            <span className={cn("font-medium shrink-0", STATUS_COLOR[eq.status] ?? "text-gray-400")}>{STATUS_UA[eq.status] ?? eq.status}</span>
+                            <div className="w-16 shrink-0"><WearBar value={eq.wearAndTear} /></div>
+                            {eq.isBroken ? (
+                              <button
+                                onClick={() => doEquipAction(eq.id, "repair")}
+                                disabled={busy}
+                                className="shrink-0 text-[10px] px-2 py-0.5 rounded bg-red-600 hover:bg-red-500 text-white font-medium transition-colors disabled:opacity-50"
+                              >
+                                {busy ? <Loader2 size={10} className="animate-spin" /> : `Рем. ₴${(maintCost * 2 / 1000).toFixed(0)}K`}
+                              </button>
+                            ) : (eq.status === "WORN" || eq.wearAndTear > 0.3) ? (
+                              <button
+                                onClick={() => doEquipAction(eq.id, "maintenance")}
+                                disabled={busy}
+                                className="shrink-0 text-[10px] px-2 py-0.5 rounded bg-amber-600 hover:bg-amber-500 text-white font-medium transition-colors disabled:opacity-50"
+                              >
+                                {busy ? <Loader2 size={10} className="animate-spin" /> : `ТО ₴${(maintCost / 1000).toFixed(0)}K`}
+                              </button>
+                            ) : (
+                              <span className="text-gray-600 text-[10px] w-16 text-right shrink-0">{formatUAH(eq.marketValueUah)}</span>
+                            )}
+                          </div>
+                          {msg && (
+                            <div className={cn("px-3 py-1.5 text-[10px] font-medium", msg.ok ? "bg-emerald-950/60 text-emerald-400" : "bg-red-950/60 text-red-400")}>
+                              {msg.text}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
