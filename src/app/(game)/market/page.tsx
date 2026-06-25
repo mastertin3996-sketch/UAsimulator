@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import {
   ShoppingCart, TrendingUp, TrendingDown, Minus, Search,
   CheckCircle2, AlertCircle, Loader2, BookOpen, ArrowDownUp,
-  RefreshCw, Clock, ChevronDown,
+  RefreshCw, Clock, ChevronDown, ListOrdered, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -654,9 +654,98 @@ function OffersTab() {
   );
 }
 
+// ─── My Orders Tab ────────────────────────────────────────────────────────────
+
+type MyOrder = {
+  id: string; type: "BUY" | "SELL"; status: string;
+  productName: string; unit: string;
+  price: number; qualityMin: number;
+  quantityTotal: number; quantityFilled: number;
+  expiresAt: string; createdAt: string;
+};
+
+function MyOrdersTab() {
+  const [orders,    setOrders]    = useState<MyOrder[]>([]);
+  const [loading,   setLoading]   = useState(true);
+  const [cancelling, setCancelling] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    fetch("/api/market/order")
+      .then(r => r.json())
+      .then(d => setOrders(d.orders ?? []))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function cancel(id: string) {
+    setCancelling(id);
+    await fetch(`/api/market/order?id=${id}`, { method: "DELETE" });
+    setOrders(prev => prev.filter(o => o.id !== id));
+    setCancelling(null);
+  }
+
+  if (loading) return <SkeletonTable rows={4} />;
+
+  if (orders.length === 0) return (
+    <div className="rounded-xl border border-dashed border-gray-800 py-16 text-center">
+      <ListOrdered size={28} className="text-gray-700 mx-auto mb-3" />
+      <p className="text-gray-500 text-sm">Активних ордерів немає</p>
+      <p className="text-gray-600 text-xs mt-1">Виставте BUY-ордер в Order Book або SELL-пропозицію</p>
+    </div>
+  );
+
+  return (
+    <div className="space-y-2">
+      {orders.map(o => {
+        const filled = o.quantityTotal > 0 ? o.quantityFilled / o.quantityTotal : 0;
+        const remaining = o.quantityTotal - o.quantityFilled;
+        const expires = new Date(o.expiresAt);
+        const daysLeft = Math.ceil((expires.getTime() - Date.now()) / 86400000);
+        return (
+          <div key={o.id} className="rounded-xl border border-gray-800 bg-gray-900 px-4 py-3 flex items-center gap-3">
+            <div className={cn("px-2 py-0.5 rounded text-[10px] font-bold tracking-wider shrink-0", o.type === "BUY" ? "bg-emerald-950 text-emerald-400" : "bg-blue-950 text-blue-400")}>
+              {o.type}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-baseline gap-2 flex-wrap">
+                <span className="text-sm font-medium text-white">{o.productName}</span>
+                <span className="text-xs text-gray-500">{formatNumber(o.price)} ₴/{o.unit}</span>
+              </div>
+              <div className="flex items-center gap-3 mt-1">
+                <div className="flex-1 bg-gray-800 rounded-full h-1 max-w-24">
+                  <div className="bg-emerald-500 h-1 rounded-full" style={{ width: `${Math.round(filled * 100)}%` }} />
+                </div>
+                <span className="text-[10px] text-gray-500">{formatNumber(o.quantityFilled)}/{formatNumber(o.quantityTotal)} {o.unit}</span>
+                <span className={cn("text-[10px]", daysLeft <= 1 ? "text-red-400" : "text-gray-600")}>
+                  <Clock size={9} className="inline mr-0.5" />{daysLeft}д
+                </span>
+              </div>
+            </div>
+            <div className="text-right shrink-0">
+              <p className="text-xs text-gray-400 font-mono">{formatNumber(remaining)} {o.unit}</p>
+              <p className="text-[10px] text-gray-600">залишилось</p>
+            </div>
+            <button
+              onClick={() => cancel(o.id)}
+              disabled={cancelling === o.id}
+              className="p-1.5 rounded-lg text-gray-600 hover:text-red-400 hover:bg-red-950/30 transition-colors"
+              title="Скасувати"
+            >
+              {cancelling === o.id ? <Loader2 size={13} className="animate-spin" /> : <X size={13} />}
+            </button>
+          </div>
+        );
+      })}
+      <p className="text-[10px] text-gray-600 text-center pt-1">Ордери виконуються автоматично на кожному тіку</p>
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-type MarketTab = "offers" | "orderbook";
+type MarketTab = "offers" | "orderbook" | "myorders";
 
 export default function MarketPage() {
   const [tab, setTab] = useState<MarketTab>("offers");
@@ -664,6 +753,7 @@ export default function MarketPage() {
   const TABS: { key: MarketTab; label: string; icon: React.ElementType }[] = [
     { key: "offers",    label: "Пропозиції",  icon: ShoppingCart },
     { key: "orderbook", label: "Order Book",  icon: BookOpen     },
+    { key: "myorders",  label: "Мої ордери",  icon: ListOrdered  },
   ];
 
   return (
@@ -693,6 +783,7 @@ export default function MarketPage() {
 
       {tab === "offers"    && <OffersTab />}
       {tab === "orderbook" && <OrderBookPanel />}
+      {tab === "myorders"  && <MyOrdersTab />}
     </div>
   );
 }
