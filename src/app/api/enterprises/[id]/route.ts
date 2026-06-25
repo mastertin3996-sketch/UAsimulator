@@ -136,6 +136,10 @@ export async function GET(_req: NextRequest, { params }: Params) {
         quantity: Number(i.quantity),
         quality: i.avgQuality,
       })),
+      licenses: enterprise.licenses.map((l) => ({
+        ...l,
+        expiresAtTick: l.expiresAtTick.toString(),
+      })),
     },
     stats: { salaryPerTick, rentPerTick, avgEfficiency, avgMood },
     logs: logs.map((l) => ({ ...l, amountUah: Number(l.amountUah), tickNumber: l.tickNumber.toString() })),
