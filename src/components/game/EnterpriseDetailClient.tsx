@@ -15,6 +15,8 @@ import { Button } from "@/components/ui/button";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
+interface EquipCatalogItem { id: string; name: string; basePrice: number; unit: string; footprintM2: number }
+
 type Tab = "management" | "workshops" | "hr" | "warehouse" | "production" | "supply" | "showcase";
 
 interface Props { enterpriseId: string; initialTab?: Tab; title?: string }
@@ -490,6 +492,111 @@ function ManagementTab({ enterprise, stats }: {
   );
 }
 
+// ─── Buy Equipment Modal ──────────────────────────────────────────────────────
+
+function BuyEquipmentModal({
+  workshopId, workshopName, onBought, onClose,
+}: { workshopId: string; workshopName: string; onBought: () => void; onClose: () => void }) {
+  const [catalog,  setCatalog]  = useState<EquipCatalogItem[]>([]);
+  const [freeM2,   setFreeM2]   = useState(0);
+  const [maxSlots, setMaxSlots] = useState(0);
+  const [selected, setSelected] = useState<EquipCatalogItem | null>(null);
+  const [price,    setPrice]    = useState("");
+  const [loading,  setLoading]  = useState(true);
+  const [saving,   setSaving]   = useState(false);
+  const [err,      setErr]      = useState("");
+
+  useEffect(() => {
+    fetch(`/api/workshops/${workshopId}/equipment`)
+      .then((r) => r.json())
+      .then((d) => { setCatalog(d.catalog ?? []); setFreeM2(d.freeM2 ?? 0); setMaxSlots(d.maxSlots ?? 0); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [workshopId]);
+
+  function selectItem(item: EquipCatalogItem) {
+    setSelected(item);
+    setPrice(item.basePrice.toFixed(0));
+    setErr("");
+  }
+
+  async function buy() {
+    if (!selected) return;
+    const priceNum = Number(price);
+    if (!priceNum || priceNum <= 0) { setErr("Введіть ціну придбання"); return; }
+    setSaving(true); setErr("");
+    const res = await fetch(`/api/workshops/${workshopId}/equipment`, {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ productId: selected.id, priceUah: priceNum }),
+    });
+    const d = await res.json();
+    setSaving(false);
+    if (res.ok) { window.dispatchEvent(new CustomEvent("game:balance")); onBought(); }
+    else setErr(d.error ?? "Помилка");
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+      <div className="rounded-2xl border border-gray-800 bg-gray-950 w-full max-w-lg shadow-2xl flex flex-col max-h-[85vh]">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-800 shrink-0">
+          <div>
+            <h3 className="text-base font-semibold text-white">Купити обладнання</h3>
+            <p className="text-xs text-gray-500 mt-0.5">{workshopName} · {maxSlots} слот{maxSlots === 1 ? "" : "ів"} вільно ({freeM2.toFixed(0)} м²)</p>
+          </div>
+          <button onClick={onClose} className="text-gray-500 hover:text-white"><X size={16} /></button>
+        </div>
+
+        <div className="overflow-y-auto flex-1 px-5 py-3 space-y-2">
+          {loading && <p className="text-gray-500 text-sm text-center py-8">Завантаження…</p>}
+          {!loading && catalog.length === 0 && <p className="text-gray-500 text-sm text-center py-8">Каталог порожній</p>}
+          {!loading && maxSlots === 0 && <p className="text-amber-400 text-sm text-center py-2">Немає вільного місця в цеху (по 30 м² на одиницю)</p>}
+          {catalog.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => selectItem(item)}
+              className={cn(
+                "w-full flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all",
+                selected?.id === item.id
+                  ? "border-emerald-600 bg-emerald-950/30"
+                  : "border-gray-800 bg-gray-900 hover:border-gray-700",
+              )}
+            >
+              <Cpu size={14} className={selected?.id === item.id ? "text-emerald-400" : "text-gray-500"} />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-white">{item.name}</p>
+                <p className="text-xs text-gray-500">Займає {item.footprintM2} м²</p>
+              </div>
+              <span className="text-sm font-mono text-gray-300">₴{(item.basePrice / 1000).toFixed(0)}K</span>
+            </button>
+          ))}
+        </div>
+
+        {selected && (
+          <div className="px-5 pb-4 pt-3 border-t border-gray-800 space-y-3 shrink-0">
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">Ціна придбання (₴)</label>
+              <input
+                type="number" min={1} value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500"
+              />
+              <p className="text-xs text-gray-600 mt-1">Вартість ТО = 3% від ціни за обслуговування</p>
+            </div>
+            {err && <p className="text-sm text-red-400">{err}</p>}
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={onClose} disabled={saving}>Скасувати</Button>
+              <Button className="flex-1 bg-emerald-600 hover:bg-emerald-500" onClick={buy} disabled={saving || maxSlots === 0}>
+                {saving ? <Loader2 size={13} className="animate-spin mr-1" /> : <Plus size={13} className="mr-1" />}
+                Придбати
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function WorkshopsTab({
   enterprise, onRefresh,
 }: { enterprise: EnterpriseData; onRefresh: () => void }) {
@@ -504,6 +611,7 @@ function WorkshopsTab({
   const [cancelSaving,  setCancelSaving]  = useState<string | null>(null);
   const [equipBusy,     setEquipBusy]     = useState<string | null>(null);
   const [equipMsg,      setEquipMsg]      = useState<{ id: string; ok: boolean; text: string } | null>(null);
+  const [buyEquipWs,    setBuyEquipWs]    = useState<Workshop | null>(null);
 
   async function doEquipAction(eqId: string, action: "maintenance" | "repair") {
     setEquipBusy(eqId);
@@ -649,10 +757,22 @@ function WorkshopsTab({
                 </div>
 
                 {/* Equipment */}
-                {w.equipment.length > 0 && (
-                  <div className="space-y-1.5 pt-1 border-t border-gray-800">
+                <div className="space-y-1.5 pt-1 border-t border-gray-800">
+                  <div className="flex items-center justify-between">
                     <p className="text-[10px] text-gray-500 uppercase tracking-wider">Обладнання</p>
-                    {w.equipment.map(eq => {
+                    <button
+                      onClick={() => setBuyEquipWs(w)}
+                      className="text-[10px] text-emerald-400 hover:text-emerald-300 flex items-center gap-0.5"
+                    >
+                      <Plus size={10} /> Купити
+                    </button>
+                  </div>
+                  {w.equipment.length === 0 && (
+                    <p className="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/15 rounded px-2 py-1.5">
+                      Цех без обладнання — виробництво = 0. Додайте обладнання.
+                    </p>
+                  )}
+                  {w.equipment.map(eq => {
                       const busy = equipBusy === eq.id;
                       const msg  = equipMsg?.id === eq.id ? equipMsg : null;
                       const maintCost = Number(eq.maintenanceCostUah);
@@ -690,9 +810,8 @@ function WorkshopsTab({
                           )}
                         </div>
                       );
-                    })}
-                  </div>
-                )}
+                  })}
+                </div>
               </div>
             </div>
           );
@@ -705,6 +824,14 @@ function WorkshopsTab({
           enterpriseType={enterprise.type}
           onAssigned={() => { setRecipeModal(null); onRefresh(); }}
           onClose={() => setRecipeModal(null)}
+        />
+      )}
+      {buyEquipWs && (
+        <BuyEquipmentModal
+          workshopId={buyEquipWs.id}
+          workshopName={buyEquipWs.name}
+          onBought={() => { setBuyEquipWs(null); onRefresh(); }}
+          onClose={() => setBuyEquipWs(null)}
         />
       )}
       {addModal && (
