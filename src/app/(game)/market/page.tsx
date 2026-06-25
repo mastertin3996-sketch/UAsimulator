@@ -514,6 +514,7 @@ function OffersTab() {
     const data = await res.json(); setBuying(false);
     if (!res.ok) { setBuyError(data.error ?? "Помилка"); return; }
     setBuySuccess(`✓ Куплено ${buyQty} ${buyOffer.unit} · −${formatNumber(buyQty * buyOffer.price)} ₴`);
+    window.dispatchEvent(new CustomEvent("game:balance"));
     loadOffers(); setTimeout(() => setBuyOffer(null), 2000);
   }
 

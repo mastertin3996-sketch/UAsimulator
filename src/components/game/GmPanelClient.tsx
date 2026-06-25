@@ -78,7 +78,7 @@ export default function GmPanelClient() {
     });
     setAdjusting(false);
     const d = await r.json();
-    if (r.ok) { alert(`✓ Баланс ${d.companyName}: ${d.amountUah > 0 ? "+" : ""}${formatNumber(d.amountUah)} UAH\nНовий: ₴${formatNumber(Math.round(d.newBalance))}`); setAdjustTarget(null); setAdjustAmt(""); setAdjustReason(""); load(); }
+    if (r.ok) { alert(`✓ Баланс ${d.companyName}: ${d.amountUah > 0 ? "+" : ""}${formatNumber(d.amountUah)} UAH\nНовий: ₴${formatNumber(Math.round(d.newBalance))}`); setAdjustTarget(null); setAdjustAmt(""); setAdjustReason(""); window.dispatchEvent(new CustomEvent("game:balance")); load(); }
     else alert(d.error);
   }
 
