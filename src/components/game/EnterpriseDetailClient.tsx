@@ -7,7 +7,7 @@ import {
   ArrowLeft, Building2, Zap, Users, Package, Factory,
   AlertCircle, AlertTriangle, Wrench, Hammer, CheckCircle2,
   TrendingUp, TrendingDown, Cpu, Leaf, Plus, Trash2,
-  BookOpen, SlidersHorizontal, Loader2, X, ChevronDown, Pencil,
+  BookOpen, SlidersHorizontal, Loader2, X, ChevronDown, Pencil, Truck,
 } from "lucide-react";
 import { cn, formatUAH, formatNumber } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -1126,6 +1126,110 @@ function LogsTab({ logs }: { logs: FinancialLog[] }) {
   );
 }
 
+// ─── Supply Tab ────────────────────────────────────────────────────────────────
+
+function SupplyTab({ enterpriseId }: { enterpriseId: string }) {
+  const [routes, setRoutes]   = useState<{
+    id: string; productName: string; unit: string; qtyPerTick: number; isActive: boolean;
+    sourceName: string; targetName: string; sourceEnterpriseId: string; targetEnterpriseId: string;
+  }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [toggling, setToggling] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/supply-routes")
+      .then(r => r.json())
+      .then(d => {
+        const all: typeof routes = d.routes ?? [];
+        setRoutes(all.filter(r =>
+          r.sourceEnterpriseId === enterpriseId || r.targetEnterpriseId === enterpriseId
+        ));
+      })
+      .finally(() => setLoading(false));
+  }, [enterpriseId]);
+
+  async function toggle(id: string, current: boolean) {
+    setToggling(id);
+    await fetch(`/api/supply-routes/${id}`, {
+      method:  "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ isActive: !current }),
+    });
+    setRoutes(prev => prev.map(r => r.id === id ? { ...r, isActive: !current } : r));
+    setToggling(null);
+  }
+
+  async function remove(id: string) {
+    if (!confirm("Видалити маршрут?")) return;
+    await fetch(`/api/supply-routes/${id}`, { method: "DELETE" });
+    setRoutes(prev => prev.filter(r => r.id !== id));
+  }
+
+  const outgoing = routes.filter(r => r.sourceEnterpriseId === enterpriseId);
+  const incoming = routes.filter(r => r.targetEnterpriseId === enterpriseId);
+
+  if (loading) return <div className="py-12 text-center text-gray-600 text-sm">Завантаження…</div>;
+
+  if (routes.length === 0) return (
+    <div className="rounded-xl border border-dashed border-gray-800 py-14 text-center">
+      <Truck size={28} className="text-gray-700 mx-auto mb-3" />
+      <p className="text-gray-500 text-sm mb-2">Маршрутів постачання немає</p>
+      <a href="/warehouses" className="text-xs text-emerald-500 hover:text-emerald-400">Налаштувати у Складах →</a>
+    </div>
+  );
+
+  const Section = ({ title, items, dir }: { title: string; items: typeof routes; dir: "out" | "in" }) => (
+    items.length > 0 ? (
+      <div>
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">{title}</p>
+        <div className="space-y-2">
+          {items.map(r => (
+            <div key={r.id} className={cn("rounded-xl border bg-gray-900 px-4 py-3 flex items-center gap-3", r.isActive ? "border-gray-800" : "border-gray-800 opacity-50")}>
+              <div className={cn("p-1.5 rounded-lg", dir === "out" ? "bg-blue-950" : "bg-emerald-950")}>
+                <Truck size={13} className={dir === "out" ? "text-blue-400" : "text-emerald-400"} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-white truncate">
+                  {dir === "out" ? `→ ${r.targetName}` : `← ${r.sourceName}`}
+                </p>
+                <p className="text-xs text-gray-500">{r.productName} · {formatNumber(r.qtyPerTick)} {r.unit}/тік</p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full", r.isActive ? "bg-emerald-950 text-emerald-400" : "bg-gray-800 text-gray-500")}>
+                  {r.isActive ? "Активний" : "Пауза"}
+                </span>
+                <button
+                  onClick={() => toggle(r.id, r.isActive)}
+                  disabled={toggling === r.id}
+                  className="text-xs text-gray-500 hover:text-amber-400 transition-colors"
+                  title={r.isActive ? "Призупинити" : "Активувати"}
+                >
+                  {toggling === r.id ? <Loader2 size={12} className="animate-spin" /> : r.isActive ? "⏸" : "▶"}
+                </button>
+                <button onClick={() => remove(r.id)} className="text-gray-600 hover:text-red-400 transition-colors">
+                  <Trash2 size={12} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    ) : null
+  );
+
+  return (
+    <div className="space-y-5">
+      <Section title="Вихідні маршрути (відправляє)" items={outgoing} dir="out" />
+      <Section title="Вхідні маршрути (отримує)"   items={incoming} dir="in" />
+      <div className="text-center pt-2">
+        <a href="/warehouses" className="text-xs text-gray-500 hover:text-emerald-400 transition-colors">
+          Керувати всіма маршрутами →
+        </a>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main ──────────────────────────────────────────────────────────────────────
 
 const TABS: { key: Tab; label: string }[] = [
@@ -1133,6 +1237,7 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "workshops",  label: "Цехи" },
   { key: "hr",         label: "Персонал" },
   { key: "warehouse",  label: "Склад" },
+  { key: "supply",     label: "Постачання" },
   { key: "production", label: "Фінанси" },
 ];
 
@@ -1239,6 +1344,7 @@ export default function EnterpriseDetailClient({ enterpriseId, initialTab }: Pro
       {tab === "workshops"  && <WorkshopsTab enterprise={enterprise} onRefresh={load} />}
       {tab === "hr"         && <HRTab enterprise={enterprise} onRefresh={load} />}
       {tab === "warehouse"  && <WarehouseTab inventory={enterprise.inventory} />}
+      {tab === "supply"     && <SupplyTab enterpriseId={enterpriseId} />}
       {tab === "production" && <LogsTab logs={logs} />}
     </div>
   );
