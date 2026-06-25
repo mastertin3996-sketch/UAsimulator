@@ -8,7 +8,7 @@ import {
   TrendingUp, FlaskConical, Trophy, BarChart2, Settings,
   UsersRound, LogOut, ShieldAlert, Truck, Bot, Factory,
   ScrollText, Tag, History, Landmark, CandlestickChart, Banknote,
-  Bell, Wallet, GraduationCap, Users, Cpu, X,
+  Bell, Wallet, GraduationCap, Users, Cpu, X, BadgeCheck,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
 
@@ -32,6 +32,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/research",           label: "Дослідження",  icon: FlaskConical },
       { href: "/production-history", label: "Виробництво",  icon: Factory },
       { href: "/warehouses",         label: "Склади",       icon: Warehouse },
+      { href: "/licenses",           label: "Ліцензії",     icon: BadgeCheck },
     ],
   },
   {
