@@ -1231,32 +1231,61 @@ function ShowcaseTab({ enterpriseId, onGoToSupply }: { enterpriseId: string; onG
       </div>
 
       {selected && (
-        <div className="rounded-xl border border-emerald-600/30 bg-emerald-500/5 p-4 space-y-3">
-          <div className="flex items-center gap-3">
-            <span className="text-3xl">{productEmoji(selected.sku)}</span>
-            <div>
-              <p className="font-medium text-white">{selected.nameUa}</p>
-              <p className="text-xs text-gray-400">
-                Попит: {selected.baseUnitsPerDay.toFixed(0)} {selected.unit}/день · NPC ціна: ₴{selected.referencePrice}/{selected.unit}
-              </p>
-              <p className="text-xs text-gray-400">
-                Потенційний дохід: ≈ ₴{(selected.baseUnitsPerDay * selected.referencePrice).toLocaleString("uk-UA", { maximumFractionDigits: 0 })}/день
-              </p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setSelected(null)}>
+          <div
+            className="w-full max-w-sm rounded-2xl border border-gray-700 bg-gray-950 shadow-2xl p-6 space-y-4"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <span className="text-4xl">{productEmoji(selected.sku)}</span>
+                <div>
+                  <p className="font-semibold text-white text-base">{selected.nameUa}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">{selected.sku}</p>
+                </div>
+              </div>
+              <button onClick={() => setSelected(null)} className="text-gray-600 hover:text-white transition-colors mt-0.5">
+                <X size={16} />
+              </button>
             </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Link
-              href={`/market?product=${selected.productId}`}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-colors"
-            >
-              🛒 Купити на ринку
-            </Link>
-            <button
-              onClick={onGoToSupply}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-white text-sm font-medium transition-colors"
-            >
-              🏭 Постачання з підприємства
-            </button>
+
+            <div className="rounded-xl bg-gray-900 border border-gray-800 divide-y divide-gray-800">
+              <div className="flex items-center justify-between px-4 py-2.5">
+                <span className="text-xs text-gray-500">NPC ціна</span>
+                <span className="text-sm font-mono text-white">₴{selected.referencePrice}/{selected.unit}</span>
+              </div>
+              <div className="flex items-center justify-between px-4 py-2.5">
+                <span className="text-xs text-gray-500">Попит міста</span>
+                <span className="text-sm font-mono text-white">{selected.baseUnitsPerDay.toFixed(0)} {selected.unit}/день</span>
+              </div>
+              <div className="flex items-center justify-between px-4 py-2.5">
+                <span className="text-xs text-gray-500">Потенц. дохід</span>
+                <span className="text-sm font-mono text-emerald-400">
+                  ≈ ₴{(selected.baseUnitsPerDay * selected.referencePrice).toLocaleString("uk-UA", { maximumFractionDigits: 0 })}/день
+                </span>
+              </div>
+              <div className="flex items-center justify-between px-4 py-2.5">
+                <span className="text-xs text-gray-500">На складі</span>
+                <span className={cn("text-sm font-mono", selected.inStock > 0 ? "text-emerald-400" : "text-red-400/70")}>
+                  {selected.inStock > 0 ? `${selected.inStock.toFixed(0)} ${selected.unit}` : "Немає"}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Link
+                href={`/market?product=${selected.productId}`}
+                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-colors"
+              >
+                🛒 Купити на ринку
+              </Link>
+              <button
+                onClick={() => { setSelected(null); onGoToSupply(); }}
+                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-white text-sm font-medium transition-colors border border-gray-700"
+              >
+                🏭 Налаштувати постачання
+              </button>
+            </div>
           </div>
         </div>
       )}
