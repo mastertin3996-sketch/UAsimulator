@@ -6,6 +6,7 @@ import {
   Bell, CheckCheck, AlertTriangle, Info, Wrench,
   Hammer, BookX, ArrowRight, Loader2, Trash2, X,
   ShieldAlert, CheckCircle2, ShoppingCart, HardHat, FileWarning,
+  Scale, ThumbsUp, Zap, Unlock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -38,9 +39,13 @@ const TYPE_META: Record<string, {
   EQUIPMENT_WORN   : { icon: Wrench,        color: "text-amber-400",   bg: "bg-amber-950/60",    label: "Знос обладн.",  cat: "warning"  },
   NO_RECIPE        : { icon: BookX,         color: "text-purple-400",  bg: "bg-purple-950/60",   label: "Немає рецепту", cat: "warning"  },
   LICENSE_EXPIRY   : { icon: FileWarning,   color: "text-orange-400",  bg: "bg-orange-950/60",   label: "Ліцензія",      cat: "warning"  },
-  MARKET_FILLED    : { icon: ShoppingCart,  color: "text-emerald-400", bg: "bg-emerald-950/60",  label: "Ринок",         cat: "market"   },
-  CONSTRUCTION_DONE: { icon: HardHat,       color: "text-blue-400",    bg: "bg-blue-950/60",     label: "Будівництво",   cat: "system"   },
-  DEFAULT          : { icon: Info,          color: "text-blue-400",    bg: "bg-blue-950/60",     label: "Система",       cat: "system"   },
+  MARKET_FILLED       : { icon: ShoppingCart, color: "text-emerald-400", bg: "bg-emerald-950/60",  label: "Ринок",         cat: "market"   },
+  CONSTRUCTION_DONE   : { icon: HardHat,      color: "text-blue-400",    bg: "bg-blue-950/60",     label: "Будівництво",   cat: "system"   },
+  AUDIT_FINE          : { icon: Scale,        color: "text-red-400",     bg: "bg-red-950/60",      label: "Штраф",         cat: "critical" },
+  AUDIT_CLEAN         : { icon: ThumbsUp,     color: "text-emerald-400", bg: "bg-emerald-950/60",  label: "Перевірка",     cat: "system"   },
+  MACRO_EVENT         : { icon: Zap,          color: "text-yellow-400",  bg: "bg-yellow-950/60",   label: "Макро-подія",   cat: "system"   },
+  ENTERPRISE_UNFROZEN : { icon: Unlock,       color: "text-sky-400",     bg: "bg-sky-950/60",      label: "Розморожено",   cat: "system"   },
+  DEFAULT             : { icon: Info,         color: "text-blue-400",    bg: "bg-blue-950/60",     label: "Система",       cat: "system"   },
 };
 
 function getMeta(type: string) {
@@ -58,10 +63,10 @@ const CAT_META: {
   color: string;
 }[] = [
   { key: "all",      label: "Всі",          types: [],                                                              color: "text-white"        },
-  { key: "critical", label: "Критичні",     types: ["STRIKE", "EQUIPMENT_BROKEN"],                                 color: "text-red-400"      },
-  { key: "warning",  label: "Попередження", types: ["EQUIPMENT_WORN", "NO_RECIPE", "LICENSE_EXPIRY"],              color: "text-amber-400"    },
-  { key: "market",   label: "Ринок",        types: ["MARKET_FILLED"],                                              color: "text-emerald-400"  },
-  { key: "system",   label: "Система",      types: ["STRIKE_RESOLVED", "CONSTRUCTION_DONE"],                      color: "text-blue-400"     },
+  { key: "critical", label: "Критичні",     types: ["STRIKE", "EQUIPMENT_BROKEN", "AUDIT_FINE"],                               color: "text-red-400"      },
+  { key: "warning",  label: "Попередження", types: ["EQUIPMENT_WORN", "NO_RECIPE", "LICENSE_EXPIRY"],                          color: "text-amber-400"    },
+  { key: "market",   label: "Ринок",        types: ["MARKET_FILLED"],                                                           color: "text-emerald-400"  },
+  { key: "system",   label: "Система",      types: ["STRIKE_RESOLVED", "CONSTRUCTION_DONE", "AUDIT_CLEAN", "MACRO_EVENT", "ENTERPRISE_UNFROZEN"], color: "text-blue-400"     },
 ];
 
 // ─── Stats strip ──────────────────────────────────────────────────────────────

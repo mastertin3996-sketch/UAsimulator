@@ -234,7 +234,52 @@ export class TickEngine {
 
     if (logisticsSummary) console.log(`[Tick ${tickNumber}] Logistics: ${logisticsSummary.arrivals} arrivals, ${logisticsSummary.spoilageEvents} spoilage, ${logisticsSummary.failedDeliveries} failed.`);
     if (financeSummary)  console.log(`[Tick ${tickNumber}] Finance: ${financeSummary.loanPaymentsCount} loans (₴${financeSummary.totalDeductedUah.toFixed(0)}), ${financeSummary.newInsolvencies} insolvencies, ${financeSummary.newBankruptcies} bankruptcies, ${financeSummary.recoveries} recoveries.`);
-    if (regulationSummary) console.log(`[Tick ${tickNumber}] Regulation: ${regulationSummary.auditsTriggered} audits, ${regulationSummary.licenseExpiries} expired, ${regulationSummary.enterprisesUnfrozen} unfrozen${regulationSummary.macroEvent.fired ? `, macro: ${regulationSummary.macroEvent.type}` : ''}.`);
+    if (regulationSummary) {
+      console.log(`[Tick ${tickNumber}] Regulation: ${regulationSummary.auditsTriggered} audits, ${regulationSummary.licenseExpiries} expired, ${regulationSummary.enterprisesUnfrozen} unfrozen${regulationSummary.macroEvent.fired ? `, macro: ${regulationSummary.macroEvent.type}` : ''}.`);
+      // Write regulation notifications
+      const regNotifs: { playerId: string; type: string; title: string; body: string; entityId?: string }[] = [];
+      for (const audit of regulationSummary.auditResults) {
+        if (audit.type === 'FINE_ISSUED') {
+          regNotifs.push({
+            playerId: audit.playerId,
+            type:     'AUDIT_FINE',
+            title:    'Податкова перевірка — штраф',
+            body:     `Штраф ₴${Number(audit.fineAmountUah).toLocaleString('uk-UA', { maximumFractionDigits: 0 })} за несплату ₴${Number(audit.evadedAmountUah).toLocaleString('uk-UA', { maximumFractionDigits: 0 })}. ${audit.frozenEnterpriseIds.length > 0 ? `${audit.frozenEnterpriseIds.length} підпр. заморожено.` : ''}`,
+          });
+        } else {
+          regNotifs.push({
+            playerId: audit.playerId,
+            type:     'AUDIT_CLEAN',
+            title:    'Податкова перевірка — чисто',
+            body:     'Перевірка пройшла без порушень. Рейтинг відповідності підвищено.',
+          });
+        }
+      }
+      for (const ent of regulationSummary.unfrozenEnterprises) {
+        regNotifs.push({
+          playerId: ent.playerId,
+          type:     'ENTERPRISE_UNFROZEN',
+          title:    'Підприємство розморожено',
+          body:     `"${ent.name}" більше не заморожено після перевірки.`,
+          entityId: ent.id,
+        });
+      }
+      if (regulationSummary.macroEvent.fired && regulationSummary.macroEvent.type) {
+        const macroLabels: Record<string, { title: string; body: string }> = {
+          POWER_OUTAGE:         { title: 'Відключення електрики', body: 'Аварійне відключення в регіоні. Підприємства сплачують надбавку за дизель протягом кількох тіків.' },
+          LOGISTICS_BOTTLENECK: { title: 'Логістичні затримки',   body: 'Затор на маршруті. Поставки затримуються на 2 тіки.' },
+          GRAIN_MARKET_BOOM:    { title: 'Зерновий бум',          body: 'Попит на зерно зріс. Агропідприємства отримують +35% до виручки протягом 5 тіків.' },
+        };
+        const label = macroLabels[regulationSummary.macroEvent.type] ?? { title: 'Макро-подія', body: regulationSummary.macroEvent.description ?? '' };
+        const allPlayers = await this.db.player.findMany({ where: { isBankrupt: false }, select: { id: true } });
+        for (const p of allPlayers) {
+          regNotifs.push({ playerId: p.id, type: 'MACRO_EVENT', title: label.title, body: label.body });
+        }
+      }
+      if (regNotifs.length > 0) {
+        await this.db.notification.createMany({ data: regNotifs });
+      }
+    }
     if (energySummary)   console.log(`[Tick ${tickNumber}] EnergyMarket: ☀${energySummary.sunCoefficient.toFixed(3)} | solar ${energySummary.solarEnterprisesCount}ent | diesel ₴${energySummary.totalDieselCostUah.toFixed(0)} | saved ₴${energySummary.totalSolarSavingsUah.toFixed(0)}.`);
     if (securitySummary) console.log(`[Tick ${tickNumber}] CorpSecurity: ${securitySummary.systemsCharged} systems ₴${securitySummary.totalMaintenanceUah.toFixed(0)} | +${securitySummary.newFreezes} freezes | −${securitySummary.liftedFreezes} lifted.`);
     if (tradeSummary)    console.log(`[Tick ${tickNumber}] ForeignTrade: FX ₴${tradeSummary.fxRate.toFixed(4)}/$ | exports ${tradeSummary.exportsCleared} | imports ${tradeSummary.importsCleared} | storage ${tradeSummary.storageFeesCharged}.`);

@@ -105,8 +105,10 @@ export interface RegulationTickSummary {
   tick:                 bigint;
   licenseExpiries:      number;
   enterprisesUnfrozen:  number;
+  unfrozenEnterprises:  { id: string; name: string; playerId: string }[];
   complianceUpdates:    number;
   auditsTriggered:      number;
+  auditResults:         AuditResult[];
   macroEvent:           MacroEventResult;
   macroEffectsApplied:  number;
 }
@@ -123,8 +125,10 @@ export class StateRegulationService {
       tick:                currentTick,
       licenseExpiries:     0,
       enterprisesUnfrozen: 0,
+      unfrozenEnterprises: [],
       complianceUpdates:   0,
       auditsTriggered:     0,
+      auditResults:        [],
       macroEvent:          { fired: false },
       macroEffectsApplied: 0,
     };
@@ -146,14 +150,18 @@ export class StateRegulationService {
     summary.licenseExpiries = expired.count;
 
     // ── d. Unfreeze enterprises whose inspection freeze has ended ──────────
-    const unfrozen = await this.db.enterprise.updateMany({
-      where: {
-        isFrozenByInspection:    true,
-        inspectionFreezeUntilTick: { lt: currentTick },
-      },
-      data: { isFrozenByInspection: false, inspectionFreezeUntilTick: null },
+    const toUnfreeze = await this.db.enterprise.findMany({
+      where: { isFrozenByInspection: true, inspectionFreezeUntilTick: { lt: currentTick } },
+      select: { id: true, name: true, playerId: true },
     });
-    summary.enterprisesUnfrozen = unfrozen.count;
+    if (toUnfreeze.length > 0) {
+      await this.db.enterprise.updateMany({
+        where: { id: { in: toUnfreeze.map((e) => e.id) } },
+        data:  { isFrozenByInspection: false, inspectionFreezeUntilTick: null },
+      });
+    }
+    summary.enterprisesUnfrozen  = toUnfreeze.length;
+    summary.unfrozenEnterprises   = toUnfreeze;
 
     // ── e. Update compliance scores + trigger audits ───────────────────────
     const players = await this.db.player.findMany({
@@ -170,7 +178,8 @@ export class StateRegulationService {
         (newScore < AUDIT_THRESHOLD_PROBABLE && Math.random() < AUDIT_PROBABILITY);
 
       if (shouldAudit) {
-        await this.auditPlayerCompliance(playerId, currentTick);
+        const auditResult = await this.auditPlayerCompliance(playerId, currentTick);
+        summary.auditResults.push(auditResult);
         summary.auditsTriggered++;
       }
     }
