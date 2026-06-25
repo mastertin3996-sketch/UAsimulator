@@ -372,6 +372,11 @@ export class TickEngine {
     // ── c. NPC retail sales ──────────────────────────────────────────────
     await this.market.processNpcSales(playerId, tickNumber);
 
+    // ── c2. Auto-sell: place SELL orders for inventory exceeding threshold ─
+    await this.processAutoSell(playerId).catch(e =>
+      console.error(`[Tick ${tickNumber}] Auto-sell failed for ${playerId}:`, e)
+    );
+
     // ── d. Energy billing ────────────────────────────────────────────────
     await this.energy.calculateAndBillEnergy(playerId, tickNumber, utilisationByWorkshop);
 
@@ -633,5 +638,64 @@ export class TickEngine {
       transfers++;
     }
     return transfers;
+  }
+
+  private async processAutoSell(playerId: string): Promise<void> {
+    const items = await this.db.enterpriseInventory.findMany({
+      where: {
+        enterprise: { playerId },
+        autoSellThreshold: { gt: 0 },
+        autoSellPriceUah:  { not: null },
+      },
+      select: {
+        enterpriseId: true, productId: true,
+        quantity: true, avgQuality: true,
+        autoSellThreshold: true, autoSellPriceUah: true,
+        product: { select: { sku: true, nameUa: true } },
+      },
+    });
+
+    for (const item of items) {
+      const qty       = Number(item.quantity);
+      const threshold = item.autoSellThreshold;
+      if (qty <= threshold) continue;
+
+      const sellQty = qty - threshold;
+      const price   = Number(item.autoSellPriceUah!);
+
+      // Check for an existing OPEN auto-sell order for same product+player to avoid duplicates
+      const existing = await this.db.marketOrder.findFirst({
+        where: {
+          playerId, productId: item.productId,
+          type: "SELL", status: "OPEN",
+        },
+        select: { id: true },
+      });
+      if (existing) continue;
+
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 3);
+
+      await this.db.$transaction([
+        this.db.enterpriseInventory.update({
+          where: { enterpriseId_productId: { enterpriseId: item.enterpriseId, productId: item.productId } },
+          data:  { quantity: { decrement: sellQty } },
+        }),
+        this.db.marketOrder.create({
+          data: {
+            playerId,
+            productId:     item.productId,
+            resourceType:  item.product.sku,
+            type:          "SELL",
+            status:        "OPEN",
+            pricePerUnit:  price,
+            quality:       Number(item.avgQuality),
+            quantityTotal: sellQty,
+            quantityFilled: 0,
+            expiresAt,
+          },
+        }),
+      ]);
+    }
   }
 }

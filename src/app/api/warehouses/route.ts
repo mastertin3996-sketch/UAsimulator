@@ -32,6 +32,7 @@ export async function GET() {
         orderBy: { quantity: "desc" },
         select: {
           quantity: true, avgQuality: true,
+          autoSellThreshold: true, autoSellPriceUah: true,
           product: { select: { id: true, nameUa: true, unit: true } },
         },
       },
@@ -75,7 +76,8 @@ export async function GET() {
       avgCost:     0,
       basePrice:   basePriceMap.get(i.product.id) ?? 0,
       reservedQty: 0,
-      autoSellQty: 0, autoSellPrice: null,
+      autoSellQty:   i.autoSellThreshold,
+      autoSellPrice: i.autoSellPriceUah ? Number(i.autoSellPriceUah) : null,
     })),
   }));
 

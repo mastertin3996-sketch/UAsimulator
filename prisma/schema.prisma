@@ -742,6 +742,10 @@ model EnterpriseInventory {
   avgQuality   Float    @default(0)
   updatedAt    DateTime @updatedAt
 
+  // Auto-sell: place SELL order when quantity > threshold
+  autoSellThreshold Float    @default(0)
+  autoSellPriceUah  Decimal? @db.Decimal(12, 4)
+
   enterprise Enterprise @relation(fields: [enterpriseId], references: [id])
   product    Product    @relation(fields: [productId], references: [id])
 
