@@ -13,6 +13,27 @@ import { cn, formatUAH, formatNumber } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 
+// ─── Product emoji map ─────────────────────────────────────────────────────────
+
+const SKU_EMOJI: Record<string, string> = {
+  "RM-WHEAT":   "🌾", "RM-SUNFL":  "🌻", "RM-SUGBEET": "🫚",
+  "RM-MILK":    "🐄", "RM-CORN":   "🌽", "RM-IRONORE": "🪨",
+  "RM-COAL":    "⚫", "RM-LUMBER": "🪵",
+  "SF-FLOUR":   "🌾", "SF-SUGAR":  "🍬", "SF-STEEL":   "🔩",
+  "SF-PLANKS":  "🪵",
+  "FG-BREAD":   "🍞", "FG-MILK":   "🥛", "FG-PASTA":   "🍝",
+  "FG-SUNOIL":  "🫙", "FG-STEEL-P":"🔧", "FG-FURN":    "🪑",
+  "CM-BRICK":   "🧱", "CM-SAND":   "🏖️", "CM-GRAVEL":  "🪨",
+  "CM-CONCRETE":"🏗️", "CM-CEMENT": "🏗️", "CM-REBAR":   "🔗",
+  "CM-TIMBER":  "🪵",
+  "EQ-MILLGRIND":"⚙️","EQ-OILPRESS":"⚙️","EQ-FURNACE": "🔥",
+  "EQ-TRACTOR": "🚜", "EQ-SAWMILL":"🪚", "EQ-DAIRYLINE":"⚙️",
+};
+
+function productEmoji(sku: string): string {
+  return SKU_EMOJI[sku] ?? "📦";
+}
+
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
 interface EquipCatalogItem { id: string; name: string; basePrice: number; unit: string; footprintM2: number }
@@ -77,8 +98,8 @@ interface EnterpriseData {
 
 interface RecipeOption {
   id: string; name: string;
-  outputs: { quantityPerUnit: number; product: { nameUa: string; unit: string } }[];
-  inputs:  { quantityPerUnit: number; product: { nameUa: string; unit: string } }[];
+  outputs: { quantityPerUnit: number; product: { sku: string; nameUa: string; unit: string } }[];
+  inputs:  { quantityPerUnit: number; product: { sku: string; nameUa: string; unit: string } }[];
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
@@ -388,8 +409,11 @@ function RecipeModal({
                 )}
                 {r.inputs.length > 0 && (
                   <p className="text-xs text-gray-500">
-                    Вхід: {r.inputs.map(i => `${i.quantityPerUnit} ${i.product.nameUa}`).join(" + ")}
+                    Вхід: {r.inputs.map(i => `${productEmoji(i.product.sku)} ${i.quantityPerUnit} ${i.product.nameUa}`).join(" + ")}
                   </p>
+                )}
+                {mainOut && (
+                  <span className="text-2xl leading-none mt-1 block">{productEmoji(mainOut.product.sku)}</span>
                 )}
               </button>
             );
@@ -1138,7 +1162,7 @@ function WarehouseTab({ inventory }: { inventory: InventoryItem[] }) {
       </div>
       {inventory.map((item, i) => (
         <div key={i} className="grid grid-cols-[1fr_80px_80px_80px] items-center px-4 py-3 border-b border-gray-800 last:border-0 hover:bg-gray-800/40 transition-colors">
-          <span className="text-sm text-white">{item.product.nameUa}</span>
+          <span className="text-sm text-white">{productEmoji(item.product.sku)} {item.product.nameUa}</span>
           <span className="text-xs text-gray-500 font-mono">{item.product.sku}</span>
           <span className="text-sm font-mono text-gray-300">{formatNumber(item.quantity)} {item.product.unit}</span>
           <span className={cn("text-sm font-mono", item.quality >= 8 ? "text-emerald-400" : item.quality >= 5 ? "text-amber-400" : "text-red-400")}>{item.quality.toFixed(1)}</span>

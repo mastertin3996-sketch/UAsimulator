@@ -19,13 +19,13 @@ export async function GET(req: NextRequest) {
       inputs: {
         select: {
           quantityPerUnit: true,
-          product: { select: { id: true, nameUa: true, unit: true } },
+          product: { select: { id: true, sku: true, nameUa: true, unit: true } },
         },
       },
       outputs: {
         select: {
           quantityPerUnit: true,
-          product: { select: { id: true, nameUa: true, unit: true } },
+          product: { select: { id: true, sku: true, nameUa: true, unit: true } },
         },
       },
     },
