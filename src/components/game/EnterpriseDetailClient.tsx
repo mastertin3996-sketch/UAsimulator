@@ -406,9 +406,10 @@ function RecipeModal({
 
 // ─── Tabs ──────────────────────────────────────────────────────────────────────
 
-function ManagementTab({ enterprise, stats }: {
+function ManagementTab({ enterprise, stats, productionLogs }: {
   enterprise: EnterpriseData;
   stats: { salaryPerTick: number; rentPerTick: number; avgEfficiency: number; avgMood: number };
+  productionLogs: { tickNumber: string; unitsProduced: number; avgQuality: number }[];
 }) {
   const isActive = enterprise.isOperational && !enterprise.isSeized;
   return (
@@ -488,6 +489,60 @@ function ManagementTab({ enterprise, stats }: {
           </div>
         )}
       </div>
+
+      {/* Production history mini-chart */}
+      {(() => {
+        // Aggregate by tick (sum unitsProduced)
+        const tickMap = new Map<string, number>();
+        for (const l of productionLogs) {
+          tickMap.set(l.tickNumber, (tickMap.get(l.tickNumber) ?? 0) + l.unitsProduced);
+        }
+        const ticks = [...tickMap.entries()]
+          .sort((a, b) => Number(a[0]) - Number(b[0]))
+          .slice(-12);
+
+        if (ticks.length === 0) {
+          return (
+            <div className="rounded-xl border border-gray-800 bg-gray-900 px-4 py-6 text-center">
+              <Factory size={24} className="text-gray-700 mx-auto mb-2" />
+              <p className="text-xs text-gray-600">Виробництво ще не розпочато</p>
+            </div>
+          );
+        }
+
+        const maxVal = Math.max(...ticks.map(([, v]) => v), 1);
+        const totalUnits = ticks.reduce((s, [, v]) => s + v, 0);
+        const avgUnits   = totalUnits / ticks.length;
+
+        return (
+          <div className="rounded-xl border border-gray-800 bg-gray-900 p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-white">Виробництво (останні тіки)</h3>
+              <span className="text-xs text-gray-500">сер. {formatNumber(Math.round(avgUnits))} од/тік</span>
+            </div>
+            <div className="flex items-end gap-1 h-16">
+              {ticks.map(([tick, val]) => {
+                const pct = (val / maxVal) * 100;
+                return (
+                  <div key={tick} className="flex-1 flex flex-col items-center gap-1 group relative">
+                    <div
+                      className="w-full rounded-t bg-emerald-600 group-hover:bg-emerald-500 transition-colors cursor-default"
+                      style={{ height: `${Math.max(4, pct)}%` }}
+                    />
+                    <div className="absolute bottom-full mb-1 hidden group-hover:block bg-gray-800 border border-gray-700 rounded px-1.5 py-0.5 text-[10px] text-white whitespace-nowrap z-10">
+                      Тік {tick}: {formatNumber(Math.round(val))} од.
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex justify-between text-[10px] text-gray-600">
+              <span>Тік {ticks[0]?.[0]}</span>
+              <span>Тік {ticks[ticks.length - 1]?.[0]}</span>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -1087,6 +1142,7 @@ export default function EnterpriseDetailClient({ enterpriseId, initialTab }: Pro
     enterprise: EnterpriseData;
     stats: { salaryPerTick: number; rentPerTick: number; avgEfficiency: number; avgMood: number };
     logs: FinancialLog[];
+    productionLogs: { tickNumber: string; unitsProduced: number; avgQuality: number }[];
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
@@ -1126,7 +1182,7 @@ export default function EnterpriseDetailClient({ enterpriseId, initialTab }: Pro
     );
   }
 
-  const { enterprise, stats, logs } = data;
+  const { enterprise, stats, logs, productionLogs = [] } = data;
   const isActive = enterprise.isOperational && !enterprise.isSeized && !enterprise.isFrozenByInspection && !enterprise.isLegallyFrozen;
 
   return (
@@ -1179,7 +1235,7 @@ export default function EnterpriseDetailClient({ enterpriseId, initialTab }: Pro
         ))}
       </div>
 
-      {tab === "management" && <ManagementTab enterprise={enterprise} stats={stats} />}
+      {tab === "management" && <ManagementTab enterprise={enterprise} stats={stats} productionLogs={productionLogs} />}
       {tab === "workshops"  && <WorkshopsTab enterprise={enterprise} onRefresh={load} />}
       {tab === "hr"         && <HRTab enterprise={enterprise} onRefresh={load} />}
       {tab === "warehouse"  && <WarehouseTab inventory={enterprise.inventory} />}
