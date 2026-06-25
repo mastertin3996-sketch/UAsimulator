@@ -67,9 +67,9 @@ const NAV_GROUPS: NavGroup[] = [
   },
 ];
 
-interface SidebarProps { isAdmin?: boolean; isOpen?: boolean; onClose?: () => void }
+interface SidebarProps { isAdmin?: boolean; isOpen?: boolean; onClose?: () => void; unreadCount?: number }
 
-export default function Sidebar({ isAdmin = false, isOpen = false, onClose }: SidebarProps) {
+export default function Sidebar({ isAdmin = false, isOpen = false, onClose, unreadCount = 0 }: SidebarProps) {
   const pathname = usePathname();
 
   const isActive = (href: string) =>
@@ -113,7 +113,12 @@ export default function Sidebar({ isAdmin = false, isOpen = false, onClose }: Si
                   )}
                 >
                   <Icon size={15} />
-                  {itemLabel}
+                  <span className="flex-1">{itemLabel}</span>
+                  {href === "/notifications" && unreadCount > 0 && (
+                    <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
+                      {unreadCount > 99 ? "99+" : unreadCount}
+                    </span>
+                  )}
                 </Link>
               ))}
             </div>

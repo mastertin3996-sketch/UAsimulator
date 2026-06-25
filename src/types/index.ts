@@ -102,13 +102,16 @@ export interface NpcSaleResult {
 // ─── Market match result ──────────────────────────────────────────────────────
 
 export interface TradeResult {
-  sellOrderId: string;
-  buyOrderId: string;
-  quantity: number;
-  pricePerUnit: Decimal;
-  quality: number;
-  sellerRevenue: number;
-  buyerCost: number;
+  sellOrderId:    string;
+  buyOrderId:     string;
+  quantity:       number;
+  pricePerUnit:   Decimal;
+  quality:        number;
+  sellerRevenue:  number;
+  buyerCost:      number;
+  sellerPlayerId: string;
+  buyerPlayerId:  string;
+  productId:      string;
 }
 
 // ─── Tax period result ────────────────────────────────────────────────────────

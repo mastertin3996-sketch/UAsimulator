@@ -350,6 +350,7 @@ model Player {
   trainingSessions        TrainingSession[]
   syndicateLeadership     Syndicate?          @relation("SyndicateLeader")
   syndicateMembership     SyndicateMember?
+  notifications           Notification[]
 
   @@index([username])
 }
@@ -1748,4 +1749,24 @@ model StockOrderBook {
   @@index([tickerId, status, type])
   @@index([placedByPlayerId, status])
   @@index([createdAtTick])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// NOTIFICATIONS (ігрові сповіщення гравця)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model Notification {
+  id        String   @id @default(uuid())
+  playerId  String
+  type      String   // MARKET_FILLED | CONSTRUCTION_DONE | SALARY_PAID | LOAN_OVERDUE | EQUIPMENT_BROKEN | BANKRUPTCY_WARN
+  title     String
+  body      String
+  entityId  String?  // orderId / enterpriseId / etc.
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([playerId, isRead])
+  @@index([playerId, createdAt(sort: Desc)])
 }

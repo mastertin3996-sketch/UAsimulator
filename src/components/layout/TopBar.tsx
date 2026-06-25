@@ -1,17 +1,19 @@
 "use client";
 
+import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { Menu } from "lucide-react";
-import { formatUAH, formatUSD } from "@/lib/utils";
+import { Menu, Bell } from "lucide-react";
 
 interface TopBarProps {
   cashBalance?: number;
   balanceUsd?: number;
   companyName?: string;
   onMenuToggle?: () => void;
+  unreadCount?: number;
+  onMarkAllRead?: () => void;
 }
 
-export default function TopBar({ cashBalance = 0, balanceUsd = 0, companyName, onMenuToggle }: TopBarProps) {
+export default function TopBar({ cashBalance = 0, balanceUsd = 0, companyName, onMenuToggle, unreadCount = 0, onMarkAllRead }: TopBarProps) {
   const { data: session } = useSession();
 
   return (
@@ -57,6 +59,21 @@ export default function TopBar({ cashBalance = 0, balanceUsd = 0, companyName, o
               : balanceUsd.toFixed(0)}
           </span>
         </div>
+
+        {/* Notification bell */}
+        <Link
+          href="/notifications"
+          onClick={unreadCount > 0 ? onMarkAllRead : undefined}
+          className="relative p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+          aria-label="Сповіщення"
+        >
+          <Bell size={18} />
+          {unreadCount > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-0.5 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center leading-none">
+              {unreadCount > 99 ? "99+" : unreadCount}
+            </span>
+          )}
+        </Link>
 
         {/* User avatar */}
         <div className="flex items-center gap-2">

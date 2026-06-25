@@ -194,13 +194,16 @@ export class MarketService {
         buys[bi]  = { ...buy,  quantityFilled: buy.quantityFilled  + tradeQty };
 
         allTrades.push({
-          sellOrderId:   sell.id,
-          buyOrderId:    buy.id,
-          quantity:      tradeQty,
-          pricePerUnit:  sell.pricePerUnit,          // Prisma Decimal — незмінно
-          quality:       sellQuality,
-          sellerRevenue: tradeValue.toNumber(),      // для display/result
-          buyerCost:     tradeValue.toNumber(),
+          sellOrderId:    sell.id,
+          buyOrderId:     buy.id,
+          quantity:       tradeQty,
+          pricePerUnit:   sell.pricePerUnit,
+          quality:        sellQuality,
+          sellerRevenue:  tradeValue.toNumber(),
+          buyerCost:      tradeValue.toNumber(),
+          sellerPlayerId: sell.playerId,
+          buyerPlayerId:  buy.playerId,
+          productId,
         });
 
         if (sells[si].quantityFilled >= sells[si].quantityTotal - 0.001) si++;

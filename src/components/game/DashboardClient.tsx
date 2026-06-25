@@ -182,7 +182,11 @@ export default function DashboardClient() {
       es.onmessage = (e) => {
         try {
           const msg = JSON.parse(e.data) as { type: string; tickNumber?: number };
-          if (msg.type === "tick" && msg.tickNumber) { setLiveTick(msg.tickNumber); loadData(); }
+          if (msg.type === "tick" && msg.tickNumber) {
+            setLiveTick(msg.tickNumber);
+            loadData();
+            window.dispatchEvent(new CustomEvent("game:tick", { detail: { tickNumber: msg.tickNumber } }));
+          }
           if (msg.type === "reconnect") { es.close(); setTimeout(connect, 1000); }
         } catch { /* ignore */ }
       };

@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   Bell, CheckCheck, AlertTriangle, Info, Wrench,
   Hammer, BookX, ArrowRight, Loader2, Trash2, X,
-  ShieldAlert, CheckCircle2,
+  ShieldAlert, CheckCircle2, ShoppingCart, HardHat, FileWarning,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -14,13 +14,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Notification {
-  id          : string;
-  type        : string;
-  title       : string;
-  body        : string;
-  enterpriseId: string | null;
-  isRead      : boolean;
-  createdAt   : string;
+  id       : string;
+  type     : string;
+  title    : string;
+  body     : string;
+  entityId : string | null;
+  isRead   : boolean;
+  createdAt: string;
 }
 
 // ─── Type meta ────────────────────────────────────────────────────────────────
@@ -30,14 +30,17 @@ const TYPE_META: Record<string, {
   color: string;
   bg   : string;
   label: string;
-  cat  : "critical" | "warning" | "system";
+  cat  : "critical" | "warning" | "system" | "market";
 }> = {
-  STRIKE          : { icon: ShieldAlert,   color: "text-red-400",    bg: "bg-red-950/60",     label: "Страйк",        cat: "critical" },
-  EQUIPMENT_BROKEN: { icon: Hammer,        color: "text-red-500",    bg: "bg-red-950/60",     label: "Поломка",       cat: "critical" },
-  STRIKE_RESOLVED : { icon: CheckCircle2,  color: "text-emerald-400",bg: "bg-emerald-950/60", label: "Страйк знято",  cat: "system"   },
-  EQUIPMENT_WORN  : { icon: Wrench,        color: "text-amber-400",  bg: "bg-amber-950/60",   label: "Знос обладн.",  cat: "warning"  },
-  NO_RECIPE       : { icon: BookX,         color: "text-purple-400", bg: "bg-purple-950/60",  label: "Немає рецепту", cat: "warning"  },
-  DEFAULT         : { icon: Info,          color: "text-blue-400",   bg: "bg-blue-950/60",    label: "Система",       cat: "system"   },
+  STRIKE           : { icon: ShieldAlert,   color: "text-red-400",     bg: "bg-red-950/60",      label: "Страйк",        cat: "critical" },
+  EQUIPMENT_BROKEN : { icon: Hammer,        color: "text-red-500",     bg: "bg-red-950/60",      label: "Поломка",       cat: "critical" },
+  STRIKE_RESOLVED  : { icon: CheckCircle2,  color: "text-emerald-400", bg: "bg-emerald-950/60",  label: "Страйк знято",  cat: "system"   },
+  EQUIPMENT_WORN   : { icon: Wrench,        color: "text-amber-400",   bg: "bg-amber-950/60",    label: "Знос обладн.",  cat: "warning"  },
+  NO_RECIPE        : { icon: BookX,         color: "text-purple-400",  bg: "bg-purple-950/60",   label: "Немає рецепту", cat: "warning"  },
+  LICENSE_EXPIRY   : { icon: FileWarning,   color: "text-orange-400",  bg: "bg-orange-950/60",   label: "Ліцензія",      cat: "warning"  },
+  MARKET_FILLED    : { icon: ShoppingCart,  color: "text-emerald-400", bg: "bg-emerald-950/60",  label: "Ринок",         cat: "market"   },
+  CONSTRUCTION_DONE: { icon: HardHat,       color: "text-blue-400",    bg: "bg-blue-950/60",     label: "Будівництво",   cat: "system"   },
+  DEFAULT          : { icon: Info,          color: "text-blue-400",    bg: "bg-blue-950/60",     label: "Система",       cat: "system"   },
 };
 
 function getMeta(type: string) {
@@ -46,7 +49,7 @@ function getMeta(type: string) {
 
 // ─── Category config ──────────────────────────────────────────────────────────
 
-type Category = "all" | "critical" | "warning" | "system";
+type Category = "all" | "critical" | "warning" | "market" | "system";
 
 const CAT_META: {
   key  : Category;
@@ -54,10 +57,11 @@ const CAT_META: {
   types: string[];
   color: string;
 }[] = [
-  { key: "all",      label: "Всі",        types: [],                                              color: "text-white"        },
-  { key: "critical", label: "Критичні",   types: ["STRIKE", "EQUIPMENT_BROKEN"],                  color: "text-red-400"      },
-  { key: "warning",  label: "Попередження",types: ["EQUIPMENT_WORN", "NO_RECIPE"],                color: "text-amber-400"    },
-  { key: "system",   label: "Система",    types: ["STRIKE_RESOLVED"],                             color: "text-emerald-400"  },
+  { key: "all",      label: "Всі",          types: [],                                                              color: "text-white"        },
+  { key: "critical", label: "Критичні",     types: ["STRIKE", "EQUIPMENT_BROKEN"],                                 color: "text-red-400"      },
+  { key: "warning",  label: "Попередження", types: ["EQUIPMENT_WORN", "NO_RECIPE", "LICENSE_EXPIRY"],              color: "text-amber-400"    },
+  { key: "market",   label: "Ринок",        types: ["MARKET_FILLED"],                                              color: "text-emerald-400"  },
+  { key: "system",   label: "Система",      types: ["STRIKE_RESOLVED", "CONSTRUCTION_DONE"],                      color: "text-blue-400"     },
 ];
 
 // ─── Stats strip ──────────────────────────────────────────────────────────────
@@ -69,7 +73,7 @@ function StatsStrip({
   unreadCount: number;
 }) {
   const criticalUnread = notes.filter((n) => !n.isRead && ["STRIKE", "EQUIPMENT_BROKEN"].includes(n.type)).length;
-  const warningUnread  = notes.filter((n) => !n.isRead && ["EQUIPMENT_WORN", "NO_RECIPE"].includes(n.type)).length;
+  const warningUnread  = notes.filter((n) => !n.isRead && ["EQUIPMENT_WORN", "NO_RECIPE", "LICENSE_EXPIRY"].includes(n.type)).length;
 
   return (
     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -186,9 +190,9 @@ function NotifItem({
           <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded", meta.bg, meta.color)}>
             {meta.label}
           </span>
-          {note.enterpriseId && (
+          {note.entityId && ["CONSTRUCTION_DONE", "STRIKE", "EQUIPMENT_BROKEN", "EQUIPMENT_WORN", "LICENSE_EXPIRY"].includes(note.type) && (
             <Link
-              href={`/enterprises/${note.enterpriseId}`}
+              href={`/enterprises/${note.entityId}`}
               onClick={(e) => e.stopPropagation()}
               className="text-[10px] text-blue-400 hover:text-blue-300 flex items-center gap-0.5 transition-colors"
             >

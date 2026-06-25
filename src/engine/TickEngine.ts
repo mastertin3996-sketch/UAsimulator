@@ -185,6 +185,36 @@ export class TickEngine {
     // ── 3. Global B2B market matching ────────────────────────────────────
     const trades = await this.market.matchOrders();
 
+    // Write market-fill notifications in bulk (group by seller + buyer)
+    if (trades.length > 0) {
+      const productNames = await this.db.product.findMany({
+        where:  { id: { in: [...new Set(trades.map((t) => t.productId))] } },
+        select: { id: true, nameUa: true },
+      });
+      const nameMap = new Map(productNames.map((p) => [p.id, p.nameUa]));
+
+      const notifRows: { playerId: string; type: string; title: string; body: string; entityId: string }[] = [];
+      for (const t of trades) {
+        const product = nameMap.get(t.productId) ?? t.productId;
+        const price   = Number(t.pricePerUnit).toFixed(2);
+        notifRows.push({
+          playerId: t.sellerPlayerId,
+          type:     "MARKET_FILLED",
+          title:    "Ордер виконано",
+          body:     `Продано ${t.quantity.toFixed(0)} од. "${product}" @ ₴${price}. Виручка: ₴${t.sellerRevenue.toFixed(2)}`,
+          entityId: t.sellOrderId,
+        });
+        notifRows.push({
+          playerId: t.buyerPlayerId,
+          type:     "MARKET_FILLED",
+          title:    "Закупку виконано",
+          body:     `Куплено ${t.quantity.toFixed(0)} од. "${product}" @ ₴${price}. Витрати: ₴${t.buyerCost.toFixed(2)}`,
+          entityId: t.buyOrderId,
+        });
+      }
+      await this.db.notification.createMany({ data: notifRows });
+    }
+
     // ── 3b–3i. Independent global services in parallel ───────────────────
     const [logisticsSummary, financeSummary, regulationSummary, energySummary, securitySummary, tradeSummary] =
       await Promise.all([
@@ -350,6 +380,16 @@ export class TickEngine {
         await this.db.constructionProject.update({
           where: { id: proj.id },
           data:  { ticksRemaining: 0, status: 'COMPLETED', completedAt: new Date() },
+        });
+
+        await this.db.notification.create({
+          data: {
+            playerId: playerId,
+            type:     "CONSTRUCTION_DONE",
+            title:    "Будівництво завершено",
+            body:     `"${proj.name}" на "${proj.enterprise.name}" введено в експлуатацію.`,
+            entityId: proj.enterpriseId,
+          },
         });
 
         if (proj.targetType === 'ENTERPRISE') {
