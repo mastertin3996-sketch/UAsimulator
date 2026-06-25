@@ -42,14 +42,25 @@ export async function POST(
       });
       const sellerBal = new Prisma.Decimal(seller.cashBalance.toString());
 
-      // Transfer enterprise if applicable
+      // Transfer enterprise(s)
       if (deal.targetEnterpriseId) {
+        // Single enterprise sale
         const ent = await tx.enterprise.findUnique({ where: { id: deal.targetEnterpriseId } });
         if (!ent || ent.playerId !== deal.sellerId) {
           throw new Error("Підприємство більше не належить продавцю");
         }
         await tx.enterprise.update({
           where: { id: deal.targetEnterpriseId },
+          data:  { playerId: buyerId },
+        });
+      } else {
+        // Whole-company sale — transfer all seller's enterprises + land plots
+        await tx.enterprise.updateMany({
+          where: { playerId: deal.sellerId },
+          data:  { playerId: buyerId },
+        });
+        await tx.landPlot.updateMany({
+          where: { playerId: deal.sellerId },
           data:  { playerId: buyerId },
         });
       }
@@ -60,7 +71,7 @@ export async function POST(
       await tx.financialTransaction.create({
         data: {
           playerId:      buyerId,
-          type:          "LAND_PURCHASE",
+          type:          "MA_ACQUISITION_COST",
           amountUah:     price.negated(),
           balanceBefore: buyerBal,
           balanceAfter:  buyerBalAfter,
@@ -75,7 +86,7 @@ export async function POST(
       await tx.financialTransaction.create({
         data: {
           playerId:      deal.sellerId,
-          type:          "LAND_PURCHASE",
+          type:          "MA_SALE_REVENUE",
           amountUah:     price,
           balanceBefore: sellerBal,
           balanceAfter:  sellerBalAfter,

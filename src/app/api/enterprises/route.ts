@@ -56,7 +56,7 @@ export async function GET() {
     select: {
       id: true, name: true, type: true,
       footprintM2: true, isOperational: true, isSeized: true,
-      isFrozenByInspection: true, isLegallyFrozen: true,
+      isCollateral: true, isFrozenByInspection: true, isLegallyFrozen: true,
       landPlot: {
         select: {
           monthlyLeaseCostUah: true,
@@ -128,6 +128,7 @@ export async function GET() {
       isActive, strikeEndsAt,
       rentPerTick, salaryPerTick, lastTickNet: null,
       wornEquip, brokenEquip, totalLines, linesNoRecipe,
+      isCollateral: e.isCollateral,
     };
   });
 

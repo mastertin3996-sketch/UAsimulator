@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import Link from "next/link";
 import {
   Plus, Building2, Users, Zap, AlertCircle, AlertTriangle,
   Wrench, Hammer, BookX, ArrowUpRight, ArrowDownRight,
-  ChevronRight, Search, X, List, LayoutGrid,
+  ChevronRight, Search, X, List, LayoutGrid, Trash2, Loader2,
 } from "lucide-react";
 import { cn, formatNumber } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,7 @@ interface EnterpriseSummary {
   rentPerTick: number; salaryPerTick: number; lastTickNet: number | null;
   wornEquip: number; brokenEquip: number;
   totalLines: number; linesNoRecipe: number;
+  isCollateral: boolean;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -40,8 +41,23 @@ const CAT_LABELS: Record<string, string> = {
 
 // ─── Enterprise Card ──────────────────────────────────────────────────────────
 
-function EnterpriseCard({ e, currentTick }: { e: EnterpriseSummary; currentTick: number }) {
+function EnterpriseCard({
+  e, currentTick, onDemolished,
+}: { e: EnterpriseSummary; currentTick: number; onDemolished: () => void }) {
   const effPct    = Math.round(e.efficiency * 100);
+  const [confirmDemolish, setConfirmDemolish] = useState(false);
+  const [demolishing,     setDemolishing]     = useState(false);
+
+  async function demolish() {
+    setDemolishing(true);
+    const res = await fetch(`/api/enterprises/${e.id}/demolish`, { method: "POST" });
+    setDemolishing(false);
+    if (res.ok) { onDemolished(); } else {
+      const d = await res.json().catch(() => ({}));
+      alert(d.error ?? "Помилка демонтажу");
+    }
+    setConfirmDemolish(false);
+  }
   const isStrike  = e.strikeEndsAt !== null && e.strikeEndsAt > currentTick;
   const hasBroken = e.brokenEquip > 0;
   const hasWorn   = e.wornEquip > 0;
@@ -195,6 +211,25 @@ function EnterpriseCard({ e, currentTick }: { e: EnterpriseSummary; currentTick:
         >
           👥 HR
         </Link>
+        {!e.isCollateral && (
+          confirmDemolish ? (
+            <button
+              onClick={demolish} disabled={demolishing}
+              className="flex items-center justify-center gap-1 text-xs text-red-400 bg-red-950/40 border border-red-700/50 hover:bg-red-900/60 rounded-lg py-1.5 px-2 transition-colors disabled:opacity-50 shrink-0"
+            >
+              {demolishing ? <Loader2 size={11} className="animate-spin" /> : <Trash2 size={11} />}
+              Підтвердити
+            </button>
+          ) : (
+            <button
+              onClick={() => setConfirmDemolish(true)}
+              className="text-gray-600 hover:text-red-400 bg-gray-800 hover:bg-red-950/20 rounded-lg py-1.5 px-2 transition-colors shrink-0"
+              title="Демонтаж підприємства"
+            >
+              <Trash2 size={13} />
+            </button>
+          )
+        )}
       </div>
     </div>
   );
@@ -291,7 +326,8 @@ export default function EnterprisesPage() {
   const [view,        setView]        = useState<"grid" | "list">("grid");
   const [currentTick, setCurrentTick] = useState(0);
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setLoading(true);
     fetch("/api/enterprises")
       .then((r) => r.json())
       .then((d) => {
@@ -300,6 +336,8 @@ export default function EnterprisesPage() {
       })
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => { load(); }, [load]);
 
   const filtered = useMemo(() => {
     let list = enterprises;
@@ -437,7 +475,7 @@ export default function EnterprisesPage() {
       ) : view === "grid" ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map((e) => (
-            <EnterpriseCard key={e.id} e={e} currentTick={currentTick} />
+            <EnterpriseCard key={e.id} e={e} currentTick={currentTick} onDemolished={load} />
           ))}
           <Link href="/enterprises/create" className="rounded-xl border border-dashed border-gray-800 flex flex-col items-center justify-center gap-2 text-gray-600 hover:text-gray-400 hover:border-gray-600 transition-all min-h-[200px]">
             <Plus size={20} />
