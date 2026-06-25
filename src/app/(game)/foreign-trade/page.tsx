@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Globe, TrendingUp, TrendingDown, Minus, ArrowRightLeft, Ship, Loader2, RefreshCw } from "lucide-react";
+import { Globe, TrendingUp, TrendingDown, Minus, ArrowRightLeft, Ship, Loader2, RefreshCw, PackageOpen } from "lucide-react";
 import { cn, formatNumber } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
@@ -17,23 +17,30 @@ const COMMODITY_LABELS: Record<string, string> = {
 type Ticker = { commodity: string; currentUsd: number; baselineUsd: number; changeDay: number };
 type Decl   = { id: string; type: string; status: string; commodity: string; quantity: number; usdValue: number; uahValue: number; createdAt: string; clearedAt: string | null };
 type Ent    = { id: string; name: string; inventory: { sku: string; nameUa: string; unit: string; quantity: number }[] };
+type City   = { id: string; nameUa: string };
 
 type Data = {
   fxRate: number; cashBalance: number; balanceUsd: number;
+  cities: City[];
   tickers: Ticker[]; declarations: Decl[]; enterprises: Ent[];
 };
 
 export default function ForeignTradePage() {
   const [data,      setData]      = useState<Data | null>(null);
   const [loading,   setLoading]   = useState(true);
-  const [tab,       setTab]       = useState<"export" | "fx" | "history">("export");
+  const [tab,        setTab]        = useState<"export" | "import" | "fx" | "history">("export");
   const [submitting, setSubmitting] = useState(false);
-  const [msg,       setMsg]       = useState<{ ok: boolean; text: string } | null>(null);
+  const [msg,        setMsg]        = useState<{ ok: boolean; text: string } | null>(null);
 
   // Export form
   const [exportEnt,  setExportEnt]  = useState("");
   const [exportComm, setExportComm] = useState("");
   const [exportQty,  setExportQty]  = useState("");
+
+  // Import form
+  const [importCity, setImportCity] = useState("");
+  const [importComm, setImportComm] = useState("");
+  const [importQty,  setImportQty]  = useState("");
 
   // FX form
   const [fxDir,    setFxDir]    = useState<"UAH_TO_USD" | "USD_TO_UAH">("UAH_TO_USD");
@@ -49,18 +56,29 @@ export default function ForeignTradePage() {
 
   useEffect(() => { load(); }, [load]);
 
-  async function submit(action: "export" | "fx") {
+  async function submit(action: "export" | "import" | "fx") {
     setSubmitting(true); setMsg(null);
-    const body = action === "export"
-      ? { action, enterpriseId: exportEnt, commodity: exportComm, quantity: Number(exportQty) }
-      : { action, direction: fxDir, amount: Number(fxAmount) };
-    const res  = await fetch("/api/foreign-trade", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-    const d    = await res.json();
+    let body: Record<string, unknown>;
+    if (action === "export") {
+      body = { action, enterpriseId: exportEnt, commodity: exportComm, quantity: Number(exportQty) };
+    } else if (action === "import") {
+      body = { action, cityId: importCity || undefined, commodity: importComm, quantity: Number(importQty) };
+    } else {
+      body = { action, direction: fxDir, amount: Number(fxAmount) };
+    }
+    const res = await fetch("/api/foreign-trade", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const d   = await res.json();
     setSubmitting(false);
     if (!res.ok) { setMsg({ ok: false, text: d.error ?? "Помилка" }); return; }
     if (action === "export") {
       setMsg({ ok: true, text: `Експортну декларацію подано. Очікуваний дохід: ${formatUSD(d.usdValue)}. Кліренс через ~3 тіки.` });
       setExportQty("");
+    } else if (action === "import") {
+      const dutyText = d.customsPaid
+        ? `Мито+ПДВ: ${formatUAH(d.importDutyUah + d.vatUah)} сплачено.`
+        : `⚠ Товар заморожено на кордоні — поповніть UAH баланс для сплати мита.`;
+      setMsg({ ok: d.customsPaid, text: `Імпорт оформлено: ${formatUSD(d.totalUsd)}. ${dutyText} Доставка через ~3 тіки.` });
+      setImportQty("");
     } else {
       setMsg({ ok: true, text: `Обмін виконано: отримано ${formatUSD(d.amountOut)} (курс ${Number(d.effectiveRate).toFixed(4)})` });
       setFxAmount("");
@@ -132,8 +150,9 @@ export default function ForeignTradePage() {
       {/* Tabs */}
       <div className="flex gap-1 border-b border-gray-800">
         {[
-          { key: "export" as const,  label: "Експорт",     icon: Ship },
-          { key: "fx"     as const,  label: "Обмін валют",  icon: ArrowRightLeft },
+          { key: "export"  as const, label: "Експорт",    icon: Ship },
+          { key: "import"  as const, label: "Імпорт",     icon: PackageOpen },
+          { key: "fx"      as const, label: "Обмін валют", icon: ArrowRightLeft },
           { key: "history" as const, label: `Декларації (${data.declarations.length})`, icon: Globe },
         ].map(({ key, label, icon: Icon }) => (
           <button key={key} onClick={() => setTab(key)}
@@ -191,6 +210,68 @@ export default function ForeignTradePage() {
           <Button onClick={() => submit("export")} disabled={submitting || !exportEnt || !exportComm || !exportQty}>
             {submitting ? <Loader2 size={13} className="animate-spin" /> : <Ship size={13} />}
             Подати декларацію
+          </Button>
+        </div>
+      )}
+
+      {/* Import tab */}
+      {tab === "import" && (
+        <div className="space-y-4">
+          <p className="text-xs text-gray-500">
+            Закупівля товарів за кордоном за USD. Мито 10% + ПДВ 20% від митної вартості сплачуються в UAH.
+            Після кліренсу (~3 тіки) товар надходить на склад у вашому місті.
+          </p>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs text-gray-400 mb-1 block">Місто доставки (необов'язково)</label>
+              <select value={importCity} onChange={e => setImportCity(e.target.value)}
+                className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:border-emerald-500 outline-none">
+                <option value="">Загальний склад гравця</option>
+                {(data.cities ?? []).map(c => <option key={c.id} value={c.id}>{c.nameUa}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-gray-400 mb-1 block">Товар</label>
+              <select value={importComm} onChange={e => setImportComm(e.target.value)}
+                className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:border-emerald-500 outline-none">
+                <option value="">Оберіть товар…</option>
+                {data.tickers.map(t => <option key={t.commodity} value={t.commodity}>{COMMODITY_LABELS[t.commodity] ?? t.commodity} — {formatUSD(t.currentUsd)}/т</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-gray-400 mb-1 block">Кількість (т)</label>
+              <input type="number" min={1} value={importQty} onChange={e => setImportQty(e.target.value)}
+                className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:border-emerald-500 outline-none"
+                placeholder="0" />
+              {(() => {
+                const ticker = data.tickers.find(t => t.commodity === importComm);
+                const qty    = Number(importQty);
+                if (!ticker || qty <= 0) return null;
+                const totalUsd   = ticker.currentUsd * qty;
+                const valUah     = totalUsd * data.fxRate;
+                const dutyUah    = valUah * 0.10;
+                const vatUah     = (valUah + dutyUah) * 0.20;
+                const totalCosts = dutyUah + vatUah;
+                return (
+                  <div className="mt-2 rounded-lg bg-gray-800/50 border border-gray-700 px-3 py-2 space-y-1 text-[11px]">
+                    <div className="flex justify-between"><span className="text-gray-500">Ціна товару (USD)</span><span className="font-mono text-white">{formatUSD(totalUsd)}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-500">Ввізне мито (10%)</span><span className="font-mono text-red-400">{formatUAH(dutyUah)}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-500">ПДВ при імпорті (20%)</span><span className="font-mono text-red-400">{formatUAH(vatUah)}</span></div>
+                    <div className="flex justify-between border-t border-gray-700 pt-1 mt-1"><span className="text-gray-400 font-medium">Разом UAH витрат</span><span className="font-mono text-orange-400 font-bold">{formatUAH(totalCosts)}</span></div>
+                    {data.cashBalance < totalCosts && (
+                      <p className="text-red-400">⚠ Недостатньо UAH для сплати митниці. Товар буде заморожено на кордоні.</p>
+                    )}
+                    {data.balanceUsd < totalUsd && (
+                      <p className="text-red-400">⚠ Недостатньо USD. Є: {formatUSD(data.balanceUsd)}</p>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+          <Button onClick={() => submit("import")} disabled={submitting || !importComm || !importQty || Number(importQty) <= 0}>
+            {submitting ? <Loader2 size={13} className="animate-spin" /> : <PackageOpen size={13} />}
+            Оформити імпорт
           </Button>
         </div>
       )}

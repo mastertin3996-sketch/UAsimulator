@@ -5,7 +5,7 @@ import { ForeignTradeService } from "@/engine/ForeignTradeService";
 
 const svc = () => new ForeignTradeService(prisma);
 
-// GET /api/foreign-trade — tickers + player inventories + FX rate + declarations
+// GET /api/foreign-trade — tickers + player inventories + FX rate + declarations + cities
 export async function GET() {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -26,6 +26,7 @@ export async function GET() {
       where: { playerId, isOperational: true },
       select: {
         id: true, name: true,
+        landPlot: { select: { city: { select: { id: true, nameUa: true } } } },
         inventory: {
           where: { quantity: { gt: 0 } },
           select: { quantity: true, product: { select: { id: true, sku: true, nameUa: true, unit: true } } },
@@ -36,10 +37,19 @@ export async function GET() {
 
   const fxRate = fxRow ? Number(fxRow.usdToUah) : 41;
 
+  // Unique cities from player's enterprises
+  const citiesMap = new Map<string, string>();
+  for (const e of enterprises) {
+    const city = e.landPlot?.city;
+    if (city && !citiesMap.has(city.id)) citiesMap.set(city.id, city.nameUa);
+  }
+  const cities = [...citiesMap.entries()].map(([id, nameUa]) => ({ id, nameUa }));
+
   return NextResponse.json({
     fxRate,
     cashBalance: Number(player?.cashBalance ?? 0),
     balanceUsd:  Number(player?.balanceUsd  ?? 0),
+    cities,
     tickers: tickers.map(t => ({
       commodity:    t.commodity,
       currentUsd:   Number(t.priceUsd),
@@ -74,15 +84,16 @@ export async function GET() {
   });
 }
 
-// POST /api/foreign-trade — place export or FX exchange
+// POST /api/foreign-trade — export, import, or FX exchange
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const playerId = session.user.id;
 
   const body = await req.json().catch(() => ({})) as {
-    action:       "export" | "fx";
+    action:        "export" | "import" | "fx";
     enterpriseId?: string;
+    cityId?:       string;
     commodity?:    string;
     quantity?:     number;
     direction?:    "UAH_TO_USD" | "USD_TO_UAH";
@@ -98,6 +109,27 @@ export async function POST(req: NextRequest) {
       }
       const result = await service.executeExportOrder(playerId, body.enterpriseId, body.commodity, body.quantity);
       return NextResponse.json({ ok: true, declarationId: result.declarationId, usdValue: Number(result.totalUsd) });
+    }
+
+    if (body.action === "import") {
+      if (!body.commodity || !body.quantity) {
+        return NextResponse.json({ error: "commodity та quantity обов'язкові" }, { status: 400 });
+      }
+      const result = await service.executeImportProcurement(
+        playerId,
+        body.cityId ?? "",
+        body.commodity,
+        body.quantity,
+      );
+      return NextResponse.json({
+        ok:             true,
+        declarationId:  result.declarationId,
+        totalUsd:       Number(result.totalUsd),
+        importDutyUah:  Number(result.importDuty),
+        vatUah:         Number(result.importVat),
+        customsPaid:    result.customsPaid,
+        frozenAtBorder: result.frozenAtBorder,
+      });
     }
 
     if (body.action === "fx") {
