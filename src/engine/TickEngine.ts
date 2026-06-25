@@ -389,7 +389,17 @@ export class TickEngine {
     await this.equipment.processDegradation(playerId, utilisationByWorkshop);
 
     // ── f. HR tick ───────────────────────────────────────────────────────
-    await this.hr.processTick(playerId, tickNumber, overworkedEnterpriseIds);
+    const hrResults = await this.hr.processTick(playerId, tickNumber, overworkedEnterpriseIds);
+    const strikers  = hrResults.filter(r => r.wentOnStrike);
+    if (strikers.length > 0) {
+      await this.db.notification.create({ data: {
+        playerId,
+        type:    'STRIKE',
+        title:   'Страйк на підприємстві',
+        body:    `${strikers.length} ${strikers.length === 1 ? 'працівник оголосив' : 'працівників оголосили'} страйк. Перевірте рівень зарплат та настрій.`,
+        entityId: null,
+      }}).catch(() => {});
+    }
 
     // ── g. Перевірка прострочених кредитів (щотіково) ───────────────────
     await this.loans.checkOverdueLoans(playerId, tickNumber);

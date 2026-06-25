@@ -219,6 +219,13 @@ export class LoanService {
         });
         if (!alreadyOverdue) {
           await this.adjustCreditRating(playerId, RATING_DELTA.LATE_PAY);
+          await this.prisma.notification.create({ data: {
+            playerId,
+            type:    'LOAN_OVERDUE',
+            title:   'Кредит прострочено',
+            body:    `Черговий платіж по кредиту ₴${Number(loan.monthlyPaymentUah).toFixed(0)} прострочено. Кредитний рейтинг знижено.`,
+            entityId: loan.id,
+          }}).catch(() => {});
         }
       }
     }
@@ -392,6 +399,13 @@ export class LoanService {
       data:  { status: 'DEFAULTED' },
     });
     await this.adjustCreditRating(playerId, RATING_DELTA.DEFAULT);
+    await this.prisma.notification.create({ data: {
+      playerId,
+      type:    'LOAN_DEFAULT',
+      title:   'Дефолт по кредиту',
+      body:    'Кредит переведено у статус ДЕФОЛТ. Кредитний рейтинг суттєво знижено. Зверніться до реструктуризації.',
+      entityId: loanId,
+    }}).catch(() => {});
     console.error(`[LoanService] ДЕФОЛТ: гравець ${playerId}, кредит ${loanId}`);
   }
 
