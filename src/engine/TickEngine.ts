@@ -601,6 +601,10 @@ export class TickEngine {
     const BONUS: Record<number, number> = { 1: 0.05, 2: 0.10, 3: 0.15, 4: 0.20, 5: 0.25 };
     for (const s of completing) {
       const bonus = BONUS[s.targetLevel] ?? 0;
+      const emp = await this.db.employee.findUnique({
+        where:  { id: s.employeeId },
+        select: { firstName: true, lastName: true, playerId: true },
+      });
       await this.db.$transaction([
         this.db.trainingSession.update({
           where: { id: s.id },
@@ -615,6 +619,15 @@ export class TickEngine {
           },
         }),
       ]);
+      if (emp?.playerId) {
+        await this.db.notification.create({ data: {
+          playerId: emp.playerId,
+          type:     'TRAINING_COMPLETE',
+          title:    'Навчання завершено',
+          body:     `${emp.firstName} ${emp.lastName} підвищив кваліфікацію до рівня ${s.targetLevel}. Ефективність +${(bonus * 100).toFixed(0)}%.`,
+          entityId: s.employeeId,
+        }}).catch(() => {});
+      }
     }
   }
 

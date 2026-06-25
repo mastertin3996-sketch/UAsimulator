@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Users, TrendingDown, AlertTriangle, ChevronDown, ChevronUp, Check, X, Pencil } from "lucide-react";
+import { Users, TrendingDown, AlertTriangle, ChevronDown, ChevronUp, Check, X, Pencil, Loader2 } from "lucide-react";
 import { cn, formatNumber } from "@/lib/utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -271,16 +271,34 @@ function EnterpriseRow({ ent, tickNumber }: { ent: EntData; tickNumber: number }
 type FilterKey = "all" | "strike" | "low" | "unfilled";
 
 export default function EmployeesClient() {
-  const [data,    setData]    = useState<HrData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [filter,  setFilter]  = useState<FilterKey>("all");
-  const [sort,    setSort]    = useState<"mood" | "salary" | "fill">("mood");
+  const [data,       setData]       = useState<HrData | null>(null);
+  const [loading,    setLoading]    = useState(true);
+  const [filter,     setFilter]     = useState<FilterKey>("all");
+  const [sort,       setSort]       = useState<"mood" | "salary" | "fill">("mood");
+  const [bulkPct,    setBulkPct]    = useState(10);
+  const [bulkBusy,   setBulkBusy]   = useState(false);
+  const [bulkMsg,    setBulkMsg]    = useState<{ ok: boolean; text: string } | null>(null);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/hr");
     if (res.ok) setData(await res.json());
     setLoading(false);
   }, []);
+
+  async function bulkRaise(pct: number) {
+    if (!confirm(`Змінити зарплату ВСІМ працівникам на ${pct > 0 ? "+" : ""}${pct}%?`)) return;
+    setBulkBusy(true); setBulkMsg(null);
+    const res = await fetch("/api/hr", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ percentChange: pct }),
+    });
+    const d = await res.json();
+    setBulkBusy(false);
+    if (!res.ok) { setBulkMsg({ ok: false, text: d.error ?? "Помилка" }); return; }
+    setBulkMsg({ ok: true, text: `Оновлено ${d.updated} ставок на ${pct > 0 ? "+" : ""}${pct}%` });
+    load();
+  }
 
   useEffect(() => { load(); }, [load]);
 
@@ -371,6 +389,48 @@ export default function EmployeesClient() {
           </p>
           <p className="text-[10px] text-gray-600 mt-1">підприємств</p>
         </div>
+      </div>
+
+      {/* Bulk salary */}
+      <div className="rounded-xl border border-gray-800 bg-gray-900/50 px-4 py-3">
+        <p className="text-xs font-semibold text-gray-400 mb-2">Масова зміна зарплати</p>
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500">Зміна:</span>
+            <input
+              type="number"
+              min={-50}
+              max={200}
+              value={bulkPct}
+              onChange={(e) => setBulkPct(Number(e.target.value))}
+              className="w-20 bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-xs text-white font-mono focus:outline-none focus:border-emerald-500 [appearance:textfield]"
+            />
+            <span className="text-xs text-gray-500">%</span>
+          </div>
+          <div className="flex gap-1.5">
+            {[5, 10, 15, 20].map((p) => (
+              <button key={p} onClick={() => setBulkPct(p)}
+                className={cn("text-[10px] px-2 py-1 rounded-md border transition-all",
+                  bulkPct === p ? "border-emerald-600 text-emerald-400 bg-emerald-950/30" : "border-gray-700 text-gray-500 hover:text-white"
+                )}>+{p}%</button>
+            ))}
+            <button onClick={() => setBulkPct(-10)}
+              className={cn("text-[10px] px-2 py-1 rounded-md border transition-all",
+                bulkPct === -10 ? "border-red-600 text-red-400 bg-red-950/30" : "border-gray-700 text-gray-500 hover:text-white"
+              )}>−10%</button>
+          </div>
+          <button
+            onClick={() => bulkRaise(bulkPct)}
+            disabled={bulkBusy || !bulkPct}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-700 hover:bg-emerald-600 disabled:opacity-40 text-white transition-colors"
+          >
+            {bulkBusy ? <Loader2 size={11} className="animate-spin" /> : null}
+            Застосувати до всіх
+          </button>
+        </div>
+        {bulkMsg && (
+          <p className={cn("text-xs mt-2", bulkMsg.ok ? "text-emerald-400" : "text-red-400")}>{bulkMsg.text}</p>
+        )}
       </div>
 
       {/* Controls */}

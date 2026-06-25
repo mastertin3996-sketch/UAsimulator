@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Profession, EnterpriseType } from "@prisma/client";
@@ -135,4 +135,26 @@ export async function GET() {
   };
 
   return NextResponse.json({ enterprises: entList, summary });
+}
+
+// PATCH /api/hr — bulk salary raise/cut by % for all employees
+export async function PATCH(req: NextRequest) {
+  const session = await auth();
+  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const playerId = session.user.id;
+
+  const body = await req.json().catch(() => ({})) as { percentChange?: number };
+  const pct  = Number(body.percentChange ?? 0);
+  if (!pct || Math.abs(pct) > 200) {
+    return NextResponse.json({ error: "percentChange має бути від -200 до 200 (крім 0)" }, { status: 400 });
+  }
+
+  const multiplier = 1 + pct / 100;
+  const result = await prisma.$executeRaw`
+    UPDATE "Employee"
+    SET "salaryUah" = GREATEST(1000, ROUND("salaryUah" * ${multiplier}::numeric, 0))
+    WHERE "playerId" = ${playerId}
+  `;
+
+  return NextResponse.json({ ok: true, updated: result });
 }
