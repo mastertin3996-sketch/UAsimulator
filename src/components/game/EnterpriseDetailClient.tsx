@@ -1014,11 +1014,27 @@ function HRTab({
     onRefresh();
   }
 
+  const [settling, setSettling] = useState(false);
+  async function settleStrikes() {
+    setSettling(true);
+    await fetch(`/api/enterprises/${enterprise.id}/hr`, {
+      method:  "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ action: "resolveStrike" }),
+    });
+    setSettling(false);
+    onRefresh();
+  }
+
   return (
     <div className="space-y-4">
       {onStrike.length > 0 && (
-        <div className="flex items-center gap-2 px-4 py-3 rounded-lg border border-red-500/30 bg-red-500/10 text-red-400 text-sm">
-          <AlertCircle size={14} /> {onStrike.length} співробітників на страйку
+        <div className="flex items-center justify-between gap-2 px-4 py-3 rounded-lg border border-red-500/30 bg-red-500/10 text-red-400 text-sm">
+          <span className="flex items-center gap-2"><AlertCircle size={14} /> {onStrike.length} співробітників на страйку</span>
+          <button onClick={settleStrikes} disabled={settling} className="shrink-0 flex items-center gap-1 text-xs bg-red-900/60 hover:bg-red-800/60 text-red-300 px-2 py-1 rounded-md transition-colors">
+            {settling ? <Loader2 size={10} className="animate-spin" /> : null}
+            Врегулювати (+₴500/ос.)
+          </button>
         </div>
       )}
 
