@@ -7,7 +7,7 @@ import {
   Warehouse, FlaskConical, Factory, Truck, Banknote, Wallet,
   Users, Trophy, BarChart2, Tag, History, ScrollText, Bot,
   BadgeCheck, GraduationCap, CandlestickChart, Landmark, Cpu,
-  Bell, Settings, X, CornerDownLeft,
+  Bell, Settings, X, CornerDownLeft, Coins, Globe,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -36,6 +36,8 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/banking",          label: "Банківська",        group: "Фінанси",   Icon: Banknote          },
   { href: "/wallet",           label: "Гаманець",          group: "Фінанси",   Icon: Wallet            },
   { href: "/stock-exchange",   label: "Біржа",              group: "Фінанси",   Icon: CandlestickChart  },
+  { href: "/foreign-trade",    label: "Зовн. торгівля",    group: "Фінанси",   Icon: Globe             },
+  { href: "/subsidies",        label: "Субсидії",           group: "Фінанси",   Icon: Coins             },
   { href: "/ma",               label: "M&A",               group: "Компанія",  Icon: Landmark          },
   { href: "/syndicate",        label: "Синдикат",          group: "Компанія",  Icon: Users             },
   { href: "/optimizer",        label: "Оптимізатор",       group: "Компанія",  Icon: Cpu               },
