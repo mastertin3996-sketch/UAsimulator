@@ -36,6 +36,7 @@ export async function GET() {
     snapshots,
     lastTickLogs,
     allEmployees,
+    compliance,
   ] = await Promise.all([
     // Enterprises summary
     prisma.enterprise.findMany({
@@ -99,6 +100,12 @@ export async function GET() {
     prisma.employee.findMany({
       where:  { enterprise: { playerId } },
       select: { efficiency: true, mood: true },
+    }),
+
+    // Compliance record
+    prisma.complianceRecord.findUnique({
+      where:  { playerId },
+      select: { score: true, lastAuditTick: true, consecutiveViolations: true },
     }),
   ]);
 
@@ -209,5 +216,13 @@ export async function GET() {
       ticksUntilMonth,
     },
     pnl,
+    compliance: compliance ? {
+      score:                compliance.score,
+      consecutiveViolations: compliance.consecutiveViolations,
+      lastAuditTick:        compliance.lastAuditTick ? Number(compliance.lastAuditTick) : null,
+      riskLevel:
+        compliance.score < 0.40 ? "high" :
+        compliance.score < 0.70 ? "medium" : "low",
+    } : null,
   });
 }

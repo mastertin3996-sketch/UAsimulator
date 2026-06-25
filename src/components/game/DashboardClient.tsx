@@ -6,7 +6,7 @@ import {
   Building2, TrendingUp, TrendingDown, Play, Loader2, CheckCircle2,
   AlertCircle, AlertTriangle, Wrench, Hammer, ChevronRight, ArrowUpRight,
   ArrowDownRight, RefreshCw, Star, DollarSign, ChevronDown, ChevronUp,
-  Users, Factory, Smile, Calendar, Zap, BarChart2,
+  Users, Factory, Smile, Calendar, Zap, BarChart2, ShieldAlert, ShieldCheck, Shield,
 } from "lucide-react";
 import { StatCard } from "@/components/game/StatCard";
 import { RevenueChart } from "@/components/game/charts/FinanceChart";
@@ -37,6 +37,7 @@ interface DashData {
   recentTxns: { type: string; amount: number; description: string | null; date: string }[];
   stats: { employeeCount: number; avgEfficiency: number; avgMood: number; totalUnitsThisTick: number; avgQualityThisTick: number; ticksUntilMonth: number };
   pnl: { revenue: number; opex: number; netProfit: number; employees: number; mood: number } | null;
+  compliance: { score: number; consecutiveViolations: number; lastAuditTick: number | null; riskLevel: "low" | "medium" | "high" } | null;
 }
 
 function WarningsBanner({ warnings }: { warnings: Warning[] }) {
@@ -210,7 +211,7 @@ export default function DashboardClient() {
     return <div className="flex items-center justify-center min-h-[60vh] gap-2 text-gray-500"><AlertCircle size={18} /> Помилка завантаження</div>;
   }
 
-  const { player, enterprises, chartData, snapshotChart, currentTick, warnings, recentTxns, stats, pnl } = data;
+  const { player, enterprises, chartData, snapshotChart, currentTick, warnings, recentTxns, stats, pnl, compliance } = data;
   const displayTick = liveTick ?? currentTick;
 
   return (
@@ -369,6 +370,43 @@ export default function DashboardClient() {
               ))}
             </div>
           )}
+
+          {/* ── Compliance score ──────────────────────────── */}
+          {compliance && (() => {
+            const pct = Math.round(compliance.score * 100);
+            const { Icon, ring, bar, label } =
+              compliance.riskLevel === "high"   ? { Icon: ShieldAlert, ring: "border-red-500/40",    bar: "bg-red-500",    label: "Високий ризик" } :
+              compliance.riskLevel === "medium" ? { Icon: Shield,      ring: "border-amber-500/40",  bar: "bg-amber-500",  label: "Середній ризик" } :
+                                                  { Icon: ShieldCheck, ring: "border-emerald-500/40", bar: "bg-emerald-500", label: "Низький ризик" };
+            return (
+              <div className={cn("rounded-xl border bg-gray-900 p-4 space-y-3", ring)}>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Комплаєнс</p>
+                  <Icon size={14} className={bar.replace("bg-", "text-")} />
+                </div>
+                <div className="flex items-end gap-2">
+                  <span className={cn("text-2xl font-bold", bar.replace("bg-", "text-"))}>{pct}%</span>
+                  <span className="text-xs text-gray-500 mb-1">{label}</span>
+                </div>
+                <div className="h-1.5 rounded-full bg-gray-800">
+                  <div className={cn("h-full rounded-full transition-all", bar)} style={{ width: `${pct}%` }} />
+                </div>
+                {compliance.consecutiveViolations > 0 && (
+                  <p className="text-xs text-red-400">
+                    {compliance.consecutiveViolations} тіків з порушеннями поспіль
+                  </p>
+                )}
+                {compliance.lastAuditTick && (
+                  <p className="text-xs text-gray-600">Остання перевірка: тік {compliance.lastAuditTick}</p>
+                )}
+                {compliance.riskLevel !== "low" && (
+                  <Link href="/licenses" className="block text-xs text-amber-400 hover:text-amber-300">
+                    Перевірити ліцензії →
+                  </Link>
+                )}
+              </div>
+            );
+          })()}
         </div>
       </div>
 
