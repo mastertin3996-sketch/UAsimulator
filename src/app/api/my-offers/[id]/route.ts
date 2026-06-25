@@ -14,9 +14,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const { price, minOrder } = await req.json();
 
   const order = await prisma.marketOrder.findFirst({
-    where: { id, playerId, type: "SELL", status: { in: ["OPEN", "PARTIALLY_FILLED"] } },
+    where: { id, playerId, status: { in: ["OPEN", "PARTIALLY_FILLED"] } },
   });
-  if (!order) return NextResponse.json({ error: "Оферту не знайдено" }, { status: 404 });
+  if (!order) return NextResponse.json({ error: "Ордер не знайдено" }, { status: 404 });
 
   await prisma.marketOrder.update({
     where: { id },
@@ -35,21 +35,23 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
   const playerId = session.user.id;
 
   const order = await prisma.marketOrder.findFirst({
-    where: { id, playerId, type: "SELL", status: { in: ["OPEN", "PARTIALLY_FILLED"] } },
+    where: { id, playerId, status: { in: ["OPEN", "PARTIALLY_FILLED"] } },
   });
-  if (!order) return NextResponse.json({ error: "Оферту не знайдено" }, { status: 404 });
+  if (!order) return NextResponse.json({ error: "Ордер не знайдено" }, { status: 404 });
 
-  // Return remaining quantity to player inventory (as PlayerInventory)
-  const remaining = order.quantityTotal - order.quantityFilled;
-  if (remaining > 0) {
-    await prisma.playerInventory.upsert({
-      where: { playerId_productId: { playerId, productId: order.productId } },
-      update: { quantity: { increment: remaining } },
-      create: { playerId, productId: order.productId, quantity: remaining, avgQuality: order.quality ?? 7.0 },
-    });
+  // SELL: return remaining stock to player inventory
+  if (order.type === "SELL") {
+    const remaining = order.quantityTotal - order.quantityFilled;
+    if (remaining > 0) {
+      await prisma.playerInventory.upsert({
+        where:  { playerId_productId: { playerId, productId: order.productId } },
+        update: { quantity: { increment: remaining } },
+        create: { playerId, productId: order.productId, quantity: remaining, avgQuality: order.quality ?? 7.0 },
+      });
+    }
   }
+  // BUY: funds were never locked, nothing to return
 
   await prisma.marketOrder.update({ where: { id }, data: { status: "CANCELLED" } });
-
   return NextResponse.json({ ok: true });
 }

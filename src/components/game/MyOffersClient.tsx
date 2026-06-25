@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   Tag, TrendingUp, TrendingDown, Minus, Check, X, Pencil,
-  Trash2, ShoppingCart, PackageX, Clock,
+  Trash2, ShoppingCart, PackageX, Clock, ArrowDownUp,
 } from "lucide-react";
 import { cn, formatNumber } from "@/lib/utils";
 import Link from "next/link";
@@ -11,36 +11,35 @@ import Link from "next/link";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface MyOffer {
-  id          : string;
-  productId   : string;
-  productName : string;
-  productUnit : string;
-  productIcon : string | null;
-  basePrice   : number;
-  cityName    : string;
-  price       : number;
-  quantity    : number;
-  qtySold     : number;
+  id:           string;
+  type:         "SELL" | "BUY";
+  productId:    string;
+  productName:  string;
+  productUnit:  string;
+  basePrice:    number;
+  price:        number;
+  quality:      number;
+  qualityMin:   number;
+  quantity:     number;
+  qtyFilled:    number;
   qtyRemaining: number;
-  minOrder    : number;
-  quality     : number;
-  status      : string;
-  expiresAt   : string;
-  createdAt   : string;
-  priceVsBase : number;
-  revenue     : number;
+  status:       string;
+  expiresAt:    string;
+  createdAt:    string;
+  priceVsBase:  number;
+  value:        number; // revenue (SELL) or spend (BUY)
 }
 
 // ─── Status meta ──────────────────────────────────────────────────────────────
 
 const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
-  ACTIVE   : { label: "Активна",    color: "text-emerald-400", bg: "bg-emerald-950/40 border-emerald-800/50" },
-  FILLED   : { label: "Розпродано", color: "text-blue-400",    bg: "bg-blue-950/40 border-blue-800/50" },
-  CANCELLED: { label: "Скасована",  color: "text-gray-500",    bg: "bg-gray-800/40 border-gray-700/50" },
-  EXPIRED  : { label: "Прострочена",color: "text-orange-400",  bg: "bg-orange-950/30 border-orange-800/40" },
+  ACTIVE   : { label: "Активний",    color: "text-emerald-400", bg: "bg-emerald-950/40 border-emerald-800/50" },
+  FILLED   : { label: "Виконано",    color: "text-blue-400",    bg: "bg-blue-950/40 border-blue-800/50" },
+  CANCELLED: { label: "Скасовано",   color: "text-gray-500",    bg: "bg-gray-800/40 border-gray-700/50" },
+  EXPIRED  : { label: "Прострочено", color: "text-orange-400",  bg: "bg-orange-950/30 border-orange-800/40" },
 };
 
-// ─── PriceVsBase ──────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function PriceTag({ ratio }: { ratio: number }) {
   const pct = ((ratio - 1) * 100).toFixed(0);
@@ -49,29 +48,28 @@ function PriceTag({ ratio }: { ratio: number }) {
   return <span className="text-[11px] text-gray-500 flex items-center gap-0.5"><Minus size={11} />{pct}%</span>;
 }
 
-// ─── PriceEditor ──────────────────────────────────────────────────────────────
+// ─── Price inline editor ──────────────────────────────────────────────────────
 
-function PriceEditor({ offer, onSaved }: { offer: MyOffer; onSaved: (id: string, price: number, minOrder: number) => void }) {
-  const [editing,  setEditing]  = useState(false);
-  const [price,    setPrice]    = useState(offer.price);
-  const [minOrder, setMinOrder] = useState(offer.minOrder);
-  const [saving,   setSaving]   = useState(false);
-  const [err,      setErr]      = useState("");
+function PriceEditor({ offer, onSaved }: { offer: MyOffer; onSaved: (id: string, price: number) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [price,   setPrice]   = useState(offer.price);
+  const [saving,  setSaving]  = useState(false);
+  const [err,     setErr]     = useState("");
 
-  useEffect(() => { setPrice(offer.price); setMinOrder(offer.minOrder); }, [offer.price, offer.minOrder]);
+  useEffect(() => { setPrice(offer.price); }, [offer.price]);
 
   async function save() {
     if (price <= 0) { setErr("Ціна > 0"); return; }
     setSaving(true); setErr("");
     const res = await fetch(`/api/my-offers/${offer.id}`, {
-      method: "PATCH",
+      method:  "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ price, minOrder }),
+      body:    JSON.stringify({ price }),
     });
     const data = await res.json();
     setSaving(false);
     if (!res.ok) { setErr(data.error ?? "Помилка"); return; }
-    onSaved(offer.id, data.price, data.minOrder);
+    onSaved(offer.id, data.price);
     setEditing(false);
   }
 
@@ -97,41 +95,32 @@ function PriceEditor({ offer, onSaved }: { offer: MyOffer; onSaved: (id: string,
           onChange={(e) => setPrice(Number(e.target.value))}
           onKeyDown={(e) => { if (e.key === "Enter") save(); if (e.key === "Escape") setEditing(false); }}
           className="w-28 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs font-mono text-white focus:outline-none focus:border-emerald-500 [appearance:textfield]"
-          placeholder="Ціна ₴"
         />
         <PriceTag ratio={newRatio} />
         <button onClick={save} disabled={saving} className="text-emerald-400 hover:text-emerald-300 disabled:opacity-40"><Check size={13} /></button>
-        <button onClick={() => { setEditing(false); setPrice(offer.price); setMinOrder(offer.minOrder); setErr(""); }} className="text-gray-500 hover:text-white"><X size={13} /></button>
-      </div>
-      <div className="flex items-center gap-1.5">
-        <span className="text-[10px] text-gray-600 w-20">Мін. зам.:</span>
-        <input
-          type="number" min={1} step={1} value={minOrder}
-          onChange={(e) => setMinOrder(Number(e.target.value))}
-          className="w-20 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs font-mono text-white focus:outline-none [appearance:textfield]"
-        />
+        <button onClick={() => { setEditing(false); setPrice(offer.price); setErr(""); }} className="text-gray-500 hover:text-white"><X size={13} /></button>
       </div>
       {err && <p className="text-[10px] text-red-400">{err}</p>}
     </div>
   );
 }
 
-// ─── OfferCard ────────────────────────────────────────────────────────────────
+// ─── Order card ───────────────────────────────────────────────────────────────
 
-function OfferCard({ offer, onUpdate, onDelete }: {
-  offer: MyOffer;
-  onUpdate: (id: string, price: number, minOrder: number) => void;
+function OrderCard({ offer, onUpdate, onDelete }: {
+  offer:    MyOffer;
+  onUpdate: (id: string, price: number) => void;
   onDelete: (id: string) => void;
 }) {
   const [cancelling, setCancelling] = useState(false);
-  const meta = STATUS_META[offer.status] ?? STATUS_META.ACTIVE;
+  const meta     = STATUS_META[offer.status] ?? STATUS_META.ACTIVE;
   const isActive = offer.status === "ACTIVE";
-  const soldPct  = offer.quantity > 0 ? (offer.qtySold / offer.quantity) * 100 : 0;
-  const expDate  = new Date(offer.expiresAt);
-  const daysLeft = Math.ceil((expDate.getTime() - Date.now()) / 86_400_000);
+  const filledPct = offer.quantity > 0 ? (offer.qtyFilled / offer.quantity) * 100 : 0;
+  const daysLeft  = Math.ceil((new Date(offer.expiresAt).getTime() - Date.now()) / 86_400_000);
+  const isSell    = offer.type === "SELL";
 
   async function cancel() {
-    if (!confirm(`Скасувати оферту "${offer.productName}"?`)) return;
+    if (!confirm(`Скасувати ${isSell ? "SELL" : "BUY"}-ордер "${offer.productName}"?`)) return;
     setCancelling(true);
     const res = await fetch(`/api/my-offers/${offer.id}`, { method: "DELETE" });
     setCancelling(false);
@@ -139,14 +128,24 @@ function OfferCard({ offer, onUpdate, onDelete }: {
   }
 
   return (
-    <div className={cn("rounded-xl border p-4 space-y-3 transition-all", isActive ? "bg-gray-900 border-gray-800" : "bg-gray-900/50 border-gray-800/50 opacity-70")}>
+    <div className={cn(
+      "rounded-xl border p-4 space-y-3 transition-all",
+      isActive ? "bg-gray-900 border-gray-800" : "bg-gray-900/50 border-gray-800/50 opacity-70",
+    )}>
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
-          {offer.productIcon && <span className="text-lg shrink-0">{offer.productIcon}</span>}
+          <div className={cn(
+            "w-6 h-6 rounded-md flex items-center justify-center shrink-0 text-[10px] font-bold",
+            isSell ? "bg-red-500/20 text-red-400" : "bg-emerald-500/20 text-emerald-400",
+          )}>
+            {isSell ? "S" : "B"}
+          </div>
           <div className="min-w-0">
             <p className="font-semibold text-white text-sm truncate">{offer.productName}</p>
-            <p className="text-[11px] text-gray-500">{offer.cityName} · якість {offer.quality.toFixed(1)}</p>
+            <p className="text-[11px] text-gray-500">
+              {isSell ? `Якість ${offer.quality.toFixed(1)}` : `Мін. якість ${offer.qualityMin.toFixed(1)}`}
+            </p>
           </div>
         </div>
         <span className={cn("text-[10px] font-medium px-2 py-0.5 rounded-full border shrink-0", meta.bg, meta.color)}>
@@ -154,16 +153,18 @@ function OfferCard({ offer, onUpdate, onDelete }: {
         </span>
       </div>
 
-      {/* Sold progress */}
+      {/* Fill progress */}
       <div>
         <div className="flex justify-between text-[11px] text-gray-500 mb-1">
-          <span>Продано: <span className="text-white">{formatNumber(offer.qtySold)}</span> / {formatNumber(offer.quantity)} {offer.productUnit}</span>
-          <span className="text-emerald-400">{soldPct.toFixed(0)}%</span>
+          <span>
+            {isSell ? "Продано" : "Виконано"}: <span className="text-white">{formatNumber(offer.qtyFilled)}</span> / {formatNumber(offer.quantity)} {offer.productUnit}
+          </span>
+          <span className={isSell ? "text-emerald-400" : "text-blue-400"}>{filledPct.toFixed(0)}%</span>
         </div>
         <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
           <div
-            className={cn("h-full rounded-full transition-all", soldPct >= 100 ? "bg-blue-500" : "bg-emerald-500")}
-            style={{ width: `${Math.min(100, soldPct)}%` }}
+            className={cn("h-full rounded-full transition-all", filledPct >= 100 ? "bg-blue-500" : isSell ? "bg-emerald-500" : "bg-blue-400")}
+            style={{ width: `${Math.min(100, filledPct)}%` }}
           />
         </div>
       </div>
@@ -171,7 +172,7 @@ function OfferCard({ offer, onUpdate, onDelete }: {
       {/* Price row */}
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-[10px] text-gray-600 mb-0.5">Ціна / {offer.productUnit}</p>
+          <p className="text-[10px] text-gray-600 mb-0.5">{isSell ? "Ціна продажу" : "Макс. ціна"} / {offer.productUnit}</p>
           {isActive ? (
             <PriceEditor offer={offer} onSaved={onUpdate} />
           ) : (
@@ -182,8 +183,10 @@ function OfferCard({ offer, onUpdate, onDelete }: {
           )}
         </div>
         <div className="text-right">
-          <p className="text-[10px] text-gray-600 mb-0.5">Виручка</p>
-          <p className="font-mono text-emerald-400 text-sm">+{formatNumber(Math.round(offer.revenue))} ₴</p>
+          <p className="text-[10px] text-gray-600 mb-0.5">{isSell ? "Виручка" : "Витрачено"}</p>
+          <p className={cn("font-mono text-sm", isSell ? "text-emerald-400" : "text-blue-400")}>
+            {isSell ? "+" : "−"}{formatNumber(Math.round(offer.value))} ₴
+          </p>
         </div>
       </div>
 
@@ -195,10 +198,12 @@ function OfferCard({ offer, onUpdate, onDelete }: {
               <Clock size={10} /> {daysLeft > 0 ? `${daysLeft}д` : "сьогодні"}
             </span>
           )}
-          <span>мін. {formatNumber(offer.minOrder)} {offer.productUnit}</span>
-          <span>
-            {new Date(offer.createdAt).toLocaleDateString("uk-UA", { day: "2-digit", month: "2-digit" })}
-          </span>
+          <span>{new Date(offer.createdAt).toLocaleDateString("uk-UA", { day: "2-digit", month: "2-digit" })}</span>
+          {!isSell && isActive && (
+            <span className="text-[10px] text-gray-600">
+              Потенц.: <span className="text-white font-mono">{formatNumber(Math.round(offer.qtyRemaining * offer.price))} ₴</span>
+            </span>
+          )}
         </div>
         {isActive && (
           <button
@@ -217,95 +222,117 @@ function OfferCard({ offer, onUpdate, onDelete }: {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 type StatusFilter = "ACTIVE" | "ALL" | "FILLED" | "CANCELLED" | "EXPIRED";
+type OrderType    = "SELL" | "BUY";
 
 export default function MyOffersClient() {
-  const [offers,  setOffers]  = useState<MyOffer[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [filter,  setFilter]  = useState<StatusFilter>("ACTIVE");
+  const [offers,    setOffers]    = useState<MyOffer[]>([]);
+  const [loading,   setLoading]   = useState(true);
+  const [filter,    setFilter]    = useState<StatusFilter>("ACTIVE");
+  const [orderType, setOrderType] = useState<OrderType>("SELL");
 
-  const load = useCallback(async (status: StatusFilter) => {
+  const load = useCallback(async (status: StatusFilter, type: OrderType) => {
     setLoading(true);
-    const res = await fetch(`/api/my-offers?status=${status}`);
+    const res = await fetch(`/api/my-offers?status=${status}&type=${type}`);
     if (res.ok) {
       const d = await res.json();
-      setOffers(d.offers);
+      setOffers(d.offers ?? []);
     }
     setLoading(false);
   }, []);
 
-  useEffect(() => { load(filter); }, [load, filter]);
+  useEffect(() => { load(filter, orderType); }, [load, filter, orderType]);
 
-  function handleUpdate(id: string, price: number, minOrder: number) {
-    setOffers((prev) => prev.map((o) => o.id === id ? { ...o, price, minOrder, priceVsBase: o.basePrice > 0 ? price / o.basePrice : 1 } : o));
+  function handleUpdate(id: string, price: number) {
+    setOffers((prev) => prev.map((o) => o.id === id ? { ...o, price, priceVsBase: o.basePrice > 0 ? price / o.basePrice : 1 } : o));
   }
 
   function handleDelete(id: string) {
     setOffers((prev) => prev.map((o) => o.id === id ? { ...o, status: "CANCELLED", qtyRemaining: 0 } : o));
   }
 
-  const active   = offers.filter((o) => o.status === "ACTIVE");
-  const revenue  = offers.reduce((s, o) => s + o.revenue, 0);
-  const qtySold  = offers.reduce((s, o) => s + o.qtySold, 0);
+  const active     = offers.filter((o) => o.status === "ACTIVE");
+  const totalValue = offers.reduce((s, o) => s + o.value, 0);
+  const totalFill  = offers.reduce((s, o) => s + o.qtyFilled, 0);
+
+  const isSell = orderType === "SELL";
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
 
       {/* Header */}
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-            <Tag size={22} className="text-emerald-400" /> Мої ринкові оферти
+            <Tag size={22} className="text-emerald-400" /> Мої ордери
           </h1>
-          <p className="text-gray-500 text-sm mt-1">Управління власними пропозиціями на B2B ринку</p>
+          <p className="text-gray-500 text-sm mt-1">Управління власними SELL та BUY ордерами</p>
         </div>
         <Link
           href="/market"
           className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white text-sm font-medium transition-colors shrink-0"
         >
-          <ShoppingCart size={14} /> Виставити товар
+          <ShoppingCart size={14} /> Виставити ордер
         </Link>
+      </div>
+
+      {/* Type toggle */}
+      <div className="flex gap-1 p-1 bg-gray-900 border border-gray-800 rounded-xl w-fit">
+        <button
+          onClick={() => setOrderType("SELL")}
+          className={cn(
+            "flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-medium transition-all",
+            orderType === "SELL" ? "bg-red-600 text-white" : "text-gray-400 hover:text-white",
+          )}
+        >
+          <ArrowDownUp size={13} /> SELL (продаю)
+        </button>
+        <button
+          onClick={() => setOrderType("BUY")}
+          className={cn(
+            "flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-medium transition-all",
+            orderType === "BUY" ? "bg-emerald-600 text-white" : "text-gray-400 hover:text-white",
+          )}
+        >
+          <ArrowDownUp size={13} /> BUY (купую)
+        </button>
       </div>
 
       {/* Summary */}
       <div className="grid grid-cols-3 gap-3">
         <div className="bg-gray-900 border border-gray-800 rounded-xl px-4 py-3">
-          <p className="text-gray-500 text-xs mb-1">Активних офертів</p>
+          <p className="text-gray-500 text-xs mb-1">Активних</p>
           <p className="text-2xl font-bold text-white">{active.length}</p>
         </div>
         <div className="bg-gray-900 border border-gray-800 rounded-xl px-4 py-3">
-          <p className="text-gray-500 text-xs mb-1">Виручка (показано)</p>
-          <p className="text-2xl font-bold text-emerald-400 font-mono">+{formatNumber(Math.round(revenue))}</p>
-          <p className="text-[10px] text-gray-600">GC</p>
+          <p className="text-gray-500 text-xs mb-1">{isSell ? "Виручка" : "Витрачено"}</p>
+          <p className={cn("text-2xl font-bold font-mono", isSell ? "text-emerald-400" : "text-blue-400")}>
+            {isSell ? "+" : "−"}{formatNumber(Math.round(totalValue))}
+          </p>
+          <p className="text-[10px] text-gray-600">₴</p>
         </div>
         <div className="bg-gray-900 border border-gray-800 rounded-xl px-4 py-3">
-          <p className="text-gray-500 text-xs mb-1">Продано одиниць</p>
-          <p className="text-2xl font-bold text-white font-mono">{formatNumber(Math.round(qtySold))}</p>
+          <p className="text-gray-500 text-xs mb-1">{isSell ? "Продано" : "Куплено"} одиниць</p>
+          <p className="text-2xl font-bold text-white font-mono">{formatNumber(Math.round(totalFill))}</p>
         </div>
       </div>
 
       {/* Status filter */}
       <div className="flex gap-2 flex-wrap">
-        {([
-          { key: "ACTIVE",    label: "Активні" },
-          { key: "ALL",       label: "Всі" },
-          { key: "FILLED",    label: "Розпродані" },
-          { key: "EXPIRED",   label: "Прострочені" },
-          { key: "CANCELLED", label: "Скасовані" },
-        ] as { key: StatusFilter; label: string }[]).map(({ key, label }) => (
+        {(["ACTIVE", "ALL", "FILLED", "EXPIRED", "CANCELLED"] as StatusFilter[]).map((key) => (
           <button
             key={key}
             onClick={() => setFilter(key)}
             className={cn(
               "px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
-              filter === key ? "bg-emerald-600 text-white" : "bg-gray-800 text-gray-400 hover:text-white"
+              filter === key ? "bg-emerald-600 text-white" : "bg-gray-800 text-gray-400 hover:text-white",
             )}
           >
-            {label}
+            {{ ACTIVE: "Активні", ALL: "Всі", FILLED: "Виконані", EXPIRED: "Прострочені", CANCELLED: "Скасовані" }[key]}
           </button>
         ))}
       </div>
 
-      {/* Offers grid */}
+      {/* Grid */}
       {loading ? (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {Array.from({ length: 6 }).map((_, i) => (
@@ -316,21 +343,18 @@ export default function MyOffersClient() {
         <div className="text-center py-16 space-y-3">
           <PackageX size={40} className="mx-auto text-gray-700" />
           <p className="text-gray-500">
-            {filter === "ACTIVE" ? "Немає активних офертів" : "Офертів не знайдено"}
+            {filter === "ACTIVE"
+              ? `Немає активних ${isSell ? "SELL" : "BUY"}-ордерів`
+              : "Ордерів не знайдено"}
           </p>
           <Link href="/market" className="inline-flex items-center gap-2 text-emerald-400 hover:text-emerald-300 text-sm transition-colors">
-            <ShoppingCart size={14} /> Виставити товар на ринку
+            <ShoppingCart size={14} /> Відкрити ринок
           </Link>
         </div>
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {offers.map((o) => (
-            <OfferCard
-              key={o.id}
-              offer={o}
-              onUpdate={handleUpdate}
-              onDelete={handleDelete}
-            />
+            <OrderCard key={o.id} offer={o} onUpdate={handleUpdate} onDelete={handleDelete} />
           ))}
         </div>
       )}
