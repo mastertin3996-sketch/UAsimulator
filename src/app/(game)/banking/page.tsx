@@ -259,6 +259,7 @@ export default function BankingPage() {
   const [loanModal,    setLoanModal]    = useState(false);
   const [depositModal, setDepositModal] = useState(false);
   const [termParam, setTermParam]       = useState(12);
+  const [repaying, setRepaying]         = useState<string | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -269,6 +270,16 @@ export default function BankingPage() {
   }, [termParam]);
 
   useEffect(() => { load(); }, [load]);
+
+  async function repayLoan(id: string, remaining: number) {
+    if (!confirm(`Погасити залишок ${formatUAH(remaining)} достроково?`)) return;
+    setRepaying(id);
+    const res = await fetch(`/api/banking/loan?id=${id}`, { method: "DELETE" });
+    const d = await res.json();
+    setRepaying(null);
+    if (!res.ok) { alert(d.error ?? "Помилка"); return; }
+    load();
+  }
 
   if (loading) {
     return (
@@ -468,6 +479,16 @@ export default function BankingPage() {
                   <div className="flex justify-between text-[10px] text-gray-600">
                     <span>{l.paidMonths} / {l.termMonths} місяців</span>
                     {l.missedPayments > 0 && <span className="text-red-400">{l.missedPayments} пропущених</span>}
+                  </div>
+                  <div className="flex justify-end pt-1">
+                    <button
+                      onClick={() => repayLoan(l.id, l.remainingUah)}
+                      disabled={repaying === l.id}
+                      className="flex items-center gap-1 text-[11px] text-gray-500 hover:text-emerald-400 transition-colors"
+                    >
+                      {repaying === l.id ? <Loader2 size={10} className="animate-spin" /> : <CheckCircle2 size={10} />}
+                      Погасити достроково
+                    </button>
                   </div>
                 </div>
               </div>

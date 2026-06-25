@@ -3,6 +3,27 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { LoanService } from "@/engine/LoanService";
 
+// DELETE /api/banking/loan?id=xxx  — early repayment of a loan
+export async function DELETE(req: NextRequest) {
+  const session = await auth();
+  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const playerId = session.user.id;
+  const id = new URL(req.url).searchParams.get("id");
+  if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
+
+  const lastTick = await prisma.gameTick.findFirst({ orderBy: { tickNumber: "desc" }, select: { tickNumber: true } });
+  const currentTick = lastTick?.tickNumber ?? 1n;
+
+  const svc = new LoanService(prisma);
+  try {
+    await svc.repayEarly(id, playerId, currentTick);
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Помилка";
+    return NextResponse.json({ error: message }, { status: 400 });
+  }
+}
+
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
