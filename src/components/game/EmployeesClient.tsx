@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Users, TrendingDown, AlertTriangle, ChevronDown, ChevronUp, Check, X, Pencil, Loader2 } from "lucide-react";
+import { Users, TrendingDown, AlertTriangle, ChevronDown, ChevronUp, Check, X, Pencil, Loader2, ToggleLeft, ToggleRight } from "lucide-react";
 import { cn, formatNumber } from "@/lib/utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -270,6 +270,13 @@ function EnterpriseRow({ ent, tickNumber }: { ent: EntData; tickNumber: number }
 
 type FilterKey = "all" | "strike" | "low" | "unfilled";
 
+interface HRPolicy {
+  isActive:           boolean;
+  autoAdjustSalaries: boolean;
+  targetMood:         number;
+  maxSalaryCapUah:    number;
+}
+
 export default function EmployeesClient() {
   const [data,       setData]       = useState<HrData | null>(null);
   const [loading,    setLoading]    = useState(true);
@@ -279,11 +286,42 @@ export default function EmployeesClient() {
   const [bulkBusy,   setBulkBusy]   = useState(false);
   const [bulkMsg,    setBulkMsg]    = useState<{ ok: boolean; text: string } | null>(null);
 
+  // HR Automation Policy
+  const [policy,     setPolicy]     = useState<HRPolicy | null>(null);
+  const [policyMood, setPolicyMood] = useState(80);
+  const [policyCap,  setPolicyCap]  = useState(50000);
+  const [policyBusy, setPolicyBusy] = useState(false);
+
   const load = useCallback(async () => {
-    const res = await fetch("/api/hr");
-    if (res.ok) setData(await res.json());
+    const [hrRes, polRes] = await Promise.all([
+      fetch("/api/hr"),
+      fetch("/api/hr-policy"),
+    ]);
+    if (hrRes.ok)  setData(await hrRes.json());
+    if (polRes.ok) {
+      const pd = await polRes.json();
+      if (pd.policy) {
+        setPolicy(pd.policy);
+        setPolicyMood(Math.round(pd.policy.targetMood * 100));
+        setPolicyCap(pd.policy.maxSalaryCapUah);
+      }
+    }
     setLoading(false);
   }, []);
+
+  async function savePolicy(patch: Partial<{ isActive: boolean; autoAdjustSalaries: boolean; targetMood: number; maxSalaryCapUah: number }>) {
+    setPolicyBusy(true);
+    const res = await fetch("/api/hr-policy", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify(patch),
+    });
+    if (res.ok) {
+      const d = await res.json();
+      setPolicy(d.policy);
+    }
+    setPolicyBusy(false);
+  }
 
   async function bulkRaise(pct: number) {
     if (!confirm(`Змінити зарплату ВСІМ працівникам на ${pct > 0 ? "+" : ""}${pct}%?`)) return;
@@ -496,6 +534,74 @@ export default function EmployeesClient() {
           ))}
         </div>
       )}
+
+      {/* HR Automation Policy */}
+      <div className="rounded-xl border border-gray-800 bg-gray-900/50 px-4 py-4 space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-semibold text-white flex items-center gap-2">
+              HR Авто-політика
+              <span className={cn(
+                "text-[10px] font-bold px-1.5 py-0.5 rounded",
+                policy?.isActive ? "bg-emerald-950 text-emerald-400" : "bg-gray-800 text-gray-500"
+              )}>
+                {policy?.isActive ? "УВІМК." : "ВИМК."}
+              </span>
+            </p>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Щотіка авто-підвищує зарплату працівникам із настроєм нижче порогу
+            </p>
+          </div>
+          <button
+            onClick={() => savePolicy({ isActive: !(policy?.isActive ?? false) })}
+            disabled={policyBusy}
+            className="shrink-0"
+          >
+            {policyBusy
+              ? <Loader2 size={18} className="animate-spin text-gray-500" />
+              : policy?.isActive
+                ? <ToggleRight size={28} className="text-emerald-500 hover:text-emerald-400 transition-colors" />
+                : <ToggleLeft size={28} className="text-gray-600 hover:text-white transition-colors" />}
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="text-xs text-gray-400 mb-1 block">
+              Поріг настрою (%) — підвищуємо якщо нижче
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                type="range" min={50} max={100} step={5}
+                value={policyMood}
+                onChange={(e) => setPolicyMood(Number(e.target.value))}
+                className="flex-1 accent-emerald-500"
+              />
+              <span className="text-sm font-mono text-white w-10 text-right">{policyMood}%</span>
+            </div>
+          </div>
+          <div>
+            <label className="text-xs text-gray-400 mb-1 block">
+              Макс. зарплата/міс. (₴)
+            </label>
+            <input
+              type="number" min={1000} step={1000}
+              value={policyCap}
+              onChange={(e) => setPolicyCap(Number(e.target.value))}
+              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-white font-mono focus:outline-none focus:border-emerald-500 [appearance:textfield]"
+            />
+          </div>
+        </div>
+
+        <button
+          onClick={() => savePolicy({ targetMood: policyMood / 100, maxSalaryCapUah: policyCap })}
+          disabled={policyBusy}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-700 hover:bg-gray-600 disabled:opacity-40 text-white transition-colors"
+        >
+          {policyBusy ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
+          Зберегти параметри
+        </button>
+      </div>
     </div>
   );
 }
