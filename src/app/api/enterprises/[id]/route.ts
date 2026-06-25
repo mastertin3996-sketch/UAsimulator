@@ -142,3 +142,33 @@ export async function GET(_req: NextRequest, { params }: Params) {
     productionLogs: productionLogs.map((l) => ({ ...l, tickNumber: l.tickNumber.toString() })),
   });
 }
+
+export async function PATCH(req: NextRequest, { params }: Params) {
+  const session = await auth();
+  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { id: enterpriseId } = await params;
+  const playerId = session.user.id;
+
+  const body = await req.json().catch(() => ({})) as { isOperational?: boolean };
+  if (body.isOperational === undefined) {
+    return NextResponse.json({ error: "isOperational required" }, { status: 400 });
+  }
+
+  const enterprise = await prisma.enterprise.findFirst({
+    where: { id: enterpriseId, playerId },
+    select: { id: true, isSeized: true, isFrozenByInspection: true, isLegallyFrozen: true },
+  });
+  if (!enterprise) return NextResponse.json({ error: "Підприємство не знайдено" }, { status: 404 });
+
+  if (enterprise.isSeized || enterprise.isFrozenByInspection || enterprise.isLegallyFrozen) {
+    return NextResponse.json({ error: "Неможливо змінити статус — підприємство заморожено" }, { status: 409 });
+  }
+
+  await prisma.enterprise.update({
+    where: { id: enterpriseId },
+    data:  { isOperational: body.isOperational },
+  });
+
+  return NextResponse.json({ ok: true, isOperational: body.isOperational });
+}

@@ -406,12 +406,22 @@ function RecipeModal({
 
 // ─── Tabs ──────────────────────────────────────────────────────────────────────
 
-function ManagementTab({ enterprise, stats, productionLogs }: {
+function ManagementTab({ enterprise, stats, productionLogs, onToggleOperational }: {
   enterprise: EnterpriseData;
   stats: { salaryPerTick: number; rentPerTick: number; avgEfficiency: number; avgMood: number };
   productionLogs: { tickNumber: string; unitsProduced: number; avgQuality: number }[];
+  onToggleOperational: (val: boolean) => Promise<void>;
 }) {
+  const [toggling, setToggling] = useState(false);
   const isActive = enterprise.isOperational && !enterprise.isSeized;
+  const canToggle = !enterprise.isSeized && !enterprise.isFrozenByInspection && !enterprise.isLegallyFrozen;
+
+  async function handleToggle() {
+    setToggling(true);
+    await onToggleOperational(!enterprise.isOperational);
+    setToggling(false);
+  }
+
   return (
     <div className="space-y-6">
       {(enterprise.isSeized || enterprise.isFrozenByInspection || enterprise.isLegallyFrozen) && (
@@ -419,6 +429,27 @@ function ManagementTab({ enterprise, stats, productionLogs }: {
           {enterprise.isSeized && <div className="flex items-center gap-2 px-4 py-3 rounded-lg border border-red-500/30 bg-red-500/10 text-red-400 text-sm"><AlertCircle size={15} /> Підприємство вилучено</div>}
           {enterprise.isFrozenByInspection && <div className="flex items-center gap-2 px-4 py-3 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-400 text-sm"><AlertTriangle size={15} /> Заморожено інспекцією</div>}
           {enterprise.isLegallyFrozen && <div className="flex items-center gap-2 px-4 py-3 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-400 text-sm"><AlertTriangle size={15} /> Судовий арешт {enterprise.legalFreezeReason ? `— ${enterprise.legalFreezeReason}` : ""}</div>}
+        </div>
+      )}
+
+      {canToggle && (
+        <div className={cn("rounded-xl border p-4 flex items-center justify-between", enterprise.isOperational ? "border-emerald-800/40 bg-emerald-950/20" : "border-amber-800/40 bg-amber-950/20")}>
+          <div>
+            <p className="text-sm font-medium text-white">{enterprise.isOperational ? "Підприємство активне" : "Підприємство призупинено"}</p>
+            <p className="text-xs text-gray-500 mt-0.5">{enterprise.isOperational ? "Виробництво та облік енергії працюють" : "Виробництво та облік енергії зупинено"}</p>
+          </div>
+          <button
+            onClick={handleToggle}
+            disabled={toggling}
+            className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
+              enterprise.isOperational
+                ? "bg-amber-900/60 text-amber-300 hover:bg-amber-800/60"
+                : "bg-emerald-900/60 text-emerald-300 hover:bg-emerald-800/60"
+            )}
+          >
+            {toggling ? <Loader2 size={11} className="animate-spin" /> : null}
+            {enterprise.isOperational ? "Призупинити" : "Запустити"}
+          </button>
         </div>
       )}
 
@@ -1340,7 +1371,10 @@ export default function EnterpriseDetailClient({ enterpriseId, initialTab }: Pro
         ))}
       </div>
 
-      {tab === "management" && <ManagementTab enterprise={enterprise} stats={stats} productionLogs={productionLogs} />}
+      {tab === "management" && <ManagementTab enterprise={enterprise} stats={stats} productionLogs={productionLogs} onToggleOperational={async (val) => {
+        await fetch(`/api/enterprises/${enterpriseId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ isOperational: val }) });
+        load();
+      }} />}
       {tab === "workshops"  && <WorkshopsTab enterprise={enterprise} onRefresh={load} />}
       {tab === "hr"         && <HRTab enterprise={enterprise} onRefresh={load} />}
       {tab === "warehouse"  && <WarehouseTab inventory={enterprise.inventory} />}
