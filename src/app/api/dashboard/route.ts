@@ -260,5 +260,26 @@ export async function GET() {
         compliance.score < 0.40 ? "high" :
         compliance.score < 0.70 ? "medium" : "low",
     } : null,
+    activeResearch: await (async () => {
+      const p = await prisma.player.findUnique({
+        where:  { id: playerId },
+        select: { activeResearchTechId: true },
+      });
+      if (!p?.activeResearchTechId) return null;
+      const [tech, progress] = await Promise.all([
+        prisma.technology.findUnique({
+          where:  { id: p.activeResearchTechId },
+          select: { code: true, name: true, requiredResearchPoints: true },
+        }),
+        prisma.playerTechnology.findUnique({
+          where:  { playerId_technologyId: { playerId, technologyId: p.activeResearchTechId } },
+          select: { currentProgressPoints: true },
+        }),
+      ]);
+      if (!tech) return null;
+      const current  = Number(progress?.currentProgressPoints ?? 0);
+      const required = Number(tech.requiredResearchPoints);
+      return { name: tech.name, current, required, pct: required > 0 ? Math.round((current / required) * 100) : 0 };
+    })(),
   });
 }

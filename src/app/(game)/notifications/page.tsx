@@ -6,7 +6,8 @@ import {
   Bell, CheckCheck, AlertTriangle, Info, Wrench,
   Hammer, BookX, ArrowRight, Loader2, Trash2, X,
   ShieldAlert, CheckCircle2, ShoppingCart, HardHat, FileWarning,
-  Scale, ThumbsUp, Zap, Unlock,
+  Scale, ThumbsUp, Zap, Unlock, GraduationCap, FlaskConical,
+  Package, Clock, XCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -43,9 +44,14 @@ const TYPE_META: Record<string, {
   CONSTRUCTION_DONE   : { icon: HardHat,      color: "text-blue-400",    bg: "bg-blue-950/60",     label: "Будівництво",   cat: "system"   },
   AUDIT_FINE          : { icon: Scale,        color: "text-red-400",     bg: "bg-red-950/60",      label: "Штраф",         cat: "critical" },
   AUDIT_CLEAN         : { icon: ThumbsUp,     color: "text-emerald-400", bg: "bg-emerald-950/60",  label: "Перевірка",     cat: "system"   },
-  MACRO_EVENT         : { icon: Zap,          color: "text-yellow-400",  bg: "bg-yellow-950/60",   label: "Макро-подія",   cat: "system"   },
-  ENTERPRISE_UNFROZEN : { icon: Unlock,       color: "text-sky-400",     bg: "bg-sky-950/60",      label: "Розморожено",   cat: "system"   },
-  DEFAULT             : { icon: Info,         color: "text-blue-400",    bg: "bg-blue-950/60",     label: "Система",       cat: "system"   },
+  MACRO_EVENT         : { icon: Zap,           color: "text-yellow-400",  bg: "bg-yellow-950/60",   label: "Макро-подія",   cat: "system"   },
+  ENTERPRISE_UNFROZEN : { icon: Unlock,        color: "text-sky-400",     bg: "bg-sky-950/60",      label: "Розморожено",   cat: "system"   },
+  ORDER_FILLED        : { icon: Package,       color: "text-emerald-400", bg: "bg-emerald-950/60",  label: "Замовлення",    cat: "market"   },
+  TRAINING_COMPLETE   : { icon: GraduationCap, color: "text-purple-400",  bg: "bg-purple-950/60",   label: "Навчання",      cat: "system"   },
+  RESEARCH_COMPLETE   : { icon: FlaskConical,  color: "text-purple-400",  bg: "bg-purple-950/60",   label: "R&D",           cat: "system"   },
+  LOAN_OVERDUE        : { icon: Clock,         color: "text-amber-400",   bg: "bg-amber-950/60",    label: "Прострочка",    cat: "warning"  },
+  LOAN_DEFAULT        : { icon: XCircle,       color: "text-red-400",     bg: "bg-red-950/60",      label: "Дефолт",        cat: "critical" },
+  DEFAULT             : { icon: Info,          color: "text-blue-400",    bg: "bg-blue-950/60",     label: "Система",       cat: "system"   },
 };
 
 function getMeta(type: string) {
@@ -62,11 +68,11 @@ const CAT_META: {
   types: string[];
   color: string;
 }[] = [
-  { key: "all",      label: "Всі",          types: [],                                                              color: "text-white"        },
-  { key: "critical", label: "Критичні",     types: ["STRIKE", "EQUIPMENT_BROKEN", "AUDIT_FINE"],                               color: "text-red-400"      },
-  { key: "warning",  label: "Попередження", types: ["EQUIPMENT_WORN", "NO_RECIPE", "LICENSE_EXPIRY"],                          color: "text-amber-400"    },
-  { key: "market",   label: "Ринок",        types: ["MARKET_FILLED"],                                                           color: "text-emerald-400"  },
-  { key: "system",   label: "Система",      types: ["STRIKE_RESOLVED", "CONSTRUCTION_DONE", "AUDIT_CLEAN", "MACRO_EVENT", "ENTERPRISE_UNFROZEN"], color: "text-blue-400"     },
+  { key: "all",      label: "Всі",          types: [],                                                                                                color: "text-white"       },
+  { key: "critical", label: "Критичні",     types: ["STRIKE", "EQUIPMENT_BROKEN", "AUDIT_FINE", "LOAN_DEFAULT"],                                   color: "text-red-400"     },
+  { key: "warning",  label: "Попередження", types: ["EQUIPMENT_WORN", "NO_RECIPE", "LICENSE_EXPIRY", "LOAN_OVERDUE"],                               color: "text-amber-400"   },
+  { key: "market",   label: "Ринок",        types: ["MARKET_FILLED", "ORDER_FILLED"],                                                               color: "text-emerald-400" },
+  { key: "system",   label: "Система",      types: ["STRIKE_RESOLVED", "CONSTRUCTION_DONE", "AUDIT_CLEAN", "MACRO_EVENT", "ENTERPRISE_UNFROZEN", "TRAINING_COMPLETE", "RESEARCH_COMPLETE"], color: "text-blue-400" },
 ];
 
 // ─── Stats strip ──────────────────────────────────────────────────────────────

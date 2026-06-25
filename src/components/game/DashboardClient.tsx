@@ -45,6 +45,7 @@ interface DashData {
   stats: { employeeCount: number; avgEfficiency: number; avgMood: number; totalUnitsThisTick: number; avgQualityThisTick: number; ticksUntilMonth: number };
   pnl: { revenue: number; opex: number; netProfit: number; employees: number; mood: number } | null;
   compliance: { score: number; consecutiveViolations: number; lastAuditTick: number | null; riskLevel: "low" | "medium" | "high" } | null;
+  activeResearch: { name: string; current: number; required: number; pct: number } | null;
 }
 
 function WarningsBanner({ warnings }: { warnings: Warning[] }) {
@@ -219,7 +220,7 @@ export default function DashboardClient() {
     return <div className="flex items-center justify-center min-h-[60vh] gap-2 text-gray-500"><AlertCircle size={18} /> Помилка завантаження</div>;
   }
 
-  const { player, enterprises, chartData, snapshotChart, currentTick, warnings, recentTxns, stats, pnl, compliance } = data;
+  const { player, enterprises, chartData, snapshotChart, currentTick, warnings, recentTxns, stats, pnl, compliance, activeResearch } = data;
   const displayTick = liveTick ?? currentTick;
 
   return (
@@ -417,6 +418,21 @@ export default function DashboardClient() {
           })()}
         </div>
       </div>
+
+      {/* ── Active research ──────────────────────────────────────── */}
+      {activeResearch && (
+        <div className="rounded-xl border border-purple-900/30 bg-purple-950/10 px-4 py-3">
+          <p className="text-xs font-semibold text-purple-400 mb-2">Активне дослідження</p>
+          <p className="text-sm text-white font-medium">{activeResearch.name}</p>
+          <div className="mt-2 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+            <div className="h-full bg-purple-500 rounded-full transition-all" style={{ width: `${activeResearch.pct}%` }} />
+          </div>
+          <div className="flex justify-between text-[10px] text-gray-500 mt-1">
+            <span>{formatNumber(Math.round(activeResearch.current))} / {formatNumber(activeResearch.required)} RP</span>
+            <span>{activeResearch.pct}%</span>
+          </div>
+        </div>
+      )}
 
       {/* ── Recent transactions ──────────────────────────────────── */}
       <Card>
