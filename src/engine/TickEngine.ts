@@ -386,17 +386,51 @@ export class TickEngine {
     await this.energy.calculateAndBillEnergy(playerId, tickNumber, utilisationByWorkshop);
 
     // ── e. Equipment degradation ─────────────────────────────────────────
-    await this.equipment.processDegradation(playerId, utilisationByWorkshop);
+    const degradationResults = await this.equipment.processDegradation(playerId, utilisationByWorkshop);
+    {
+      const newlyBroken = degradationResults.filter(r => r.statusBefore !== 'BROKEN' && r.statusAfter === 'BROKEN');
+      const newlyWorn   = degradationResults.filter(r => r.statusBefore === 'NEW' && r.statusAfter === 'WORN');
+      const equipNotifs: { playerId: string; type: string; title: string; body: string; entityId: string | null }[] = [];
+      if (newlyBroken.length > 0) {
+        equipNotifs.push({
+          playerId, type: 'EQUIPMENT_BROKEN',
+          title: 'Обладнання зламалось',
+          body:  `${newlyBroken.length} од. обладнання вийшло з ладу. Потрібен аварійний ремонт.`,
+          entityId: null,
+        });
+      }
+      if (newlyWorn.length > 0) {
+        equipNotifs.push({
+          playerId, type: 'EQUIPMENT_WORN',
+          title: 'Обладнання зношується',
+          body:  `${newlyWorn.length} од. обладнання у стані "Зношено". Проведіть техобслуговування.`,
+          entityId: null,
+        });
+      }
+      if (equipNotifs.length > 0) {
+        await this.db.notification.createMany({ data: equipNotifs }).catch(() => {});
+      }
+    }
 
     // ── f. HR tick ───────────────────────────────────────────────────────
     const hrResults = await this.hr.processTick(playerId, tickNumber, overworkedEnterpriseIds);
     const strikers  = hrResults.filter(r => r.wentOnStrike);
+    const resolved  = hrResults.filter(r => r.strikeResolved);
     if (strikers.length > 0) {
       await this.db.notification.create({ data: {
         playerId,
         type:    'STRIKE',
         title:   'Страйк на підприємстві',
         body:    `${strikers.length} ${strikers.length === 1 ? 'працівник оголосив' : 'працівників оголосили'} страйк. Перевірте рівень зарплат та настрій.`,
+        entityId: null,
+      }}).catch(() => {});
+    }
+    if (resolved.length > 0) {
+      await this.db.notification.create({ data: {
+        playerId,
+        type:    'STRIKE_RESOLVED',
+        title:   'Страйк завершено',
+        body:    `${resolved.length} ${resolved.length === 1 ? 'працівник вийшов' : 'працівників вийшли'} з страйку. Виробництво відновлено.`,
         entityId: null,
       }}).catch(() => {});
     }

@@ -143,11 +143,25 @@ export class StateRegulationService {
     summary.macroEffectsApplied = await this.applyActiveMacroEffects(currentTick);
 
     // ── c. Expire licenses ─────────────────────────────────────────────────
-    const expired = await this.db.license.updateMany({
+    const expiringLicenses = await this.db.license.findMany({
       where:  { status: 'ACTIVE', expiresAtTick: { lte: currentTick } },
-      data:   { status: 'EXPIRED' },
+      select: { id: true, playerId: true, type: true, enterpriseId: true },
     });
-    summary.licenseExpiries = expired.count;
+    if (expiringLicenses.length > 0) {
+      await this.db.license.updateMany({
+        where: { id: { in: expiringLicenses.map(l => l.id) } },
+        data:  { status: 'EXPIRED' },
+      });
+      const licenseNotifs = expiringLicenses.map(l => ({
+        playerId:  l.playerId,
+        type:      'LICENSE_EXPIRY',
+        title:     'Ліцензія прострочена',
+        body:      `Ліцензія типу ${l.type} закінчилась. Поновіть для відновлення роботи.`,
+        entityId:  l.enterpriseId,
+      }));
+      await this.db.notification.createMany({ data: licenseNotifs }).catch(() => {});
+    }
+    summary.licenseExpiries = expiringLicenses.length;
 
     // ── d. Unfreeze enterprises whose inspection freeze has ended ──────────
     const toUnfreeze = await this.db.enterprise.findMany({
