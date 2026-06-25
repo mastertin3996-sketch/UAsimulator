@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect } from "react";
 import Sidebar from "./Sidebar";
 import TopBar from "./TopBar";
+import CommandPalette from "./CommandPalette";
 
 interface GameShellProps {
   children: React.ReactNode;
@@ -14,6 +15,7 @@ interface GameShellProps {
 
 export default function GameShell({ children, cashBalance: initCash, balanceUsd: initUsd, companyName: initCompany, isAdmin }: GameShellProps) {
   const [sidebarOpen,  setSidebarOpen]  = useState(false);
+  const [paletteOpen,  setPaletteOpen]  = useState(false);
   const [unreadCount,  setUnreadCount]  = useState(0);
   const [cashBalance,  setCashBalance]  = useState(initCash);
   const [balanceUsd,   setBalanceUsd]   = useState(initUsd);
@@ -55,6 +57,18 @@ export default function GameShell({ children, cashBalance: initCash, balanceUsd:
     return () => { clearInterval(balId); clearInterval(notifId); };
   }, [refreshBalance, refreshUnread]);
 
+  // Cmd+K / Ctrl+K to open palette
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setPaletteOpen((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
   // Refresh on game tick (SSE) or manual transaction events
   useEffect(() => {
     const onTick    = () => { refreshBalance(); refreshUnread(); };
@@ -88,7 +102,10 @@ export default function GameShell({ children, cashBalance: initCash, balanceUsd:
         onMenuToggle={toggle}
         unreadCount={unreadCount}
         onMarkAllRead={markAllRead}
+        onSearchOpen={() => setPaletteOpen(true)}
       />
+
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
 
       <main className="lg:ml-60 pt-14 min-h-screen">
         <div className="p-4 lg:p-6">{children}</div>

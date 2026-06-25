@@ -2,18 +2,22 @@
 
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { Menu, Bell } from "lucide-react";
+import { Menu, Bell, Search } from "lucide-react";
 
 interface TopBarProps {
-  cashBalance?: number;
-  balanceUsd?: number;
-  companyName?: string;
-  onMenuToggle?: () => void;
-  unreadCount?: number;
+  cashBalance?  : number;
+  balanceUsd?   : number;
+  companyName?  : string;
+  onMenuToggle? : () => void;
+  unreadCount?  : number;
   onMarkAllRead?: () => void;
+  onSearchOpen? : () => void;
 }
 
-export default function TopBar({ cashBalance = 0, balanceUsd = 0, companyName, onMenuToggle, unreadCount = 0, onMarkAllRead }: TopBarProps) {
+export default function TopBar({
+  cashBalance = 0, balanceUsd = 0, companyName,
+  onMenuToggle, unreadCount = 0, onMarkAllRead, onSearchOpen,
+}: TopBarProps) {
   const { data: session } = useSession();
 
   return (
@@ -37,7 +41,24 @@ export default function TopBar({ cashBalance = 0, balanceUsd = 0, companyName, o
         </div>
       </div>
 
-      <div className="flex items-center gap-2 sm:gap-4">
+      <div className="flex items-center gap-2 sm:gap-3">
+        {/* Search / command palette trigger */}
+        <button
+          onClick={onSearchOpen}
+          className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-gray-400 hover:text-white transition-colors text-xs"
+          title="Пошук (Ctrl+K)"
+        >
+          <Search size={12} />
+          <span>Пошук</span>
+          <kbd className="ml-1 text-[10px] bg-gray-700 rounded px-1 hidden lg:inline">Ctrl K</kbd>
+        </button>
+        <button
+          onClick={onSearchOpen}
+          className="sm:hidden p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-gray-800 transition-colors"
+        >
+          <Search size={18} />
+        </button>
+
         {/* UAH balance */}
         <div className="flex items-center gap-1.5 bg-gray-800 px-2.5 py-1.5 rounded-lg">
           <span className="text-yellow-400 font-bold text-sm">₴</span>
