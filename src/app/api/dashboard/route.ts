@@ -33,6 +33,7 @@ export async function GET() {
     logs,
     recentTxns,
     brokenEquipment,
+    activeWorkshops,
     snapshots,
     lastTickLogs,
     allEmployees,
@@ -76,6 +77,21 @@ export async function GET() {
         workshop: { select: { enterprise: { select: { id: true, name: true } } } },
       },
       take: 20,
+    }),
+
+    // Workshops with no recipe or no equipment (production = 0)
+    prisma.workshop.findMany({
+      where: { enterprise: { playerId }, isActive: true },
+      select: {
+        id: true,
+        enterprise: { select: { id: true, name: true } },
+        _count: { select: { equipment: true } },
+        productionOrders: {
+          where: { status: "IN_PROGRESS" },
+          select: { id: true },
+          take: 1,
+        },
+      },
     }),
 
     // Daily snapshots for net worth chart (last 20)
@@ -126,13 +142,33 @@ export async function GET() {
     .map((d) => ({ ...d, profit: d.revenue - d.expenses }));
 
   // ── Warnings ─────────────────────────────────────────────────────────────
-  const warnings = brokenEquipment.map((eq) => ({
-    type:           eq.status === "BROKEN" ? "EQUIPMENT_BROKEN" : "EQUIPMENT_WORN",
-    severity:       eq.status === "BROKEN" ? "error" : "warning",
-    enterpriseId:   eq.workshop.enterprise.id,
-    enterpriseName: eq.workshop.enterprise.name,
-    detail:         `Знос ${(Number(eq.wearAndTear) * 100).toFixed(0)}%`,
-  }));
+  const warnings: { type: string; severity: string; enterpriseId: string; enterpriseName: string; detail: string }[] = [
+    ...brokenEquipment.map((eq) => ({
+      type:           eq.status === "BROKEN" ? "EQUIPMENT_BROKEN" : "EQUIPMENT_WORN",
+      severity:       eq.status === "BROKEN" ? "error" : "warning",
+      enterpriseId:   eq.workshop.enterprise.id,
+      enterpriseName: eq.workshop.enterprise.name,
+      detail:         `Знос ${(Number(eq.wearAndTear) * 100).toFixed(0)}%`,
+    })),
+    ...activeWorkshops
+      .filter((w) => w._count.equipment === 0)
+      .map((w) => ({
+        type:           "NO_EQUIPMENT",
+        severity:       "error",
+        enterpriseId:   w.enterprise.id,
+        enterpriseName: w.enterprise.name,
+        detail:         "Цех без обладнання — виробництво зупинено",
+      })),
+    ...activeWorkshops
+      .filter((w) => w._count.equipment > 0 && w.productionOrders.length === 0)
+      .map((w) => ({
+        type:           "NO_RECIPE",
+        severity:       "warning",
+        enterpriseId:   w.enterprise.id,
+        enterpriseName: w.enterprise.name,
+        detail:         "Рецепт не призначено — цех простоює",
+      })),
+  ];
 
   // ── Snapshots for net worth chart (oldest first) ──────────────────────
   const snapshotChart = [...snapshots].reverse().map((s) => ({

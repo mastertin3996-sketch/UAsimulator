@@ -15,10 +15,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn, formatUAH, formatUSD, formatNumber } from "@/lib/utils";
 
 interface Warning {
-  type: "EQUIPMENT_WORN" | "EQUIPMENT_BROKEN";
+  type: "EQUIPMENT_WORN" | "EQUIPMENT_BROKEN" | "NO_EQUIPMENT" | "NO_RECIPE";
   severity: "error" | "warning";
   enterpriseId: string; enterpriseName: string; detail: string;
 }
+
+const WARN_META: Record<string, { label: string; icon: React.ComponentType<{size?: number; className?: string}> }> = {
+  EQUIPMENT_BROKEN: { label: "Зламане обладнання", icon: Hammer },
+  EQUIPMENT_WORN:   { label: "Зношене обладнання", icon: Wrench },
+  NO_EQUIPMENT:     { label: "Немає обладнання",   icon: Factory },
+  NO_RECIPE:        { label: "Немає рецепту",       icon: AlertTriangle },
+};
 interface SnapshotPoint {
   tick: number; cashBalance: number; totalAssets: number;
   revenue: number; opex: number; netProfit: number;
@@ -61,14 +68,15 @@ function WarningsBanner({ warnings }: { warnings: Warning[] }) {
       {open && (
         <div className="border-t border-white/5 px-4 pb-3 space-y-2 pt-2">
           {warnings.map((w, i) => {
-            const Icon = w.type === "EQUIPMENT_BROKEN" ? Hammer : Wrench;
+            const meta = WARN_META[w.type] ?? { label: w.type, icon: AlertTriangle };
+            const Icon = meta.icon;
             return (
               <div key={i} className="flex items-start gap-3">
                 <Icon size={13} className={cn("mt-0.5 shrink-0", w.severity === "error" ? "text-red-400" : "text-amber-400")} />
                 <div>
                   <div className="flex items-center gap-2">
                     <span className={cn("text-xs font-semibold", w.severity === "error" ? "text-red-400" : "text-amber-400")}>
-                      {w.type === "EQUIPMENT_BROKEN" ? "Зламано" : "Знос"}
+                      {meta.label}
                     </span>
                     <Link href={`/enterprises/${w.enterpriseId}`} className="text-xs text-gray-400 hover:text-white underline">{w.enterpriseName}</Link>
                   </div>
