@@ -30,6 +30,9 @@ enum Profession {
   QUALITY_CONTROLLER
   RESEARCHER       // RD_LABORATORY: generates 5 RP/tick
   DATA_SCIENTIST   // RD_LABORATORY: generates 10 RP/tick
+  CASHIER          // RETAIL_STORE: касир
+  SALES_ASSISTANT  // RETAIL_STORE: продавець-консультант
+  MERCHANDISER     // RETAIL_STORE: мерчандайзер
 }
 
 enum EnterpriseType {

@@ -112,6 +112,8 @@ const PROF_UA: Record<string, string> = {
   IT_SPECIALIST: "IT-спеціаліст", LAWYER: "Юрист", HR_SPECIALIST: "HR-спеціаліст",
   TECHNICIAN: "Технік", QUALITY_CONTROLLER: "Контролер якості",
   RESEARCHER: "Дослідник", DATA_SCIENTIST: "Data scientist",
+  // Магазин
+  CASHIER: "Касир", SALES_ASSISTANT: "Продавець-консультант", MERCHANDISER: "Мерчандайзер",
 };
 
 const PROF_SALARY: Record<string, number> = {
@@ -120,7 +122,20 @@ const PROF_SALARY: Record<string, number> = {
   SECURITY_OFFICER: 30000, CLEANER: 12000, SALES_REP: 20000,
   IT_SPECIALIST: 50000, LAWYER: 45000, HR_SPECIALIST: 28000,
   TECHNICIAN: 22000, QUALITY_CONTROLLER: 25000, RESEARCHER: 35000, DATA_SCIENTIST: 60000,
+  CASHIER: 16000, SALES_ASSISTANT: 18000, MERCHANDISER: 20000,
 };
+
+// Які професії доступні для кожного типу підприємства
+const UNIVERSAL_PROFS  = ["MANAGER","ACCOUNTANT","HR_SPECIALIST","LAWYER","IT_SPECIALIST","SECURITY_GUARD","SECURITY_OFFICER","CLEANER","LOADER","DRIVER"];
+const PRODUCTION_PROFS = ["OPERATOR","ENGINEER","TECHNICIAN","QUALITY_CONTROLLER","AGRONOMIST","SALES_REP"];
+const RETAIL_PROFS     = ["CASHIER","SALES_ASSISTANT","MERCHANDISER","SALES_REP"];
+const LAB_PROFS        = ["RESEARCHER","DATA_SCIENTIST"];
+
+function professionsForType(enterpriseType: string): string[] {
+  if (enterpriseType === "RETAIL_STORE") return [...UNIVERSAL_PROFS, ...RETAIL_PROFS];
+  if (enterpriseType === "RD_LABORATORY") return [...UNIVERSAL_PROFS, ...PRODUCTION_PROFS, ...LAB_PROFS];
+  return [...UNIVERSAL_PROFS, ...PRODUCTION_PROFS];
+}
 
 const STATUS_COLOR: Record<string, string> = {
   NEW: "text-blue-400", OPERATIONAL: "text-emerald-400",
@@ -158,9 +173,9 @@ function WearBar({ value }: { value: number }) {
 // ─── Hire Modal ────────────────────────────────────────────────────────────────
 
 function HireModal({
-  enterpriseId, onHired, onClose,
-}: { enterpriseId: string; onHired: () => void; onClose: () => void }) {
-  const professions = Object.entries(PROF_UA);
+  enterpriseId, enterpriseType, onHired, onClose,
+}: { enterpriseId: string; enterpriseType: string; onHired: () => void; onClose: () => void }) {
+  const professions = professionsForType(enterpriseType).map(k => [k, PROF_UA[k] ?? k] as [string, string]);
   const [profession, setProfession] = useState(professions[0][0]);
   const [salary, setSalary]         = useState(PROF_SALARY[professions[0][0]] ?? 20000);
   const [saving, setSaving]         = useState(false);
@@ -1141,6 +1156,7 @@ function HRTab({
       {hireModal && (
         <HireModal
           enterpriseId={enterprise.id}
+          enterpriseType={enterprise.type}
           onHired={() => { setHireModal(false); onRefresh(); }}
           onClose={() => setHireModal(false)}
         />
