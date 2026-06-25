@@ -1172,6 +1172,98 @@ function WarehouseTab({ inventory }: { inventory: InventoryItem[] }) {
   );
 }
 
+// ─── ShowcaseTab ───────────────────────────────────────────────────────────────
+
+interface ShowcaseItem {
+  productId: string; sku: string; nameUa: string; unit: string;
+  baseUnitsPerDay: number; referencePrice: number;
+  inStock: number; avgQuality: number;
+}
+
+function ShowcaseTab({ enterpriseId, onGoToSupply }: { enterpriseId: string; onGoToSupply: () => void }) {
+  const [data, setData] = useState<{ cityName: string; items: ShowcaseItem[] } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<ShowcaseItem | null>(null);
+
+  useEffect(() => {
+    fetch(`/api/enterprises/${enterpriseId}/showcase`)
+      .then(r => r.json())
+      .then(setData)
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, [enterpriseId]);
+
+  if (loading) return <div className="py-12 text-center text-gray-500">Завантаження…</div>;
+  if (!data) return null;
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-gray-500">
+        Товари з NPC-попитом у <span className="text-white font-medium">{data.cityName}</span>.
+        Натисни на товар щоб придбати або налаштувати постачання.
+      </p>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+        {data.items.map(item => (
+          <button
+            key={item.productId}
+            onClick={() => setSelected(selected?.productId === item.productId ? null : item)}
+            className={cn(
+              "rounded-xl border p-4 text-left transition-all",
+              selected?.productId === item.productId
+                ? "border-emerald-500 bg-emerald-500/10"
+                : item.inStock > 0
+                  ? "border-emerald-800/50 bg-gray-900 hover:border-emerald-600"
+                  : "border-gray-800 bg-gray-900 hover:border-gray-600",
+            )}
+          >
+            <div className="text-3xl mb-2">{productEmoji(item.sku)}</div>
+            <p className="text-sm font-medium text-white leading-tight">{item.nameUa}</p>
+            <p className="text-xs text-gray-500 mt-1">₴{item.referencePrice}/{item.unit}</p>
+            <p className="text-xs text-gray-500">{item.baseUnitsPerDay.toFixed(0)}/день попит</p>
+            {item.inStock > 0 ? (
+              <p className="text-xs text-emerald-400 mt-1.5 font-mono">На складі: {item.inStock.toFixed(0)} {item.unit}</p>
+            ) : (
+              <p className="text-xs text-red-400/70 mt-1.5">Немає на складі</p>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {selected && (
+        <div className="rounded-xl border border-emerald-600/30 bg-emerald-500/5 p-4 space-y-3">
+          <div className="flex items-center gap-3">
+            <span className="text-3xl">{productEmoji(selected.sku)}</span>
+            <div>
+              <p className="font-medium text-white">{selected.nameUa}</p>
+              <p className="text-xs text-gray-400">
+                Попит: {selected.baseUnitsPerDay.toFixed(0)} {selected.unit}/день · NPC ціна: ₴{selected.referencePrice}/{selected.unit}
+              </p>
+              <p className="text-xs text-gray-400">
+                Потенційний дохід: ≈ ₴{(selected.baseUnitsPerDay * selected.referencePrice).toLocaleString("uk-UA", { maximumFractionDigits: 0 })}/день
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href={`/market?product=${selected.productId}`}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-colors"
+            >
+              🛒 Купити на ринку
+            </Link>
+            <button
+              onClick={onGoToSupply}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-white text-sm font-medium transition-colors"
+            >
+              🏭 Постачання з підприємства
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function LogsTab({ logs }: { logs: FinancialLog[] }) {
   if (logs.length === 0) {
     return <div className="py-16 text-center"><TrendingUp size={28} className="text-gray-700 mx-auto mb-3" /><p className="text-gray-500 text-sm">Фінансових записів ще немає</p></div>;
@@ -1303,7 +1395,7 @@ function SupplyTab({ enterpriseId }: { enterpriseId: string }) {
 
 // ─── Main ──────────────────────────────────────────────────────────────────────
 
-const TABS: { key: Tab; label: string }[] = [
+const BASE_TABS: { key: Tab; label: string }[] = [
   { key: "management", label: "Загальне" },
   { key: "workshops",  label: "Цехи" },
   { key: "hr",         label: "Персонал" },
@@ -1360,6 +1452,9 @@ export default function EnterpriseDetailClient({ enterpriseId, initialTab }: Pro
 
   const { enterprise, stats, logs, productionLogs = [] } = data;
   const isActive = enterprise.isOperational && !enterprise.isSeized && !enterprise.isFrozenByInspection && !enterprise.isLegallyFrozen;
+  const TABS = enterprise.type === "RETAIL_STORE"
+    ? [...BASE_TABS.slice(0, 4), { key: "showcase" as Tab, label: "🏪 Вітрина" }, ...BASE_TABS.slice(4)]
+    : BASE_TABS;
 
   return (
     <div className="space-y-5">
@@ -1418,6 +1513,7 @@ export default function EnterpriseDetailClient({ enterpriseId, initialTab }: Pro
       {tab === "workshops"  && <WorkshopsTab enterprise={enterprise} onRefresh={load} />}
       {tab === "hr"         && <HRTab enterprise={enterprise} onRefresh={load} />}
       {tab === "warehouse"  && <WarehouseTab inventory={enterprise.inventory} />}
+      {tab === "showcase"   && <ShowcaseTab enterpriseId={enterpriseId} onGoToSupply={() => setTab("supply")} />}
       {tab === "supply"     && <SupplyTab enterpriseId={enterpriseId} />}
       {tab === "production" && <LogsTab logs={logs} />}
     </div>
