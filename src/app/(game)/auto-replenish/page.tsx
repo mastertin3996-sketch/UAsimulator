@@ -6,6 +6,7 @@ import {
   Building2, AlertCircle, ToggleLeft, ToggleRight,
   Pencil, Clock, Search, ShoppingCart, AlertTriangle,
   TrendingDown, Zap, ZapOff, CheckCircle2, XCircle, Package,
+  ScrollText, RefreshCw,
 } from "lucide-react";
 import { cn, formatNumber } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -411,7 +412,271 @@ function CreateRuleModal({
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+// ─── AutoContract types ───────────────────────────────────────────────────────
+
+interface AContract {
+  id:               string;
+  resourceType:     string;
+  productName:      string;
+  productUnit:      string;
+  quantityPerTick:  number;
+  maxPricePerUnit:  number;
+  minQuality:       number;
+  isActive:         boolean;
+  lastFilledQty:    number;
+  lastTickSpentUah: number;
+  totalSpentUah:    number;
+  lastExecutedTick: string | null;
+}
+
+interface ACData {
+  cashBalance:       number;
+  committedPerTick:  number;
+  contracts:         AContract[];
+}
+
+// ─── AutoContracts tab ────────────────────────────────────────────────────────
+
+interface SkuOption { sku: string; nameUa: string; unit: string }
+
+function AutoContractsTab() {
+  const [acData,     setAcData]     = useState<ACData | null>(null);
+  const [skuOptions, setSkuOptions] = useState<SkuOption[]>([]);
+  const [acLoading,  setAcLoading]  = useState(true);
+  const [showCreate, setShowCreate] = useState(false);
+  const [busy,       setBusy]       = useState<string | null>(null);
+
+  // Create form
+  const [newSku,   setNewSku]   = useState("");
+  const [newQty,   setNewQty]   = useState("");
+  const [newPrice, setNewPrice] = useState("");
+  const [newQual,  setNewQual]  = useState("0");
+
+  const loadAC = useCallback(async () => {
+    const [acRes, prodRes] = await Promise.all([
+      fetch("/api/auto-contract"),
+      fetch("/api/products"),
+    ]);
+    if (acRes.ok)   setAcData(await acRes.json());
+    if (prodRes.ok) {
+      const pd = await prodRes.json();
+      setSkuOptions((pd.products ?? []).map((p: { sku: string; nameUa: string; unit: string }) => ({
+        sku: p.sku, nameUa: p.nameUa, unit: p.unit,
+      })));
+    }
+    setAcLoading(false);
+  }, []);
+
+  useEffect(() => { loadAC(); }, [loadAC]);
+
+  async function toggleContract(c: AContract) {
+    setBusy(c.id);
+    await fetch(`/api/auto-contract?id=${c.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ isActive: !c.isActive }),
+    });
+    setAcData((prev) => prev ? {
+      ...prev,
+      contracts: prev.contracts.map((x) => x.id === c.id ? { ...x, isActive: !c.isActive } : x),
+    } : prev);
+    setBusy(null);
+  }
+
+  async function deleteContract(id: string) {
+    if (!confirm("Видалити авто-контракт?")) return;
+    setBusy(id);
+    await fetch(`/api/auto-contract?id=${id}`, { method: "DELETE" });
+    setAcData((prev) => prev ? { ...prev, contracts: prev.contracts.filter((c) => c.id !== id) } : prev);
+    setBusy(null);
+  }
+
+  async function createContract() {
+    if (!newSku || !newQty || !newPrice) return;
+    setBusy("create");
+    const res = await fetch("/api/auto-contract", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({
+        resourceType:    newSku,
+        quantityPerTick: Number(newQty),
+        maxPricePerUnit: Number(newPrice),
+        minQuality:      Number(newQual),
+      }),
+    });
+    setBusy(null);
+    if (!res.ok) { const d = await res.json(); alert(d.error ?? "Помилка"); return; }
+    setNewSku(""); setNewQty(""); setNewPrice(""); setNewQual("0");
+    setShowCreate(false);
+    loadAC();
+  }
+
+  if (acLoading) return <div className="py-12 flex justify-center"><Loader2 size={20} className="animate-spin text-gray-600" /></div>;
+
+  const data = acData ?? { cashBalance: 0, committedPerTick: 0, contracts: [] };
+
+  return (
+    <div className="space-y-4">
+      {/* Stats */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <div className="rounded-xl border border-gray-800 bg-gray-900 px-4 py-3">
+          <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Всього контрактів</p>
+          <p className="text-xl font-bold text-white font-mono">{data.contracts.length}</p>
+          <p className="text-[10px] text-gray-600 mt-0.5">{data.contracts.filter((c) => c.isActive).length} активних</p>
+        </div>
+        <div className="rounded-xl border border-red-900/30 bg-red-950/10 px-4 py-3">
+          <p className="text-[10px] text-red-500/70 uppercase tracking-wider mb-1">Витрат/тік (план)</p>
+          <p className="text-xl font-bold text-red-400 font-mono">−{formatNumber(Math.round(data.committedPerTick))}</p>
+        </div>
+        <div className="rounded-xl border border-gray-800 bg-gray-900 px-4 py-3">
+          <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Баланс</p>
+          <p className="text-xl font-bold text-white font-mono">{formatNumber(Math.round(data.cashBalance))} ₴</p>
+          {data.committedPerTick > 0 && (
+            <p className="text-[10px] text-gray-600 mt-0.5">
+              ≈ {Math.floor(data.cashBalance / data.committedPerTick)} тіків запасу
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* List */}
+      <div className="space-y-2">
+        {data.contracts.map((c) => {
+          const fillPct = c.quantityPerTick > 0 ? Math.round((c.lastFilledQty / c.quantityPerTick) * 100) : 0;
+          return (
+            <div key={c.id} className={cn(
+              "rounded-xl border bg-gray-900 px-4 py-3 flex items-start gap-3",
+              c.isActive ? "border-gray-800" : "border-gray-800/40 opacity-60",
+            )}>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm font-semibold text-white">{c.productName}</span>
+                  <span className="text-[10px] text-gray-500 font-mono">
+                    {c.quantityPerTick} {c.productUnit}/тік · макс ₴{formatNumber(Math.round(c.maxPricePerUnit))}/од
+                  </span>
+                  {c.minQuality > 0 && (
+                    <span className="text-[10px] text-yellow-500/70">★ ≥{(c.minQuality * 100).toFixed(0)}%</span>
+                  )}
+                </div>
+                {c.lastExecutedTick && (
+                  <div className="mt-1.5 flex items-center gap-3">
+                    <div className="flex-1 max-w-[160px]">
+                      <div className="flex justify-between text-[10px] text-gray-600 mb-0.5">
+                        <span>Виконано</span>
+                        <span>{fillPct}%</span>
+                      </div>
+                      <div className="h-1 bg-gray-800 rounded-full overflow-hidden">
+                        <div className={cn("h-full rounded-full", fillPct >= 80 ? "bg-emerald-500" : fillPct >= 40 ? "bg-yellow-500" : "bg-red-500")}
+                          style={{ width: `${fillPct}%` }} />
+                      </div>
+                    </div>
+                    <span className="text-[10px] text-gray-600">тік #{c.lastExecutedTick}</span>
+                    <span className="text-[10px] text-red-400 font-mono">−{formatNumber(Math.round(c.lastTickSpentUah))} ₴</span>
+                  </div>
+                )}
+                <p className="text-[10px] text-gray-600 mt-1">Всього витрачено: ₴{formatNumber(Math.round(c.totalSpentUah))}</p>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  onClick={() => toggleContract(c)}
+                  disabled={busy === c.id}
+                  className="text-gray-500 hover:text-white transition-colors"
+                  title={c.isActive ? "Призупинити" : "Активувати"}
+                >
+                  {busy === c.id ? <Loader2 size={15} className="animate-spin" /> :
+                    c.isActive ? <ToggleRight size={18} className="text-emerald-500" /> : <ToggleLeft size={18} />}
+                </button>
+                <button
+                  onClick={() => deleteContract(c.id)}
+                  disabled={busy === c.id}
+                  className="text-gray-700 hover:text-red-400 transition-colors"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            </div>
+          );
+        })}
+
+        {data.contracts.length === 0 && (
+          <div className="text-center py-10 text-gray-600 text-sm">
+            Авто-контрактів ще немає. Створіть перший — система буде купувати ресурси щотіка.
+          </div>
+        )}
+
+        <button
+          onClick={() => setShowCreate((v) => !v)}
+          className="w-full rounded-xl border border-dashed border-gray-800 py-3 text-xs text-gray-600 hover:text-gray-400 hover:border-gray-600 flex items-center justify-center gap-2 transition-colors"
+        >
+          <Plus size={14} /> {showCreate ? "Скасувати" : "Новий авто-контракт"}
+        </button>
+
+        {showCreate && (
+          <div className="rounded-xl border border-emerald-900/30 bg-emerald-950/10 px-4 py-4 space-y-3">
+            <p className="text-sm font-semibold text-white">Новий авто-контракт</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-gray-400 mb-1 block">Товар</label>
+                <select
+                  value={newSku}
+                  onChange={(e) => setNewSku(e.target.value)}
+                  className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:border-emerald-500 outline-none"
+                >
+                  <option value="">Оберіть товар…</option>
+                  {skuOptions.map((p) => (
+                    <option key={p.sku} value={p.sku}>{p.nameUa} ({p.unit})</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 mb-1 block">Кількість на тік</label>
+                <input
+                  type="number" min={0.01} step={0.01} value={newQty} onChange={(e) => setNewQty(e.target.value)}
+                  className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:border-emerald-500 outline-none"
+                  placeholder="напр. 100"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 mb-1 block">Макс. ціна/од. (₴)</label>
+                <input
+                  type="number" min={1} step={1} value={newPrice} onChange={(e) => setNewPrice(e.target.value)}
+                  className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:border-emerald-500 outline-none"
+                  placeholder="напр. 5000"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 mb-1 block">Мін. якість (0–100%)</label>
+                <input
+                  type="number" min={0} max={100} step={1} value={newQual} onChange={(e) => setNewQual(e.target.value)}
+                  className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:border-emerald-500 outline-none"
+                  placeholder="0"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button onClick={createContract} disabled={busy === "create" || !newSku || !newQty || !newPrice}>
+                {busy === "create" ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
+                Створити
+              </Button>
+              <button onClick={() => setShowCreate(false)} className="text-sm text-gray-500 hover:text-white transition-colors px-3">
+                Скасувати
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <button onClick={loadAC} className="flex items-center gap-1 text-xs text-gray-600 hover:text-gray-400 transition-colors mx-auto pt-1">
+        <RefreshCw size={10} /> Оновити
+      </button>
+    </div>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
 export default function AutoReplenishPage() {
+  const [tab,         setTab]         = useState<"rules" | "contracts">("rules");
   const [rules,       setRules]       = useState<Rule[]>([]);
   const [enterprises, setEnterprises] = useState<EntOption[]>([]);
   const [products,    setProducts]    = useState<ProdOption[]>([]);
@@ -487,7 +752,7 @@ export default function AutoReplenishPage() {
           <h1 className="text-2xl font-bold text-white flex items-center gap-2">
             <Bot size={22} className="text-blue-400" />
             Автопостачання
-            {problemCount > 0 && (
+            {tab === "rules" && problemCount > 0 && (
               <span className="flex items-center gap-1 text-xs text-red-400 font-normal bg-red-950/40 border border-red-900/50 px-2 py-0.5 rounded-full">
                 <AlertTriangle size={11} />
                 {problemCount} проблем
@@ -495,13 +760,36 @@ export default function AutoReplenishPage() {
             )}
           </h1>
           <p className="text-gray-500 text-sm mt-0.5">
-            Система сама купить товар коли запас впаде нижче порогу
+            {tab === "rules" ? "Система сама купить товар коли запас впаде нижче порогу" : "B2B авто-контракти — автоматична закупівля кожного тіка"}
           </p>
         </div>
-        <Button onClick={() => setShowCreate(true)}>
-          <Plus size={15} /> Нове правило
-        </Button>
+        {tab === "rules" && (
+          <Button onClick={() => setShowCreate(true)}>
+            <Plus size={15} /> Нове правило
+          </Button>
+        )}
       </div>
+
+      {/* Tab switcher */}
+      <div className="flex gap-1 border-b border-gray-800">
+        {([
+          { key: "rules"     as const, label: "Правила поповнення", icon: Bot },
+          { key: "contracts" as const, label: "B2B Авто-контракти", icon: ScrollText },
+        ]).map(({ key, label, icon: Icon }) => (
+          <button key={key} onClick={() => setTab(key)}
+            className={cn("flex items-center gap-1.5 px-4 py-2 text-sm font-medium transition-all border-b-2 -mb-px",
+              tab === key ? "text-blue-400 border-blue-400" : "text-gray-500 border-transparent hover:text-white"
+            )}>
+            <Icon size={13} /> {label}
+          </button>
+        ))}
+      </div>
+
+      {/* AutoContracts tab */}
+      {tab === "contracts" && <AutoContractsTab />}
+
+      {/* Rules tab */}
+      {tab === "rules" && <>
 
       {/* Stats */}
       {!loading && (
@@ -654,6 +942,8 @@ export default function AutoReplenishPage() {
           onCreated={() => { setShowCreate(false); load(); }}
         />
       )}
+
+      </> /* end rules tab */}
     </div>
   );
 }
