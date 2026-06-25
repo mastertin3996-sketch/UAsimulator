@@ -18,6 +18,7 @@ import {
 import { CurrencyDisplay } from "@/components/game/CurrencyDisplay";
 import { Skeleton, SkeletonTable } from "@/components/ui/skeleton";
 import { cn, formatNumber } from "@/lib/utils";
+import ProductPriceChart from "@/components/game/charts/ProductPriceChart";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -62,12 +63,16 @@ function timeAgo(iso: string) {
 
 // ─── Order Book panel ─────────────────────────────────────────────────────────
 
+interface PricePoint { date: string; avgPrice: number; minPrice: number; maxPrice: number; volume: number; count: number }
+
 function OrderBookPanel() {
   const [products,        setProducts]        = useState<Product[]>([]);
   const [selectedId,      setSelectedId]      = useState("");
   const [book,            setBook]            = useState<OrderBook | null>(null);
   const [loading,         setLoading]         = useState(false);
   const [productsLoading, setProductsLoading] = useState(true);
+  const [priceHistory,    setPriceHistory]    = useState<PricePoint[]>([]);
+  const [chartLoading,    setChartLoading]    = useState(false);
   const [buyModalOpen,    setBuyModalOpen]    = useState(false);
   const [buyForm,         setBuyForm]         = useState({ quantity: "", price: "", qualityMin: "0", daysValid: "7" });
   const [submitting,      setSubmitting]      = useState(false);
@@ -97,6 +102,16 @@ function OrderBookPanel() {
   }, [selectedId]);
 
   useEffect(() => { loadBook(); }, [loadBook]);
+
+  // Fetch 60-day price history when product changes
+  useEffect(() => {
+    if (!selectedId) return;
+    setChartLoading(true);
+    fetch(`/api/analytics/price-history?productId=${selectedId}`)
+      .then((r) => r.json())
+      .then((d) => setPriceHistory(d.priceHistory ?? []))
+      .finally(() => setChartLoading(false));
+  }, [selectedId]);
 
   async function placeBuyOrder(e: React.FormEvent) {
     e.preventDefault();
@@ -213,6 +228,21 @@ function OrderBookPanel() {
               </div>
             </div>
           )}
+
+          {/* Price history chart */}
+          <div className="rounded-xl border border-gray-800 bg-gray-900 overflow-hidden">
+            <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
+              <p className="text-sm font-semibold text-gray-300">Історія цін (60 днів)</p>
+              {chartLoading && <span className="text-xs text-gray-600 animate-pulse">завантаження…</span>}
+            </div>
+            <div className="p-3">
+              <ProductPriceChart
+                data={priceHistory}
+                refPrice={book?.refPrice}
+                height={150}
+              />
+            </div>
+          </div>
 
           {/* Order book: asks left, bids right */}
           <div className="grid lg:grid-cols-2 gap-4">
