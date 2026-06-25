@@ -7,7 +7,7 @@ import {
   ArrowLeft, Building2, Zap, Users, Package, Factory,
   AlertCircle, AlertTriangle, Wrench, Hammer, CheckCircle2,
   TrendingUp, TrendingDown, Cpu, Leaf, Plus, Trash2,
-  BookOpen, SlidersHorizontal, Loader2, X, ChevronDown,
+  BookOpen, SlidersHorizontal, Loader2, X, ChevronDown, Pencil,
 } from "lucide-react";
 import { cn, formatUAH, formatNumber } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -845,6 +845,62 @@ function WorkshopsTab({
   );
 }
 
+function SalaryRow({ profession, count, currentSalary, enterpriseId, onSaved }: {
+  profession: string; count: number; currentSalary: number;
+  enterpriseId: string; onSaved: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [value,   setValue]   = useState(currentSalary);
+  const [saving,  setSaving]  = useState(false);
+
+  async function save() {
+    if (value === currentSalary) { setEditing(false); return; }
+    setSaving(true);
+    await fetch(`/api/enterprises/${enterpriseId}/hr`, {
+      method:  "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ roleId: profession, salary: value }),
+    });
+    setSaving(false);
+    setEditing(false);
+    onSaved();
+  }
+
+  return (
+    <div className="flex items-center gap-3 px-4 py-2.5 border-b border-gray-800 last:border-0">
+      <div className="flex-1">
+        <span className="text-xs text-gray-300">{PROF_UA[profession] ?? profession}</span>
+        <span className="ml-2 text-[10px] text-gray-600">{count} ос.</span>
+      </div>
+      {editing ? (
+        <div className="flex items-center gap-1.5">
+          <input
+            type="number"
+            value={value}
+            onChange={e => setValue(Number(e.target.value))}
+            onKeyDown={e => { if (e.key === "Enter") save(); if (e.key === "Escape") setEditing(false); }}
+            autoFocus
+            className="w-28 rounded-md border border-emerald-500/40 bg-gray-800 px-2 py-1 text-xs font-mono text-white focus:outline-none"
+          />
+          <button onClick={save} disabled={saving} className="text-xs text-emerald-400 hover:text-emerald-300 disabled:opacity-50">
+            {saving ? "…" : "✓"}
+          </button>
+          <button onClick={() => setEditing(false)} className="text-xs text-gray-600 hover:text-gray-400">✕</button>
+        </div>
+      ) : (
+        <button
+          onClick={() => { setValue(currentSalary); setEditing(true); }}
+          className="text-xs font-mono text-gray-300 hover:text-emerald-400 transition-colors group flex items-center gap-1"
+          title="Натисніть щоб змінити"
+        >
+          {formatUAH(currentSalary)}
+          <Pencil size={10} className="opacity-0 group-hover:opacity-60 transition-opacity" />
+        </button>
+      )}
+    </div>
+  );
+}
+
 function HRTab({
   enterprise, onRefresh,
 }: { enterprise: EnterpriseData; onRefresh: () => void }) {
@@ -852,6 +908,13 @@ function HRTab({
   const [firing, setFiring]         = useState<string | null>(null);
   const employees = enterprise.employees;
   const onStrike  = employees.filter(e => e.isOnStrike);
+
+  // Group by profession for salary editing
+  const profGroups = employees.reduce<Record<string, { count: number; salary: number }>>((acc, e) => {
+    if (!acc[e.profession]) acc[e.profession] = { count: 0, salary: e.salaryUah };
+    acc[e.profession].count++;
+    return acc;
+  }, {});
 
   async function fireEmployee(employeeId: string) {
     if (!confirm("Звільнити цього співробітника?")) return;
@@ -879,6 +942,25 @@ function HRTab({
           <Plus size={13} /> Найняти
         </Button>
       </div>
+
+      {Object.keys(profGroups).length > 0 && (
+        <div className="rounded-xl border border-gray-800 bg-gray-900 overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-800">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Зарплати за посадою</p>
+            <p className="text-[10px] text-gray-600">Натисніть суму для редагування</p>
+          </div>
+          {Object.entries(profGroups).map(([prof, { count, salary }]) => (
+            <SalaryRow
+              key={prof}
+              profession={prof}
+              count={count}
+              currentSalary={salary}
+              enterpriseId={enterprise.id}
+              onSaved={onRefresh}
+            />
+          ))}
+        </div>
+      )}
 
       {employees.length === 0 ? (
         <div className="py-16 text-center">
