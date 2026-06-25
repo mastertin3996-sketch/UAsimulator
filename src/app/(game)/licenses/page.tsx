@@ -10,8 +10,6 @@ import { cn, formatNumber } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
-export const metadata = undefined;
-
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 interface LicenseItem {
