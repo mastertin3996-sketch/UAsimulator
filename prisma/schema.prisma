@@ -273,6 +273,7 @@ model Player {
   username        String   @unique
   passwordHash    String
   isActive        Boolean  @default(true)
+  isNpcSeller     Boolean  @default(false)  // true = ДержПром або інший NPC-продавець
   lastLoginAt     DateTime?
   companyName     String   @default("Моя компанія")
   // Поточний залишок на рахунку (UAH)

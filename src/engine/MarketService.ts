@@ -441,4 +441,57 @@ export class MarketService {
 
     return totalTraded;
   }
+
+  /** Поповнює ордери і інвентар ДержПром якщо залишок < 20% від початкового. */
+  async replenishDerzhprom(): Promise<void> {
+    const player = await this.prisma.player.findFirst({
+      where: { username: 'derzhprom', isNpcSeller: true },
+      select: { id: true },
+    });
+    if (!player) return;
+
+    const MIN_RATIO = 0.20; // поповнюємо коли залишок < 20%
+    const expiresAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+
+    const orders = await this.prisma.marketOrder.findMany({
+      where:  { playerId: player.id, status: { in: ['OPEN', 'PARTIALLY_FILLED'] } },
+      select: { id: true, productId: true, quantityTotal: true, quantityFilled: true, pricePerUnit: true, quality: true, resourceType: true },
+    });
+
+    for (const order of orders) {
+      const remaining = order.quantityTotal - order.quantityFilled;
+      if (remaining / order.quantityTotal > MIN_RATIO) continue;
+
+      const refillQty = order.quantityTotal; // відновити до початкового обсягу
+
+      // Скасувати вичерпаний ордер
+      await this.prisma.marketOrder.update({
+        where: { id: order.id },
+        data:  { status: 'CANCELLED' },
+      });
+
+      // Поповнити playerInventory
+      await this.prisma.playerInventory.upsert({
+        where:  { playerId_productId: { playerId: player.id, productId: order.productId } },
+        update: { quantity: { increment: refillQty } },
+        create: { playerId: player.id, productId: order.productId, quantity: refillQty, avgQuality: order.quality ?? 7 },
+      });
+
+      // Новий ордер
+      await this.prisma.marketOrder.create({
+        data: {
+          playerId:       player.id,
+          productId:      order.productId,
+          resourceType:   order.resourceType,
+          type:           'SELL',
+          status:         'OPEN',
+          pricePerUnit:   order.pricePerUnit,
+          quality:        order.quality,
+          quantityTotal:  refillQty,
+          quantityFilled: 0,
+          expiresAt,
+        },
+      });
+    }
+  }
 }

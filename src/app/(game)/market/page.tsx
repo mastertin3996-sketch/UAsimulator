@@ -576,9 +576,9 @@ function OffersTab() {
                   <TableCell>
                     <div className="flex items-center gap-1.5">
                       <span className="text-gray-300">{o.sellerName}</span>
-                      {o.isNpc && <span className="text-xs font-semibold px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30">⭐ NPC</span>}
+                      {o.isNpc && <span className="text-xs font-semibold px-1.5 py-0.5 rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/30">🏛️ ДержПром</span>}
                     </div>
-                    <div className="text-xs text-gray-600">{o.isNpc ? "Гарант. якість 3–4.6" : `Рейтинг ${o.sellerRating.toFixed(0)}`}</div>
+                    <div className="text-xs text-gray-600">{o.isNpc ? "Держ. постачальник" : `Рейтинг ${o.sellerRating.toFixed(0)}`}</div>
                   </TableCell>
                   <TableCell className="text-right">
                     <CurrencyDisplay amount={o.price} currency="UAH" size="sm" />

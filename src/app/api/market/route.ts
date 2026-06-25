@@ -16,7 +16,7 @@ export async function GET() {
       quantityTotal: true, quantityFilled: true, expiresAt: true,
       resourceType: true,
       product: { select: { id: true, nameUa: true, unit: true } },
-      player: { select: { id: true, username: true, reputationScore: true } },
+      player: { select: { id: true, username: true, reputationScore: true, isNpcSeller: true, companyName: true } },
     },
   });
 
@@ -38,7 +38,7 @@ export async function GET() {
       unit:          o.product.unit,
       basePrice,
       cityName:      "Україна",
-      sellerName:    o.player.username,
+      sellerName:    o.player.isNpcSeller ? o.player.companyName : o.player.username,
       sellerRating:  o.player.reputationScore,
       price,
       quantity:      o.quantityTotal - o.quantityFilled,
@@ -46,7 +46,7 @@ export async function GET() {
       quality:       o.quality ?? 7.0,
       expiresAt:     o.expiresAt.toISOString(),
       priceVsBase:   basePrice > 0 ? price / basePrice : 1,
-      isNpc:         false,
+      isNpc:         o.player.isNpcSeller,
     };
   });
 

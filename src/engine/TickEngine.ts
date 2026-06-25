@@ -215,6 +215,12 @@ export class TickEngine {
       await this.db.notification.createMany({ data: notifRows });
     }
 
+    // ── 3a1. ДержПром replenishment — поповнення інвентарю кожні 5 тіків ──
+    if (Number(tickNumber) % 5 === 0) {
+      await this.market.replenishDerzhprom()
+        .catch(e => console.error(`[Tick ${tickNumber}] ДержПром replenish failed:`, e));
+    }
+
     // ── 3a2. NPC market buying — скуповує SELL-ордери до referencePrice ──
     const npcMarketUnits = await this.market.matchNpcMarketOrders()
       .catch(e => { console.error(`[Tick ${tickNumber}] NPC market buy failed:`, e); return 0; });
