@@ -28,6 +28,10 @@ const SKU_EMOJI: Record<string, string> = {
   "CM-TIMBER":  "🪵",
   "EQ-MILLGRIND":"⚙️","EQ-OILPRESS":"⚙️","EQ-FURNACE": "🔥",
   "EQ-TRACTOR": "🚜", "EQ-SAWMILL":"🪚", "EQ-DAIRYLINE":"⚙️",
+  // Торгове
+  "EQ-CASHREGISTER":"🖥️","EQ-POSTERMINAL":"💳","EQ-SHELVING":"🗄️",
+  "EQ-DISPLAYFRIDGE":"❄️","EQ-FREEZER":"🧊","EQ-CCTV":"📷",
+  "EQ-SCALE":"⚖️","EQ-PRICETAG":"🏷️","EQ-SELFCHECKOUT":"🤖","EQ-CONVEYOR":"🔄",
 };
 
 function productEmoji(sku: string): string {
@@ -36,7 +40,7 @@ function productEmoji(sku: string): string {
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
-interface EquipCatalogItem { id: string; name: string; basePrice: number; unit: string; footprintM2: number }
+interface EquipCatalogItem { id: string; name: string; sku: string; basePrice: number; unit: string; footprintM2: number }
 
 type Tab = "management" | "workshops" | "hr" | "warehouse" | "production" | "supply" | "showcase";
 
@@ -686,7 +690,7 @@ function BuyEquipmentModal({
                   : "border-gray-800 bg-gray-900 hover:border-gray-700",
               )}
             >
-              <Cpu size={14} className={selected?.id === item.id ? "text-emerald-400" : "text-gray-500"} />
+              <span className="text-xl shrink-0">{productEmoji(item.sku)}</span>
               <div className="flex-1">
                 <p className="text-sm font-medium text-white">{item.name}</p>
                 <p className="text-xs text-gray-500">Займає {item.footprintM2} м²</p>

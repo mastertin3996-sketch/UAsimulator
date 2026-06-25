@@ -12,22 +12,31 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
   const { id: workshopId } = await params;
 
-  const [workshop, catalogItems] = await Promise.all([
-    prisma.workshop.findUnique({
-      where:  { id: workshopId },
-      select: { id: true, footprintM2: true, _count: { select: { equipment: true } } },
-    }),
-    prisma.product.findMany({
-      where:   { isEquipmentItem: true },
-      select:  {
-        id: true, nameUa: true, unit: true,
-        npcDemand: { select: { referencePrice: true }, take: 1 },
-      },
-      orderBy: { nameUa: "asc" },
-    }),
-  ]);
+  const workshop = await prisma.workshop.findUnique({
+    where:  { id: workshopId },
+    select: {
+      id: true, footprintM2: true,
+      _count: { select: { equipment: true } },
+      enterprise: { select: { type: true } },
+    },
+  });
 
   if (!workshop) return NextResponse.json({ error: "Цех не знайдено" }, { status: 404 });
+
+  const isRetail = workshop.enterprise.type === 'RETAIL_STORE';
+  const RETAIL_SKUS = ['EQ-CASHREGISTER','EQ-POSTERMINAL','EQ-SHELVING','EQ-DISPLAYFRIDGE',
+                       'EQ-FREEZER','EQ-CCTV','EQ-SCALE','EQ-PRICETAG','EQ-SELFCHECKOUT','EQ-CONVEYOR'];
+  const FACTORY_SKUS = ['EQ-MILLGRIND','EQ-OILPRESS','EQ-FURNACE','EQ-TRACTOR','EQ-SAWMILL','EQ-DAIRYLINE'];
+  const allowedSkus = isRetail ? RETAIL_SKUS : FACTORY_SKUS;
+
+  const catalogItems = await prisma.product.findMany({
+    where:   { isEquipmentItem: true, sku: { in: allowedSkus } },
+    select:  {
+      id: true, nameUa: true, unit: true, sku: true,
+      npcDemand: { select: { referencePrice: true }, take: 1 },
+    },
+    orderBy: { nameUa: "asc" },
+  });
 
   const FOOTPRINT = 30;
   const usedM2    = workshop._count.equipment * FOOTPRINT;
@@ -41,6 +50,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
     catalog: catalogItems.map((p) => ({
       id:          p.id,
       name:        p.nameUa,
+      sku:         p.sku,
       basePrice:   Number(p.npcDemand[0]?.referencePrice ?? 50_000),
       unit:        p.unit,
       footprintM2: FOOTPRINT,
