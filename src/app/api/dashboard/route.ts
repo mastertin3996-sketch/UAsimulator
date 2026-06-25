@@ -8,7 +8,7 @@ export async function GET() {
 
   const playerId = session.user.id;
 
-  const [player, lastTick] = await Promise.all([
+  const [player, lastTick, macroEvents] = await Promise.all([
     prisma.player.findUnique({
       where:  { id: playerId },
       select: {
@@ -21,6 +21,11 @@ export async function GET() {
     prisma.gameTick.findFirst({
       orderBy: { tickNumber: "desc" },
       select:  { tickNumber: true },
+    }),
+    prisma.macroEvent.findMany({
+      where:   { status: "ACTIVE" },
+      select:  { type: true, description: true, endTick: true },
+      orderBy: { startTick: "desc" },
     }),
   ]);
 
@@ -260,6 +265,11 @@ export async function GET() {
         compliance.score < 0.40 ? "high" :
         compliance.score < 0.70 ? "medium" : "low",
     } : null,
+    macroEvents: macroEvents.map(e => ({
+      type:        e.type,
+      description: e.description,
+      ticksLeft:   Math.max(0, Number(e.endTick) - Number(currentTick)),
+    })),
     activeResearch: await (async () => {
       const p = await prisma.player.findUnique({
         where:  { id: playerId },

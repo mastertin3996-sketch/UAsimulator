@@ -46,6 +46,7 @@ interface DashData {
   pnl: { revenue: number; opex: number; netProfit: number; employees: number; mood: number } | null;
   compliance: { score: number; consecutiveViolations: number; lastAuditTick: number | null; riskLevel: "low" | "medium" | "high" } | null;
   activeResearch: { name: string; current: number; required: number; pct: number } | null;
+  macroEvents: { type: string; description: string; ticksLeft: number }[];
 }
 
 function WarningsBanner({ warnings }: { warnings: Warning[] }) {
@@ -220,7 +221,7 @@ export default function DashboardClient() {
     return <div className="flex items-center justify-center min-h-[60vh] gap-2 text-gray-500"><AlertCircle size={18} /> Помилка завантаження</div>;
   }
 
-  const { player, enterprises, chartData, snapshotChart, currentTick, warnings, recentTxns, stats, pnl, compliance, activeResearch } = data;
+  const { player, enterprises, chartData, snapshotChart, currentTick, warnings, recentTxns, stats, pnl, compliance, activeResearch, macroEvents } = data;
   const displayTick = liveTick ?? currentTick;
 
   return (
@@ -293,6 +294,29 @@ export default function DashboardClient() {
       </div>
 
       {warnings.length > 0 && <WarningsBanner warnings={warnings} />}
+
+      {/* ── Macro events banner ──────────────────────────────────── */}
+      {macroEvents && macroEvents.length > 0 && (
+        <div className="space-y-2">
+          {macroEvents.map((e, i) => {
+            const cfg =
+              e.type === "POWER_OUTAGE"         ? { color: "text-red-400",    border: "border-red-900/40",    bg: "bg-red-950/20",    icon: "⚡" } :
+              e.type === "LOGISTICS_BOTTLENECK" ? { color: "text-amber-400",  border: "border-amber-900/40",  bg: "bg-amber-950/20",  icon: "🚚" } :
+              e.type === "GRAIN_MARKET_BOOM"    ? { color: "text-emerald-400", border: "border-emerald-900/40", bg: "bg-emerald-950/20", icon: "🌾" } :
+                                                  { color: "text-blue-400",   border: "border-blue-900/40",   bg: "bg-blue-950/20",   icon: "⚠" };
+            return (
+              <div key={i} className={`rounded-xl border ${cfg.border} ${cfg.bg} px-4 py-2.5 flex items-center gap-3`}>
+                <span className="text-lg shrink-0">{cfg.icon}</span>
+                <div className="flex-1 min-w-0">
+                  <p className={`text-xs font-semibold ${cfg.color}`}>Макро-подія активна</p>
+                  <p className="text-xs text-gray-300 truncate">{e.description}</p>
+                </div>
+                <span className="text-[10px] text-gray-500 shrink-0 font-mono">{e.ticksLeft} тік</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* ── Main content grid ────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

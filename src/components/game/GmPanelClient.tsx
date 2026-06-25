@@ -24,7 +24,7 @@ interface PlayerRow {
   isBankrupt: boolean; isOperationsFrozen: boolean; enterpriseCount: number;
 }
 
-type Tab = "overview" | "players" | "ticks";
+type Tab = "overview" | "players" | "ticks" | "events";
 
 export default function GmPanelClient() {
   const [tab, setTab]           = useState<Tab>("overview");
@@ -34,6 +34,32 @@ export default function GmPanelClient() {
   const [loading, setLoading]   = useState(true);
   const [tickState, setTickState] = useState<"idle"|"loading"|"done"|"error">("idle");
   const [tickInfo, setTickInfo] = useState("");
+  // Macro event trigger
+  const [eventType,     setEventType]     = useState("POWER_OUTAGE");
+  const [eventDuration, setEventDuration] = useState(5);
+  const [eventBusy,     setEventBusy]     = useState(false);
+  const [eventMsg,      setEventMsg]      = useState<{ ok: boolean; text: string } | null>(null);
+  const [activeEvents,  setActiveEvents]  = useState<{ type: string; description: string; ticksLeft: number }[]>([]);
+
+  async function triggerEvent() {
+    setEventBusy(true);
+    setEventMsg(null);
+    try {
+      const res = await fetch("/api/macro-events", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: eventType, durationTicks: eventDuration }),
+      });
+      const d = await res.json();
+      if (res.ok) {
+        setEventMsg({ ok: true,  text: `Подія створена, активна до тіку #${d.endTick}` });
+        const r2 = await fetch("/api/macro-events");
+        if (r2.ok) { const j = await r2.json(); setActiveEvents(j.events ?? []); }
+      } else {
+        setEventMsg({ ok: false, text: d.error ?? "Помилка" });
+      }
+    } finally { setEventBusy(false); }
+  }
   const [adjustTarget, setAdjustTarget] = useState<PlayerRow | null>(null);
   const [adjustAmt, setAdjustAmt]       = useState("");
   const [adjustReason, setAdjustReason] = useState("");
@@ -83,9 +109,10 @@ export default function GmPanelClient() {
   }
 
   const TABS: { key: Tab; label: string; icon: React.FC<{ size?: number; className?: string }> }[] = [
-    { key: "overview", label: "Огляд",    icon: BarChart3 },
-    { key: "players",  label: "Гравці",   icon: Users    },
-    { key: "ticks",    label: "Тіки",     icon: Clock    },
+    { key: "overview", label: "Огляд",   icon: BarChart3 },
+    { key: "players",  label: "Гравці",  icon: Users    },
+    { key: "ticks",    label: "Тіки",    icon: Clock    },
+    { key: "events",   label: "Макро",   icon: Zap      },
   ];
 
   if (loading) return (
@@ -284,6 +311,54 @@ export default function GmPanelClient() {
             })}
           </div>
         </div>
+      )}
+
+      {/* Macro events tab */}
+      {tab === "events" && (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-gray-800 bg-gray-900 p-5 space-y-4">
+              <p className="text-sm font-semibold text-white">Запустити макро-подію</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">Тип події</label>
+                  <select value={eventType} onChange={e => setEventType(e.target.value)}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
+                    <option value="POWER_OUTAGE">⚡ Відключення електроенергії</option>
+                    <option value="LOGISTICS_BOTTLENECK">🚚 Затримки логістики</option>
+                    <option value="GRAIN_MARKET_BOOM">🌾 Зерновий бум</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">Тривалість (тіки)</label>
+                  <input type="number" min={1} max={50} value={eventDuration}
+                    onChange={e => setEventDuration(Number(e.target.value))}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500" />
+                </div>
+              </div>
+              {eventMsg && (
+                <p className={cn("text-xs rounded-lg px-3 py-2", eventMsg.ok ? "text-emerald-400 bg-emerald-950/30" : "text-red-400 bg-red-950/30")}>
+                  {eventMsg.text}
+                </p>
+              )}
+              <button onClick={triggerEvent} disabled={eventBusy}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-700 hover:bg-red-600 disabled:opacity-50 text-white text-sm font-semibold transition-colors">
+                {eventBusy ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />}
+                Запустити подію
+              </button>
+            </div>
+
+            {activeEvents.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Активні події</p>
+                {activeEvents.map((e, i) => (
+                  <div key={i} className="rounded-xl border border-amber-900/40 bg-amber-950/10 px-4 py-3 flex items-center justify-between gap-4">
+                    <p className="text-sm text-white">{e.description}</p>
+                    <span className="text-[10px] text-amber-400 shrink-0 font-mono">{e.ticksLeft} тік залишилось</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
       )}
 
       {/* Adjust balance modal */}
