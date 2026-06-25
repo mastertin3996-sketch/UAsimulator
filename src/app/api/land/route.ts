@@ -31,7 +31,9 @@ export async function GET(req: NextRequest) {
     select: {
       id: true, cadastralNumber: true, totalAreaM2: true, usedAreaM2: true,
       purchasePriceUah: true, monthlyLeaseCostUah: true, status: true,
+      purchasedAt: true, leaseStartDate: true,
       city: { select: { id: true, nameUa: true, region: true } },
+      enterprises: { select: { id: true, name: true, type: true } },
     },
   });
 
@@ -49,6 +51,9 @@ export async function GET(req: NextRequest) {
       monthlyLeaseCostUah: Number(p.monthlyLeaseCostUah),
       status: p.status, city: p.city,
       freeAreaM2: p.totalAreaM2 - p.usedAreaM2,
+      purchasedAt: p.purchasedAt,
+      leaseStartDate: p.leaseStartDate,
+      enterprises: p.enterprises,
     })),
   });
 }
