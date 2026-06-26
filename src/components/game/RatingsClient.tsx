@@ -1,296 +1,262 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Trophy, Star, Building2, TrendingUp, Crown, Medal,
-  Search, RefreshCw, Wallet, Factory, Zap,
+  Search, RefreshCw, Factory, Users, BarChart2,
 } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn, formatNumber } from "@/lib/utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface CompanyRow {
-  rank: number; id: string; name: string; slogan: string | null;
-  rating: number; brandLevel: number; totalAssets: number; gameCash: number; netWorth: number;
-  ownerUsername: string; ownerLevel: number; isMyCompany: boolean;
-  enterprises: number; activeEnterprises: number;
+  rank: number;
+  id: string;
+  name: string;
+  slogan: null;
+  rating: number;       // 0-100
+  brandLevel: number;   // 1-5
+  totalAssets: number;
+  netWorth: number;
+  gameCash: number;
+  ownerUsername: string;
+  ownerLevel: number;
+  isMyCompany: boolean;
+  enterprises: number;
+  activeEnterprises: number;
   createdAt: string;
 }
 
-interface SectorLeader {
-  companyId  : string;
-  companyName: string;
-  count      : number;
-  revenue    : number;
-  isMe       : boolean;
-}
+type SortKey = "capital" | "rating" | "enterprises";
 
-interface RatingsData {
-  myCompanyId   : string | null;
-  companies     : CompanyRow[];
-  byWealth      : CompanyRow[];
-  byEnterprises : CompanyRow[];
-  myRanks       : { rating: number; wealth: number; enterprises: number } | null;
-  nearby        : CompanyRow[];
-  sectorLeaders : { category: string; topCompanies: SectorLeader[] }[];
-  totalCompanies: number;
-  lastTickNumber: number | null;
-}
-
-type Tab = "rating" | "wealth" | "enterprises" | "sectors";
-
-const TAB_META: { key: Tab; label: string; Icon: React.ElementType }[] = [
-  { key: "rating",      label: "Рейтинг",      Icon: Star      },
-  { key: "wealth",      label: "Капіталізація", Icon: Wallet    },
-  { key: "enterprises", label: "Підприємства",  Icon: Building2 },
-  { key: "sectors",     label: "По секторах",   Icon: Factory   },
+const SORT_META: { key: SortKey; label: string; icon: React.ElementType }[] = [
+  { key: "capital",     label: "За капіталом",     icon: TrendingUp },
+  { key: "rating",      label: "За рейтингом",     icon: BarChart2  },
+  { key: "enterprises", label: "За підприємствами", icon: Factory    },
 ];
 
-const SECTOR_META: Record<string, { label: string; color: string; emoji: string }> = {
-  EXTRACTION: { label: "Видобуток",   color: "text-amber-400",  emoji: "⛏️"  },
-  PRODUCTION: { label: "Виробництво", color: "text-blue-400",   emoji: "🏭"  },
-  TRADE     : { label: "Торгівля",    color: "text-emerald-400",emoji: "🏪"  },
-  LOGISTICS : { label: "Логістика",   color: "text-violet-400", emoji: "🚚"  },
-};
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-// ─── Rank icon ────────────────────────────────────────────────────────────────
-
-function RankIcon({ rank }: { rank: number }) {
-  if (rank === 1) return <Crown size={16} className="text-amber-400" />;
-  if (rank === 2) return <Medal size={14} className="text-gray-300" />;
-  if (rank === 3) return <Medal size={14} className="text-amber-600" />;
-  return <span className="text-xs font-mono text-gray-500 w-5 text-center inline-block">{rank}</span>;
+function medalEmoji(rank: number) {
+  if (rank === 1) return "🥇";
+  if (rank === 2) return "🥈";
+  if (rank === 3) return "🥉";
+  return null;
 }
 
-// ─── Leaderboard table ────────────────────────────────────────────────────────
+function podiumBorder(rank: number) {
+  if (rank === 1) return "border-yellow-400/40 bg-yellow-400/5";
+  if (rank === 2) return "border-gray-300/30 bg-gray-300/5";
+  return "border-amber-600/30 bg-amber-600/5";
+}
 
-type ColKey = "rating" | "wealth" | "enterprises";
+function podiumLabel(rank: number) {
+  if (rank === 1) return { text: "1 місце", color: "text-yellow-400" };
+  if (rank === 2) return { text: "2 місце", color: "text-gray-300"   };
+  return              { text: "3 місце", color: "text-amber-600"   };
+}
 
-function LeaderTable({
-  rows, valueCol, search,
-}: {
-  rows     : CompanyRow[];
-  valueCol : ColKey;
-  search   : string;
-}) {
-  const filtered = useMemo(() => {
-    if (!search) return rows;
-    const q = search.toLowerCase();
-    return rows.filter((r) => r.name.toLowerCase().includes(q) || r.ownerUsername.toLowerCase().includes(q));
-  }, [rows, search]);
+function ratingBarColor(r: number) {
+  if (r >= 75) return "bg-emerald-500";
+  if (r >= 50) return "bg-yellow-400";
+  if (r >= 25) return "bg-amber-500";
+  return "bg-red-500";
+}
 
-  const VALUE_CFG: Record<ColKey, { header: string; render: (r: CompanyRow) => React.ReactNode }> = {
-    rating: {
-      header: "Рейтинг",
-      render: (r) => (
-        <div className="flex items-center justify-end gap-1">
-          <Star size={10} className="text-amber-400" />
-          <span className="font-mono font-semibold text-amber-400">{r.rating.toFixed(0)}</span>
-        </div>
-      ),
-    },
-    wealth: {
-      header: "Капіталізація",
-      render: (r) => (
-        <div>
-          <span className="font-mono text-emerald-400 font-semibold">{formatNumber(Math.round(r.netWorth))}</span>
-          <span className="text-[10px] text-gray-600 ml-1">GC</span>
-        </div>
-      ),
-    },
-    enterprises: {
-      header: "Підприємства",
-      render: (r) => (
-        <span className="font-mono text-white">{r.activeEnterprises}<span className="text-gray-600">/{r.enterprises}</span></span>
-      ),
-    },
-  };
+function ratingTextColor(r: number) {
+  if (r >= 75) return "text-emerald-400";
+  if (r >= 50) return "text-yellow-400";
+  if (r >= 25) return "text-amber-400";
+  return "text-red-400";
+}
 
-  const cfg = VALUE_CFG[valueCol];
+// ─── Podium card ─────────────────────────────────────────────────────────────
 
-  if (filtered.length === 0) {
-    return <div className="text-center py-10 text-gray-600 text-sm">Нічого не знайдено</div>;
-  }
-
+function PodiumCard({ c }: { c: CompanyRow }) {
+  const lbl = podiumLabel(c.rank);
   return (
-    <table className="w-full text-sm">
-      <thead className="bg-gray-900/80 border-b border-gray-800">
-        <tr>
-          <th className="px-4 py-3 text-left text-xs text-gray-500 uppercase tracking-wider w-10">#</th>
-          <th className="px-4 py-3 text-left text-xs text-gray-500 uppercase tracking-wider">Компанія</th>
-          <th className="px-4 py-3 text-right text-xs text-gray-500 uppercase tracking-wider">{cfg.header}</th>
-          <th className="px-4 py-3 text-right text-xs text-gray-500 uppercase tracking-wider hidden sm:table-cell">Бренд</th>
-          <th className="px-4 py-3 text-right text-xs text-gray-500 uppercase tracking-wider hidden md:table-cell">Гравець</th>
-        </tr>
-      </thead>
-      <tbody className="divide-y divide-gray-800/60">
-        {filtered.map((c) => (
-          <tr
-            key={c.id}
-            className={cn(
-              "transition-colors",
-              c.isMyCompany ? "bg-violet-950/20 hover:bg-violet-950/30" : "hover:bg-gray-800/30",
-            )}
-          >
-            <td className="px-4 py-3">
-              <div className="flex items-center justify-center">
-                <RankIcon rank={c.rank} />
-              </div>
-            </td>
-            <td className="px-4 py-3">
-              <div className="flex items-center gap-2 min-w-0">
-                <div className="w-7 h-7 rounded-lg bg-gray-800 flex items-center justify-center text-sm shrink-0">🏢</div>
-                <div className="min-w-0">
-                  <p className={cn("font-medium truncate text-sm", c.isMyCompany ? "text-violet-400" : "text-white")}>
-                    {c.name}
-                    {c.isMyCompany && <span className="ml-1.5 text-xs text-violet-500">(ви)</span>}
-                  </p>
-                  {c.slogan && <p className="text-[10px] text-gray-600 truncate italic">{c.slogan}</p>}
-                </div>
-              </div>
-            </td>
-            <td className="px-4 py-3 text-right">{cfg.render(c)}</td>
-            <td className="px-4 py-3 text-right hidden sm:table-cell">
-              <div className="flex items-center justify-end gap-0.5">
-                {Array.from({ length: Math.min(5, c.brandLevel) }).map((_, i) => (
-                  <Star key={i} size={9} className="text-amber-400 fill-amber-400" />
-                ))}
-                {Array.from({ length: Math.max(0, 5 - c.brandLevel) }).map((_, i) => (
-                  <Star key={i} size={9} className="text-gray-700" />
-                ))}
-              </div>
-            </td>
-            <td className="px-4 py-3 text-right hidden md:table-cell">
-              <p className="text-gray-400 text-xs">{c.ownerUsername}</p>
-              <p className="text-gray-600 text-[10px]">Рів. {c.ownerLevel}</p>
-            </td>
-          </tr>
+    <div
+      className={cn(
+        "relative rounded-xl border p-4 flex flex-col gap-2 transition-all",
+        podiumBorder(c.rank),
+        c.isMyCompany && "ring-1 ring-blue-500/30",
+        c.rank === 1 && "sm:scale-[1.03] sm:z-10 sm:shadow-yellow-400/10 sm:shadow-lg",
+      )}
+    >
+      {/* position label */}
+      <div className="flex items-center justify-between">
+        <span className={cn("text-xs font-bold uppercase tracking-wider", lbl.color)}>{lbl.text}</span>
+        <span className="text-xl leading-none">{medalEmoji(c.rank)}</span>
+      </div>
+
+      {/* company name */}
+      <div>
+        <p className={cn("font-bold text-base leading-tight", c.isMyCompany ? "text-blue-400" : "text-white")}>
+          {c.name}
+          {c.isMyCompany && <span className="ml-1.5 text-xs text-blue-500">(ви)</span>}
+        </p>
+        <p className="text-xs text-gray-500 mt-0.5">
+          <Users size={10} className="inline mr-0.5" />
+          {c.ownerUsername} · Рів.{c.ownerLevel}
+        </p>
+      </div>
+
+      {/* brand stars */}
+      <div className="flex items-center gap-0.5">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <Star key={i} size={10} className={i < c.brandLevel ? "text-amber-400 fill-amber-400" : "text-gray-700"} />
         ))}
-      </tbody>
-    </table>
-  );
-}
+      </div>
 
-// ─── Sector leaders ───────────────────────────────────────────────────────────
+      {/* stats */}
+      <div className="grid grid-cols-2 gap-2 mt-1">
+        <div className="rounded-lg bg-gray-900/60 px-2 py-1.5 text-center">
+          <p className="text-[10px] text-gray-500 uppercase tracking-wide">Капітал</p>
+          <p className="text-xs font-mono font-semibold text-emerald-400">
+            {formatNumber(Math.round(c.netWorth))}
+            <span className="text-gray-600 ml-0.5 text-[9px]">GC</span>
+          </p>
+        </div>
+        <div className="rounded-lg bg-gray-900/60 px-2 py-1.5 text-center">
+          <p className="text-[10px] text-gray-500 uppercase tracking-wide">Рейтинг</p>
+          <p className={cn("text-xs font-mono font-bold", ratingTextColor(c.rating))}>{c.rating.toFixed(0)}</p>
+        </div>
+      </div>
 
-function SectorsTab({ sectors }: { sectors: RatingsData["sectorLeaders"] }) {
-  return (
-    <div className="grid sm:grid-cols-2 gap-4">
-      {sectors.map(({ category, topCompanies }) => {
-        const meta = SECTOR_META[category] ?? { label: category, color: "text-gray-400", emoji: "🏭" };
-        const maxCount = topCompanies[0]?.count ?? 1;
-        return (
-          <div key={category} className="rounded-xl border border-gray-800 bg-gray-900/60 p-4 space-y-3">
-            <div className="flex items-center gap-2">
-              <span className="text-xl">{meta.emoji}</span>
-              <h3 className={cn("font-semibold text-sm", meta.color)}>{meta.label}</h3>
-            </div>
-            {topCompanies.length === 0 ? (
-              <p className="text-gray-600 text-xs py-2">Немає компаній у цьому секторі</p>
-            ) : (
-              <div className="space-y-2">
-                {topCompanies.map((c, i) => (
-                  <div key={c.companyId} className={cn("space-y-1", c.isMe ? "opacity-100" : "")}>
-                    <div className="flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="text-gray-600 w-4 shrink-0">#{i + 1}</span>
-                        <span className={cn("font-medium truncate", c.isMe ? "text-violet-400" : "text-white")}>
-                          {c.companyName}
-                          {c.isMe && <span className="text-violet-500 ml-1 text-[10px]">(ви)</span>}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-3 shrink-0 ml-2">
-                        <span className="text-gray-400"><Building2 size={10} className="inline mr-0.5" />{c.count}</span>
-                        {c.revenue > 0 && (
-                          <span className="font-mono text-emerald-400 text-[10px]">+{formatNumber(Math.round(c.revenue))} GC</span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="h-1 bg-gray-800 rounded-full overflow-hidden">
-                      <div
-                        className={cn("h-full rounded-full", meta.color.replace("text-", "bg-").replace("400", "500"))}
-                        style={{ width: `${(c.count / maxCount) * 100}%` }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        );
-      })}
+      {/* rating bar */}
+      <div className="h-1 rounded-full bg-gray-800 overflow-hidden">
+        <div
+          className={cn("h-full rounded-full transition-all", ratingBarColor(c.rating))}
+          style={{ width: `${c.rating}%` }}
+        />
+      </div>
+
+      <p className="text-[10px] text-gray-600">
+        <Building2 size={9} className="inline mr-0.5" />
+        {c.activeEnterprises} / {c.enterprises} підпр.
+      </p>
     </div>
   );
 }
 
-// ─── My position panel ───────────────────────────────────────────────────────
+// ─── Table row ────────────────────────────────────────────────────────────────
 
-function MyPositionPanel({ data }: { data: RatingsData }) {
-  const myRow = data.companies.find((c) => c.isMyCompany)
-    ?? data.byWealth.find((c) => c.isMyCompany)
-    ?? data.nearby.find((c) => c.isMyCompany);
-
-  if (!myRow || !data.myRanks) return null;
-
-  const positions = [
-    { label: "Рейтинг",      rank: data.myRanks.rating,      icon: Star,      color: "text-amber-400", value: myRow.rating.toFixed(0) + " ★" },
-    { label: "Капіталізація", rank: data.myRanks.wealth,      icon: Wallet,    color: "text-emerald-400", value: formatNumber(Math.round(myRow.netWorth)) + " GC" },
-    { label: "Підприємства",  rank: data.myRanks.enterprises, icon: Building2, color: "text-blue-400", value: myRow.activeEnterprises + " акт." },
-  ];
-
+function TableRow({ c, index }: { c: CompanyRow; index: number }) {
+  const medal = medalEmoji(c.rank);
   return (
-    <div className="rounded-xl border border-violet-700/50 bg-violet-950/20 p-4 space-y-3">
-      <div className="flex items-center gap-2">
-        <Zap size={14} className="text-violet-400" />
-        <p className="text-sm font-semibold text-white">Ваша позиція — <span className="text-violet-400">{myRow.name}</span></p>
-        <span className="text-xs text-gray-500 ml-auto">з {data.totalCompanies} компаній</span>
-      </div>
-      <div className="grid grid-cols-3 gap-2">
-        {positions.map(({ label, rank, icon: Icon, color, value }) => (
-          <div key={label} className="rounded-lg bg-gray-900/60 px-3 py-2 text-center">
-            <div className="flex items-center justify-center gap-1 mb-0.5">
-              <Icon size={10} className={color} />
-              <span className="text-[10px] text-gray-500 uppercase tracking-wide">{label}</span>
-            </div>
-            <p className="text-lg font-bold text-white">#{rank}</p>
-            <p className={cn("text-[10px] font-mono", color)}>{value}</p>
+    <tr
+      className={cn(
+        "transition-colors",
+        c.isMyCompany
+          ? "bg-blue-950/60 border-l-2 border-blue-500/30 hover:bg-blue-950/80"
+          : index % 2 === 0
+            ? "hover:bg-gray-800/30"
+            : "bg-gray-900/30 hover:bg-gray-800/30",
+      )}
+    >
+      {/* rank */}
+      <td className="px-4 py-3 w-12">
+        <div className="flex items-center justify-center">
+          {medal ? (
+            <span className="text-lg leading-none">{medal}</span>
+          ) : (
+            <span className="text-xs font-mono text-gray-500 w-5 text-center">{c.rank}</span>
+          )}
+        </div>
+      </td>
+
+      {/* company */}
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="w-7 h-7 rounded-lg bg-gray-800 flex items-center justify-center text-sm shrink-0">🏢</div>
+          <div className="min-w-0">
+            <p className={cn("font-medium truncate text-sm", c.isMyCompany ? "text-blue-400" : "text-white")}>
+              {c.name}
+              {c.isMyCompany && <span className="ml-1.5 text-xs text-blue-500">(ви)</span>}
+            </p>
+            {c.slogan && <p className="text-[10px] text-gray-600 truncate italic">{c.slogan}</p>}
           </div>
-        ))}
-      </div>
-    </div>
+        </div>
+      </td>
+
+      {/* owner */}
+      <td className="px-4 py-3 hidden md:table-cell">
+        <p className="text-gray-400 text-xs">{c.ownerUsername}</p>
+        <p className="text-gray-600 text-[10px]">Рів. {c.ownerLevel}</p>
+      </td>
+
+      {/* enterprises */}
+      <td className="px-4 py-3 text-right hidden sm:table-cell">
+        <span className="font-mono text-white text-sm">{c.activeEnterprises}</span>
+        <span className="text-gray-600 text-xs">/{c.enterprises}</span>
+      </td>
+
+      {/* capital */}
+      <td className="px-4 py-3 text-right">
+        <span className="font-mono text-emerald-400 text-xs font-semibold">
+          {formatNumber(Math.round(c.netWorth))}
+        </span>
+        <span className="text-gray-600 text-[10px] ml-0.5">GC</span>
+      </td>
+
+      {/* rating bar */}
+      <td className="px-4 py-3 hidden lg:table-cell">
+        <div className="flex items-center gap-2 min-w-[80px]">
+          <div className="flex-1 h-1.5 rounded-full bg-gray-800 overflow-hidden">
+            <div
+              className={cn("h-full rounded-full transition-all", ratingBarColor(c.rating))}
+              style={{ width: `${c.rating}%` }}
+            />
+          </div>
+          <span className={cn("text-xs font-mono font-semibold w-6 text-right shrink-0", ratingTextColor(c.rating))}>
+            {c.rating.toFixed(0)}
+          </span>
+        </div>
+      </td>
+
+      {/* brand / owner level */}
+      <td className="px-4 py-3 text-right hidden sm:table-cell">
+        <div className="flex items-center justify-end gap-0.5">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Star key={i} size={9} className={i < c.brandLevel ? "text-amber-400 fill-amber-400" : "text-gray-700"} />
+          ))}
+        </div>
+      </td>
+    </tr>
   );
 }
 
-// ─── Nearby panel ────────────────────────────────────────────────────────────
+// ─── Loading skeleton ─────────────────────────────────────────────────────────
 
-function NearbyPanel({ nearby }: { nearby: CompanyRow[] }) {
-  if (nearby.length <= 1) return null;
-
+function LoadingSkeleton() {
   return (
-    <div className="rounded-xl border border-gray-800 bg-gray-900/40 p-4 space-y-2">
-      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Сусіди в рейтингу</p>
-      <div className="space-y-1">
-        {nearby.map((c) => (
-          <div
-            key={c.id}
-            className={cn(
-              "flex items-center justify-between px-3 py-1.5 rounded-lg text-xs",
-              c.isMyCompany ? "bg-violet-900/30 border border-violet-700/40" : "hover:bg-gray-800/40",
-            )}
-          >
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="text-gray-600 w-6 shrink-0 text-center">#{c.rank}</span>
-              <span className={cn("font-medium truncate", c.isMyCompany ? "text-violet-400" : "text-white")}>
-                {c.name}
-                {c.isMyCompany && <span className="text-violet-500 ml-1">(ви)</span>}
-              </span>
+    <div className="space-y-4">
+      {/* podium skeletons */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="rounded-xl border border-gray-800 p-4 space-y-3 bg-gray-900/40">
+            <Skeleton className="h-4 w-20" />
+            <Skeleton className="h-5 w-32" />
+            <Skeleton className="h-3 w-24" />
+            <div className="grid grid-cols-2 gap-2">
+              <Skeleton className="h-10 rounded-lg" />
+              <Skeleton className="h-10 rounded-lg" />
             </div>
-            <div className="flex items-center gap-1 shrink-0">
-              <Star size={9} className="text-amber-400" />
-              <span className="font-mono text-amber-400">{c.rating.toFixed(0)}</span>
-            </div>
+            <Skeleton className="h-1.5 w-full rounded-full" />
+          </div>
+        ))}
+      </div>
+      {/* table skeletons */}
+      <div className="rounded-xl border border-gray-800 overflow-hidden">
+        {[...Array(7)].map((_, i) => (
+          <div key={i} className="flex items-center gap-4 px-4 py-3 border-b border-gray-800/60">
+            <Skeleton className="h-4 w-6 rounded" />
+            <Skeleton className="h-7 w-7 rounded-lg shrink-0" />
+            <Skeleton className="h-4 flex-1" />
+            <Skeleton className="h-4 w-20 hidden md:block" />
+            <Skeleton className="h-4 w-16" />
           </div>
         ))}
       </div>
@@ -301,119 +267,311 @@ function NearbyPanel({ nearby }: { nearby: CompanyRow[] }) {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function RatingsClient() {
-  const [data,    setData]    = useState<RatingsData | null>(null);
+  const [rows,    setRows]    = useState<CompanyRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab,     setTab]     = useState<Tab>("rating");
+  const [sort,    setSort]    = useState<SortKey>("capital");
   const [search,  setSearch]  = useState("");
+  const [myPosVisible, setMyPosVisible] = useState(false);
+
+  // Ref map: rowId → DOM element for intersection observation
+  const myRowRef  = useRef<HTMLTableRowElement | null>(null);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+
+  // ── Fetch ──────────────────────────────────────────────────────────────────
 
   const load = useCallback(() => {
     setLoading(true);
     fetch("/api/ratings")
       .then((r) => r.json())
-      .then(setData)
+      .then((data: CompanyRow[]) => setRows(Array.isArray(data) ? data : []))
+      .catch(() => setRows([]))
       .finally(() => setLoading(false));
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
-  const tableRows = data
-    ? tab === "rating"      ? data.companies
-    : tab === "wealth"      ? data.byWealth
-    : tab === "enterprises" ? data.byEnterprises
-    : []
-    : [];
+  // ── Sorted + filtered ──────────────────────────────────────────────────────
 
-  const tableCol: ColKey =
-    tab === "wealth"      ? "wealth"
-    : tab === "enterprises" ? "enterprises"
-    : "rating";
+  const sorted = useMemo(() => {
+    const copy = [...rows];
+    if (sort === "capital")     copy.sort((a, b) => b.netWorth - a.netWorth);
+    if (sort === "rating")      copy.sort((a, b) => b.rating - a.rating);
+    if (sort === "enterprises") copy.sort((a, b) => b.activeEnterprises - a.activeEnterprises);
+    return copy.map((r, i) => ({ ...r, rank: i + 1 }));
+  }, [rows, sort]);
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return sorted;
+    const q = search.toLowerCase();
+    return sorted.filter(
+      (r) => r.name.toLowerCase().includes(q) || r.ownerUsername.toLowerCase().includes(q),
+    );
+  }, [sorted, search]);
+
+  const top3   = filtered.filter((r) => r.rank <= 3);
+  const rest   = filtered.filter((r) => r.rank > 3);
+  const myRow  = sorted.find((r) => r.isMyCompany);
+  const myRank = myRow?.rank;
+
+  // ── Sticky "Ваша позиція" — show when player's row scrolled out of view ──────
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setMyPosVisible(!entry.isIntersecting),
+      { threshold: 0 },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [filtered]);
+
+  // ─────────────────────────────────────────────────────────────────────────────
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
 
-      {/* Header */}
+      {/* ── Sticky "Ваша позиція" banner ─────────────────────────────────────── */}
+      {myRank && myPosVisible && (
+        <div className="fixed top-0 left-0 right-0 z-50 flex items-center justify-center pointer-events-none">
+          <div className="mt-2 px-4 py-2 bg-blue-950/95 border border-blue-500/40 rounded-xl shadow-xl text-sm text-blue-300 font-semibold backdrop-blur-sm pointer-events-auto">
+            Ваша позиція: #{myRank}
+          </div>
+        </div>
+      )}
+
+      {/* ── Header ───────────────────────────────────────────────────────────── */}
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-            <Trophy size={22} className="text-amber-400" /> Рейтинги компаній
+            <Trophy size={22} className="text-amber-400" />
+            Рейтинг компаній
           </h1>
           <p className="text-gray-500 text-sm mt-1">
-            {data
-              ? `${data.totalCompanies} компаній · ${data.lastTickNumber ? `тік #${data.lastTickNumber}` : "тіків ще немає"}`
-              : "Завантаження..."}
+            {loading ? "Завантаження..." : `${rows.length} компаній`}
           </p>
         </div>
-        <button
+        <Button
+          variant="secondary"
+          size="sm"
           onClick={load}
           disabled={loading}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm transition-all disabled:opacity-50"
+          loading={loading}
         >
           <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
           Оновити
-        </button>
+        </Button>
       </div>
 
-      {/* My position */}
-      {!loading && data && <MyPositionPanel data={data} />}
-
-      {/* Nearby */}
-      {!loading && data && data.nearby.length > 1 && tab === "rating" && (
-        <NearbyPanel nearby={data.nearby} />
-      )}
-
-      {/* Tabs + search */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <div className="flex gap-1 border-b border-gray-800 flex-1">
-          {TAB_META.map(({ key, label, Icon }) => (
+      {/* ── Controls ─────────────────────────────────────────────────────────── */}
+      <div className="flex flex-wrap items-center gap-3">
+        {/* sort toggles */}
+        <div className="flex items-center gap-1 bg-gray-900 border border-gray-800 rounded-xl p-1">
+          {SORT_META.map(({ key, label, icon: Icon }) => (
             <button
               key={key}
-              onClick={() => setTab(key)}
+              onClick={() => setSort(key)}
               className={cn(
-                "flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition-all border-b-2 -mb-px whitespace-nowrap",
-                tab === key
-                  ? "text-white border-amber-500"
-                  : "text-gray-500 border-transparent hover:text-gray-300 hover:border-gray-600",
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
+                sort === key ? "bg-gray-800 text-white" : "text-gray-500 hover:text-gray-300",
               )}
             >
-              <Icon size={13} /> {label}
+              <Icon size={11} />
+              {label}
             </button>
           ))}
         </div>
-        {tab !== "sectors" && (
-          <div className="relative">
-            <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Пошук..."
-              className="bg-gray-800 border border-gray-700 rounded-lg pl-7 pr-3 py-1.5 text-sm text-white placeholder-gray-500 outline-none focus:border-gray-500 w-36"
-            />
-          </div>
-        )}
+
+        {/* search */}
+        <div className="relative">
+          <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Компанія або власник..."
+            className="bg-gray-800 border border-gray-700 rounded-lg pl-7 pr-3 py-1.5 text-sm text-white placeholder-gray-500 outline-none focus:border-gray-500 w-52"
+          />
+        </div>
       </div>
 
-      {/* Content */}
-      {loading && !data ? (
-        <div className="space-y-2">
-          {[...Array(8)].map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
+      {/* ── Loading ───────────────────────────────────────────────────────────── */}
+      {loading && !rows.length && <LoadingSkeleton />}
+
+      {/* ── Empty state ───────────────────────────────────────────────────────── */}
+      {!loading && filtered.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-20 gap-4 text-gray-600">
+          <Crown size={40} className="opacity-30" />
+          <p className="text-lg font-medium">
+            {search ? "Нічого не знайдено" : "Ще немає компаній"}
+          </p>
+          {search && (
+            <button onClick={() => setSearch("")} className="text-sm text-gray-500 hover:text-gray-300 underline">
+              Скинути пошук
+            </button>
+          )}
         </div>
-      ) : !data ? (
-        <div className="text-center py-20 text-gray-500">Помилка завантаження</div>
-      ) : tab === "sectors" ? (
-        <SectorsTab sectors={data.sectorLeaders} />
-      ) : (
-        <Card>
-          <CardContent className="pt-0 px-0">
-            <LeaderTable rows={tableRows} valueCol={tableCol} search={search} />
-          </CardContent>
-        </Card>
       )}
 
-      {/* Legend */}
-      {!loading && data && tab !== "sectors" && (
-        <div className="flex gap-4 text-[11px] text-gray-600 border-t border-gray-800 pt-4">
-          <span className="flex items-center gap-1"><TrendingUp size={10} className="text-emerald-400" /> Капіталізація = активи + готівка GC</span>
-          <span className="flex items-center gap-1"><Star size={10} className="text-amber-400 fill-amber-400" /> Рейтинг = репутаційний бал компанії</span>
+      {/* ── Podium (top 3) ────────────────────────────────────────────────────── */}
+      {!loading && top3.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {/* render order: 2nd, 1st, 3rd for visual podium effect on sm+ */}
+          {[
+            top3.find((c) => c.rank === 2),
+            top3.find((c) => c.rank === 1),
+            top3.find((c) => c.rank === 3),
+          ]
+            .filter(Boolean)
+            .map((c) => (
+              <PodiumCard key={c!.id} c={c!} />
+            ))}
+        </div>
+      )}
+
+      {/* sentinel to detect when myRow would appear */}
+      {myRow && myRank && myRank > 3 && (
+        <div
+          ref={(el) => {
+            // place sentinel just before the rest table
+            sentinelRef.current = el;
+          }}
+        />
+      )}
+
+      {/* ── Rest of the table (rank 4+) ───────────────────────────────────────── */}
+      {!loading && rest.length > 0 && (
+        <div className="rounded-xl border border-gray-800 overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-900/80 border-b border-gray-800">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs text-gray-500 uppercase tracking-wider w-12">#</th>
+                <th className="px-4 py-3 text-left text-xs text-gray-500 uppercase tracking-wider">Компанія</th>
+                <th className="px-4 py-3 text-left text-xs text-gray-500 uppercase tracking-wider hidden md:table-cell">Власник</th>
+                <th className="px-4 py-3 text-right text-xs text-gray-500 uppercase tracking-wider hidden sm:table-cell">Підприємства</th>
+                <th className="px-4 py-3 text-right text-xs text-gray-500 uppercase tracking-wider">Капітал</th>
+                <th className="px-4 py-3 text-right text-xs text-gray-500 uppercase tracking-wider hidden lg:table-cell">Рейтинг</th>
+                <th className="px-4 py-3 text-right text-xs text-gray-500 uppercase tracking-wider hidden sm:table-cell">Бренд</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-800/60">
+              {rest.map((c, idx) => (
+                <tr
+                  key={c.id}
+                  ref={c.isMyCompany ? myRowRef : undefined}
+                  // sentinel: insert invisible div before myRow if it is in top3+
+                  className={cn(
+                    "transition-colors",
+                    c.isMyCompany
+                      ? "bg-blue-950/60 border-l-2 border-blue-500/30 hover:bg-blue-950/80"
+                      : idx % 2 === 0
+                        ? "hover:bg-gray-800/30"
+                        : "bg-gray-900/30 hover:bg-gray-800/30",
+                  )}
+                >
+                  {/* rank */}
+                  <td className="px-4 py-3 w-12">
+                    <div className="flex items-center justify-center">
+                      <span className="text-xs font-mono text-gray-500 w-5 text-center">{c.rank}</span>
+                    </div>
+                  </td>
+
+                  {/* company */}
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="w-7 h-7 rounded-lg bg-gray-800 flex items-center justify-center text-sm shrink-0">
+                        🏢
+                      </div>
+                      <div className="min-w-0">
+                        <p
+                          className={cn(
+                            "font-medium truncate text-sm",
+                            c.isMyCompany ? "text-blue-400" : "text-white",
+                          )}
+                        >
+                          {c.name}
+                          {c.isMyCompany && <span className="ml-1.5 text-xs text-blue-500">(ви)</span>}
+                        </p>
+                        {c.slogan && (
+                          <p className="text-[10px] text-gray-600 truncate italic">{c.slogan}</p>
+                        )}
+                      </div>
+                    </div>
+                  </td>
+
+                  {/* owner */}
+                  <td className="px-4 py-3 hidden md:table-cell">
+                    <p className="text-gray-400 text-xs">{c.ownerUsername}</p>
+                    <p className="text-gray-600 text-[10px]">Рів. {c.ownerLevel}</p>
+                  </td>
+
+                  {/* enterprises */}
+                  <td className="px-4 py-3 text-right hidden sm:table-cell">
+                    <span className="font-mono text-white text-sm">{c.activeEnterprises}</span>
+                    <span className="text-gray-600 text-xs">/{c.enterprises}</span>
+                  </td>
+
+                  {/* capital */}
+                  <td className="px-4 py-3 text-right">
+                    <span className="font-mono text-emerald-400 text-xs font-semibold">
+                      {formatNumber(Math.round(c.netWorth))}
+                    </span>
+                    <span className="text-gray-600 text-[10px] ml-0.5">GC</span>
+                  </td>
+
+                  {/* rating bar */}
+                  <td className="px-4 py-3 hidden lg:table-cell">
+                    <div className="flex items-center gap-2 min-w-[80px]">
+                      <div className="flex-1 h-1.5 rounded-full bg-gray-800 overflow-hidden">
+                        <div
+                          className={cn("h-full rounded-full transition-all", ratingBarColor(c.rating))}
+                          style={{ width: `${c.rating}%` }}
+                        />
+                      </div>
+                      <span
+                        className={cn(
+                          "text-xs font-mono font-semibold w-6 text-right shrink-0",
+                          ratingTextColor(c.rating),
+                        )}
+                      >
+                        {c.rating.toFixed(0)}
+                      </span>
+                    </div>
+                  </td>
+
+                  {/* brand stars */}
+                  <td className="px-4 py-3 text-right hidden sm:table-cell">
+                    <div className="flex items-center justify-end gap-0.5">
+                      {Array.from({ length: 5 }).map((_, i) => (
+                        <Star
+                          key={i}
+                          size={9}
+                          className={i < c.brandLevel ? "text-amber-400 fill-amber-400" : "text-gray-700"}
+                        />
+                      ))}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* ── Legend ───────────────────────────────────────────────────────────── */}
+      {!loading && filtered.length > 0 && (
+        <div className="flex flex-wrap gap-4 text-[11px] text-gray-600 border-t border-gray-800 pt-4">
+          <span className="flex items-center gap-1">
+            <TrendingUp size={10} className="text-emerald-400" />
+            Капітал = чистий капітал (GC)
+          </span>
+          <span className="flex items-center gap-1">
+            <Star size={10} className="text-amber-400 fill-amber-400" />
+            Рейтинг — від 0 до 100
+          </span>
+          <span className="flex items-center gap-1">
+            <Building2 size={10} className="text-blue-400" />
+            Підприємства — активні / всього
+          </span>
         </div>
       )}
     </div>

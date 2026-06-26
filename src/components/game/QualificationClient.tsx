@@ -20,6 +20,10 @@ const PROFESSION_UA: Record<string, string> = {
   CLEANER: "Прибиральник", SALES_REP: "Торг. представник", IT_SPECIALIST: "IT-спеціаліст",
   LAWYER: "Юрист", HR_SPECIALIST: "HR-спеціаліст", TECHNICIAN: "Технік",
   QUALITY_CONTROLLER: "Контролер якості",
+  // Additional professions
+  FARMER: "Фермер", CASHIER: "Касир", WORKER: "Робітник",
+  SALESPERSON: "Продавець", SCIENTIST: "Вчений", SECURITY: "Охоронець",
+  JANITOR: "Прибиральник", SALES_ASSISTANT: "Консультант", MERCHANDISER: "Мерчандайзер",
 };
 
 interface Employee {
