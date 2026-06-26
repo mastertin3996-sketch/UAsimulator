@@ -173,6 +173,13 @@ export class TickEngine {
       console.error(`[Tick ${tickNumber}] Training sessions failed:`, e)
     );
 
+    // ── 2c-retail. Global retail NPC sales — quality-competition aware ───
+    const retailSummary = await this.market.processAllNpcSales(tickNumber)
+      .catch(e => { console.error(`[Tick ${tickNumber}] Retail NPC sales failed:`, e); return null; });
+    if (retailSummary && retailSummary.totalSold > 0) {
+      console.log(`[Tick ${tickNumber}] Retail: ${retailSummary.totalSold.toFixed(0)} od. sold, ₴${retailSummary.totalRevenue.toFixed(0)} revenue.`);
+    }
+
     // ── 2c. Supply route transfers (intra-company, per player) ──────────
     const supplyTransfers = await this.processSupplyRoutes().catch(e => {
       console.error(`[Tick ${tickNumber}] Supply routes failed:`, e);
@@ -395,8 +402,7 @@ export class TickEngine {
     const { results: productionResults, utilisationByWorkshop, overworkedEnterpriseIds } =
       await this.production.processProduction(playerId, tickNumber);
 
-    // ── c. NPC retail sales ──────────────────────────────────────────────
-    await this.market.processNpcSales(playerId, tickNumber);
+    // ── c. NPC retail sales — handled globally after player loop ────────
 
     // ── c2. Auto-sell: place SELL orders for inventory exceeding threshold ─
     await this.processAutoSell(playerId).catch(e =>

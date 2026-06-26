@@ -166,7 +166,10 @@ async function main() {
     { sku: 'FG-FURN',    name: 'Furniture',          nameUa: 'Меблі',            category: 'FINISHED_GOOD', unit: 'unit',  baseWeightKg: 45 },
     // ── Агровитратні матеріали ────────────────────────────────────────────────
     { sku: 'AG-FERTILIZER',   name: 'Mineral Fertilizer', nameUa: 'Мінеральне добриво',  category: 'RAW_MATERIAL',  unit: 'kg', baseWeightKg: 1 },
-    { sku: 'SF-CORN-STARCH',  name: 'Corn Starch',        nameUa: 'Кукурудзяний крохмаль', category: 'SEMI_FINISHED', unit: 'kg', baseWeightKg: 1 },
+    { sku: 'SF-CORN-STARCH',      name: 'Corn Starch',       nameUa: 'Кукурудзяний крохмаль',  category: 'SEMI_FINISHED', unit: 'kg', baseWeightKg: 1 },
+    { sku: 'FG-CAKE',             name: 'Pastry Cake',       nameUa: 'Кондитерський виріб',    category: 'FINISHED_GOOD', unit: 'kg', baseWeightKg: 1 },
+    { sku: 'FG-CORN-SYRUP',       name: 'Corn Syrup',        nameUa: 'Кукурудзяний сироп',     category: 'FINISHED_GOOD', unit: 'kg', baseWeightKg: 1 },
+    { sku: 'FG-CONDENSED-MILK',   name: 'Condensed Milk',    nameUa: 'Згущене молоко',          category: 'FINISHED_GOOD', unit: 'kg', baseWeightKg: 1 },
     // ── Будівельні матеріали (RAW_MATERIAL / SEMI_FINISHED) ─────────────────
     // Ціни-орієнтири 2026 (UAH/тонна або UAH/шт):
     //   Цемент М500:    3 800 UAH/т  (2.8 т = 1 м³ бетону М300)
@@ -258,6 +261,24 @@ async function main() {
       ticksToComplete: 2,             laborHoursPerUnit: 0.05, baseQuality: 7.5, powerKwhPerUnit: 0.12,
       inputs:  [{ sku: 'RM-CORN',    qty: 1.1 }],
       outputs: [{ sku: 'SF-CORN-STARCH', qty: 1.0 }],
+    },
+    {
+      name: 'Pastry Baking',          enterpriseType: 'FOOD_PROCESSING',
+      ticksToComplete: 2,             laborHoursPerUnit: 0.08, baseQuality: 8.0, powerKwhPerUnit: 0.15,
+      inputs:  [{ sku: 'SF-FLOUR', qty: 1.0 }, { sku: 'SF-SUGAR', qty: 0.4 }],
+      outputs: [{ sku: 'FG-CAKE',    qty: 1.0 }],
+    },
+    {
+      name: 'Corn Syrup Production',  enterpriseType: 'FOOD_PROCESSING',
+      ticksToComplete: 2,             laborHoursPerUnit: 0.06, baseQuality: 7.8, powerKwhPerUnit: 0.18,
+      inputs:  [{ sku: 'SF-CORN-STARCH', qty: 1.3 }],
+      outputs: [{ sku: 'FG-CORN-SYRUP',  qty: 1.0 }],
+    },
+    {
+      name: 'Condensed Milk Making',  enterpriseType: 'FOOD_PROCESSING',
+      ticksToComplete: 2,             laborHoursPerUnit: 0.07, baseQuality: 8.5, powerKwhPerUnit: 0.12,
+      inputs:  [{ sku: 'RM-MILK', qty: 1.8 }, { sku: 'SF-SUGAR', qty: 0.25 }],
+      outputs: [{ sku: 'FG-CONDENSED-MILK', qty: 1.0 }],
     },
     // AGRO_FARM — рослинництво і тваринництво
     {

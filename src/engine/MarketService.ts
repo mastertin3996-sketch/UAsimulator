@@ -441,6 +441,104 @@ export class MarketService {
   }
 
   /**
+   * Глобальна обробка роздрібних NPC-продажів для всіх RETAIL_STORE.
+   * Попит на кожен товар у місті розподіляється між конкуруючими магазинами
+   * пропорційно до їхнього рейтингу: score = qualityFactor × priceCompetitiveness.
+   * Магазини з вищою якістю та нижчою ціною отримують більшу частку попиту.
+   */
+  async processAllNpcSales(tickNumber: bigint): Promise<{ totalSold: number; totalRevenue: number }> {
+    const season = Math.floor((Number(tickNumber) % 120) / 30);
+
+    const allShops = await this.prisma.enterprise.findMany({
+      where:   { type: 'RETAIL_STORE', isOperational: true },
+      include: {
+        inventory:     true,
+        retailListings: { where: { isActive: true } },
+        landPlot:       { include: { city: true } },
+      },
+    });
+
+    if (allShops.length === 0) return { totalSold: 0, totalRevenue: 0 };
+
+    // Group by city
+    const shopsByCity = new Map<string, typeof allShops>();
+    for (const shop of allShops) {
+      const cityId = shop.landPlot.cityId;
+      if (!shopsByCity.has(cityId)) shopsByCity.set(cityId, []);
+      shopsByCity.get(cityId)!.push(shop);
+    }
+
+    let totalSold    = 0;
+    let totalRevenue = 0;
+
+    for (const [cityId, shops] of shopsByCity) {
+      const city    = shops[0].landPlot.city;
+      const demands = await this.prisma.npcDemand.findMany({ where: { cityId } });
+      const productIds = [...new Set(demands.map(d => d.productId))];
+      const products   = await this.prisma.product.findMany({ where: { id: { in: productIds } }, select: { id: true, sku: true } });
+      const skuMap     = new Map(products.map(pr => [pr.id, pr.sku]));
+
+      for (const demand of demands) {
+        const refPrice     = Number(demand.referencePrice);
+        const sku          = skuMap.get(demand.productId) ?? '';
+        const seasonMult   = MarketService.SEASONAL_NPC_DEMAND[sku]?.[season] ?? 1.0;
+        const totalDemand  = demand.baseUnitsPerDay * Number(city.demandCoefficient) * seasonMult;
+
+        // Score each competing shop for this product
+        const competitors = shops
+          .map(shop => {
+            const inv     = shop.inventory.find(i => i.productId === demand.productId && Number(i.quantity) > 0.001);
+            const listing = shop.retailListings.find(l => l.productId === demand.productId);
+            if (!inv) return null;
+            const price   = listing ? Number(listing.pricePerUnit) : refPrice;
+            const qFactor = Number(demand.qualityWeight) * (inv.avgQuality / 10) + (1 - Number(demand.qualityWeight));
+            const pFactor = refPrice > 0 ? Math.pow(refPrice / Math.max(price, 0.01), Math.abs(Number(demand.priceElasticity))) : 1;
+            return { shop, inv, price, score: qFactor * pFactor };
+          })
+          .filter((c): c is NonNullable<typeof c> => c !== null);
+
+        if (competitors.length === 0) continue;
+
+        const totalScore = competitors.reduce((s, c) => s + c.score, 0);
+
+        for (const { shop, inv, price, score } of competitors) {
+          const marketShare   = totalScore > 0 ? score / totalScore : 1 / competitors.length;
+          const shopDemandQty = totalDemand * marketShare;
+          const actualSold    = Math.min(shopDemandQty, Number(inv.quantity));
+          if (actualSold < 0.001) continue;
+
+          const revenue       = new Decimal(price).times(actualSold);
+          const player        = await this.prisma.player.findUniqueOrThrow({ where: { id: shop.playerId } });
+          const balanceBefore = new Decimal(player.cashBalance.toString());
+          const balanceAfter  = balanceBefore.plus(revenue);
+
+          const shareNote = competitors.length > 1 ? ` (ринок ${(marketShare * 100).toFixed(0)}%)` : '';
+
+          await this.prisma.$transaction([
+            this.prisma.enterpriseInventory.update({ where: { id: inv.id }, data: { quantity: { decrement: actualSold } } }),
+            this.prisma.player.update({ where: { id: shop.playerId }, data: { cashBalance: { increment: revenue } } }),
+            this.prisma.financialTransaction.create({
+              data: { playerId: shop.playerId, type: 'NPC_SALE', amountUah: revenue, balanceBefore, balanceAfter,
+                description: `NPC роздріб: ${actualSold.toFixed(2)} × ${sku} у ${city.nameUa}`, referenceId: demand.id },
+            }),
+            this.prisma.financialLog.create({
+              data: { playerId: shop.playerId, category: 'REVENUE_RETAIL', amountUah: revenue,
+                description: `Роздрібний продаж у "${shop.name}": ${actualSold.toFixed(1)} од.${shareNote}`,
+                referenceId: shop.id, tickNumber },
+            }),
+          ]);
+
+          inv.quantity = (Number(inv.quantity) - actualSold) as any;
+          totalSold    += actualSold;
+          totalRevenue += revenue.toNumber();
+        }
+      }
+    }
+
+    return { totalSold, totalRevenue };
+  }
+
+  /**
    * NPC купує у виробників через ринок SELL-ордерів.
    * Об'єднує попит по всіх містах для кожного продукту і скуповує доступні SELL-ордери
    * за ціною ≤ referencePrice, симулюючи кінцевих споживачів та дистриб'юторів.
@@ -453,7 +551,10 @@ export class MarketService {
     'FG-SUNOIL':       [0.9, 1.3, 1.1, 0.8],
     'SF-SUGAR':        [0.9, 1.2, 1.1, 0.9],
     'SF-FLOUR':        [0.9, 0.9, 1.1, 1.2],
-    'SF-CORN-STARCH':  [1.0, 1.1, 1.0, 0.9],
+    'SF-CORN-STARCH':       [1.0, 1.1, 1.0, 0.9],
+    'FG-CAKE':              [1.0, 0.9, 1.1, 1.4],  // зимою та восени — кондитерські вироби
+    'FG-CORN-SYRUP':        [1.0, 1.2, 1.0, 0.9],
+    'FG-CONDENSED-MILK':    [0.9, 0.8, 1.0, 1.3],  // зимою — традиційний
   };
 
   async matchNpcMarketOrders(tickNumber?: bigint): Promise<number> {
