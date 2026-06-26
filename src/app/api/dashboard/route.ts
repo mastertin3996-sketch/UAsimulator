@@ -15,7 +15,7 @@ export async function GET() {
         id: true, companyName: true, cashBalance: true, balanceUsd: true,
         netWorth: true, creditRating: true, reputationScore: true,
         insolvencyTickCount: true, isOperationsFrozen: true, isBankrupt: true,
-        companyValuationUah: true,
+        companyValuationUah: true, isAccreditedSupplier: true,
       },
     }),
     prisma.gameTick.findFirst({
@@ -225,8 +225,9 @@ export async function GET() {
       creditRating:        player.creditRating,
       reputationScore:     player.reputationScore,
       companyValuationUah: Number(player.companyValuationUah),
-      isOperationsFrozen:  player.isOperationsFrozen,
-      isBankrupt:          player.isBankrupt,
+      isOperationsFrozen:       player.isOperationsFrozen,
+      isBankrupt:               player.isBankrupt,
+      isAccreditedSupplier:     player.isAccreditedSupplier,
     },
     enterprises: enterprises.map((e) => ({
       id:           e.id,

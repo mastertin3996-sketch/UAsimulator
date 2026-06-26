@@ -4,7 +4,17 @@ import type { TradeResult, NpcSaleResult } from '../types';
 import { weightedAvgQuality } from '../types';
 
 export class MarketService {
+  private _derzhpromId: string | null = null;
+
   constructor(private readonly prisma: PrismaClient) {}
+
+  private async getDerzhpromId(): Promise<string> {
+    if (!this._derzhpromId) {
+      const dp = await this.prisma.player.findFirst({ where: { username: 'derzhprom' }, select: { id: true } });
+      this._derzhpromId = dp?.id ?? '';
+    }
+    return this._derzhpromId;
+  }
 
   /** Переводить прострочені ринкові ордери у статус EXPIRED. */
   async expireStaleOrders(): Promise<number> {
@@ -86,9 +96,25 @@ export class MarketService {
         const tradeValue = sellPrice.times(tradeQty);
 
         // Перевірка ліквідності покупця
-        const buyer        = await this.prisma.player.findUniqueOrThrow({ where: { id: buy.playerId } });
+        const buyer        = await this.prisma.player.findUniqueOrThrow({ where: { id: buy.playerId }, select: { id: true, cashBalance: true, isAccreditedSupplier: true } });
         const buyerBalance = new Decimal(buyer.cashBalance.toString());
         if (buyerBalance.lessThan(tradeValue)) { bi++; continue; }
+
+        // ── Ліміт купівлі у ДержПром: ₴50,000/добу ──
+        const isDerzhpromSell = sell.playerId === (await this.getDerzhpromId());
+        if (isDerzhpromSell && !buy.isStateOrder) {
+          const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+          const spent = await this.prisma.marketTrade.aggregate({
+            _sum: { quantity: true },
+            where: {
+              sellOrder: { playerId: sell.playerId },
+              buyOrder:  { playerId: buy.playerId },
+              executedAt: { gte: since },
+            },
+          });
+          const spentValue = (spent._sum.quantity ?? 0) * Number(sell.pricePerUnit);
+          if (spentValue + tradeValue.toNumber() > 50_000) { bi++; continue; }
+        }
 
         // Перевірка інвентаря продавця
         const sellerInv = await this.prisma.playerInventory.findUnique({
@@ -194,17 +220,36 @@ export class MarketService {
             },
           });
 
-          // Держзамовлення — бонус репутації продавцю +0.3 (max 10)
+          // ── Акредитований постачальник: кешбек 7% при купівлі у ДержПром ──
+          const dpId = await this.getDerzhpromId();
+          if (sell.playerId === dpId && buyer.isAccreditedSupplier) {
+            const cashback = tradeValue.times(0.07);
+            await tx.player.update({ where: { id: buy.playerId }, data: { cashBalance: { increment: cashback } } });
+            await tx.notification.create({
+              data: {
+                playerId: buy.playerId,
+                type: 'MARKET_FILLED',
+                title: '⭐ Кешбек акредитованого постачальника',
+                body: `Повернуто 7% = ₴${cashback.toFixed(0)} за купівлю у ДержПром`,
+                entityId: buy.id,
+              },
+            });
+          }
+
+          // ── Держзамовлення — репутація +0.3 та акредитація продавця ──
           if (buy.isStateOrder) {
-            const seller = await tx.player.findUniqueOrThrow({ where: { id: sell.playerId }, select: { reputationScore: true } });
+            const seller = await tx.player.findUniqueOrThrow({ where: { id: sell.playerId }, select: { reputationScore: true, isAccreditedSupplier: true } });
             const newRep = Math.min(10, seller.reputationScore + 0.3);
-            await tx.player.update({ where: { id: sell.playerId }, data: { reputationScore: newRep } });
+            await tx.player.update({
+              where: { id: sell.playerId },
+              data: { reputationScore: newRep, isAccreditedSupplier: true },
+            });
             await tx.notification.create({
               data: {
                 playerId: sell.playerId,
                 type: 'MARKET_FILLED',
                 title: '🏛️ Держзамовлення виконано!',
-                body: `Ви поставили ${tradeQty} × ${tradeQty} ₴${sellPrice.toFixed(0)}/од. Репутація +0.3`,
+                body: `Поставлено ${tradeQty} ${tradeQty > 1 ? 'од' : 'од'}. Репутація +0.3${!seller.isAccreditedSupplier ? ' · Отримано статус ⭐ Акредитованого постачальника' : ''}`,
                 entityId: sell.id,
               },
             });
@@ -484,6 +529,23 @@ export class MarketService {
 
       const refillQty = order.quantityTotal; // відновити до початкового обсягу
 
+      // ── Динамічна ціна (еластичність) ──
+      const fillRate  = order.quantityFilled / order.quantityTotal;
+      const oldPrice  = Number(order.pricePerUnit);
+      let   newPrice  = oldPrice;
+      if      (fillRate > 0.70) newPrice = +(oldPrice * 1.07).toFixed(4);  // попит → ціна +7%
+      else if (fillRate < 0.20) newPrice = +(oldPrice * 0.95).toFixed(4);  // залежує → ціна −5%
+
+      // Обмежуємо: не нижче 60% і не вище 200% від referencePrice
+      const ref = await this.prisma.npcDemand.findFirst({
+        where: { productId: order.productId },
+        select: { referencePrice: true },
+      });
+      if (ref?.referencePrice) {
+        const refP = Number(ref.referencePrice);
+        newPrice = Math.max(refP * 0.60, Math.min(refP * 2.00, newPrice));
+      }
+
       // Скасувати вичерпаний ордер
       await this.prisma.marketOrder.update({
         where: { id: order.id },
@@ -497,7 +559,7 @@ export class MarketService {
         create: { playerId: player.id, productId: order.productId, quantity: refillQty, avgQuality: order.quality ?? 7 },
       });
 
-      // Новий ордер
+      // Новий ордер з оновленою ціною
       await this.prisma.marketOrder.create({
         data: {
           playerId:       player.id,
@@ -505,7 +567,7 @@ export class MarketService {
           resourceType:   order.resourceType,
           type:           'SELL',
           status:         'OPEN',
-          pricePerUnit:   order.pricePerUnit,
+          pricePerUnit:   newPrice,
           quality:        order.quality,
           quantityTotal:  refillQty,
           quantityFilled: 0,

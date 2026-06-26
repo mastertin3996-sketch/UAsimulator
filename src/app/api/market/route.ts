@@ -7,6 +7,11 @@ export async function GET() {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const currentPlayer = await prisma.player.findUnique({
+    where: { id: session.user.id },
+    select: { isAccreditedSupplier: true },
+  });
+
   const orders = await prisma.marketOrder.findMany({
     where: { type: "SELL", status: { in: ["OPEN", "PARTIALLY_FILLED"] }, expiresAt: { gt: new Date() } },
     orderBy: { createdAt: "desc" },
@@ -51,7 +56,7 @@ export async function GET() {
     };
   });
 
-  return NextResponse.json({ offers });
+  return NextResponse.json({ offers, isAccreditedSupplier: currentPlayer?.isAccreditedSupplier ?? false });
 }
 
 // POST — create SELL order

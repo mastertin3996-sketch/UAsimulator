@@ -275,9 +275,10 @@ model Player {
   email           String   @unique
   username        String   @unique
   passwordHash    String
-  isActive        Boolean  @default(true)
-  isNpcSeller     Boolean  @default(false)  // true = ДержПром або інший NPC-продавець
-  lastLoginAt     DateTime?
+  isActive              Boolean  @default(true)
+  isNpcSeller           Boolean  @default(false)
+  isAccreditedSupplier  Boolean  @default(false)  // виконав ≥1 держзамовлення
+  lastLoginAt           DateTime?
   companyName     String   @default("Моя компанія")
   // Поточний залишок на рахунку (UAH)
   cashBalance     Decimal  @default(500000) @db.Decimal(18, 2)

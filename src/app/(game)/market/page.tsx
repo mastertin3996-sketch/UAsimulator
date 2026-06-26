@@ -473,7 +473,8 @@ function OrderBookPanel() {
 // ─── Offers tab ───────────────────────────────────────────────────────────────
 
 function OffersTab() {
-  const [offers,      setOffers]      = useState<Offer[]>([]);
+  const [offers,           setOffers]           = useState<Offer[]>([]);
+  const [isAccredited,     setIsAccredited]     = useState(false);
   const [loading,     setLoading]     = useState(true);
   const [search,      setSearch]      = useState("");
   const [activeCategory, setActiveCategory] = useState("all");
@@ -500,7 +501,7 @@ function OffersTab() {
 
   const loadOffers = useCallback(() => {
     setLoading(true);
-    fetch("/api/market").then((r) => r.json()).then((d) => setOffers(d.offers ?? [])).finally(() => setLoading(false));
+    fetch("/api/market").then((r) => r.json()).then((d) => { setOffers(d.offers ?? []); setIsAccredited(d.isAccreditedSupplier ?? false); }).finally(() => setLoading(false));
   }, []);
 
   useEffect(() => { loadOffers(); }, [loadOffers]);
@@ -727,9 +728,21 @@ function OffersTab() {
       <Dialog open={!!buyOffer} onClose={() => setBuyOffer(null)} title={`Купити: ${buyOffer?.productName ?? ""}`} size="md">
         {buyOffer && (
           <div className="space-y-4">
+            {buyOffer.isNpc && isAccredited && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-950/40 border border-amber-700/40 text-sm text-amber-400">
+                <span>⭐</span>
+                <span>Акредитований постачальник — кешбек <strong>7%</strong> після угоди</span>
+              </div>
+            )}
             <div className="rounded-xl bg-gray-900 border border-gray-800 px-4 py-3 space-y-1.5">
-              {[["Продавець", buyOffer.sellerName], ["Місто", buyOffer.cityName], [`Ціна / ${buyOffer.unit}`, `${formatNumber(buyOffer.price)} ₴`], ["Доступно", `${formatNumber(buyOffer.quantity)} ${buyOffer.unit}`]].map(([k, v]) => (
-                <div key={k} className="flex justify-between text-sm"><span className="text-gray-500">{k}</span><span className="text-white font-medium">{v}</span></div>
+              {[
+                ["Продавець", buyOffer.sellerName],
+                ["Місто", buyOffer.cityName],
+                [`Ціна / ${buyOffer.unit}`, `${formatNumber(buyOffer.price)} ₴`],
+                ...(buyOffer.isNpc && isAccredited ? [[`Ваша ціна (−7%)`, `≈ ${formatNumber(+(buyOffer.price * 0.93).toFixed(2))} ₴`]] : []),
+                ["Доступно", `${formatNumber(buyOffer.quantity)} ${buyOffer.unit}`],
+              ].map(([k, v]) => (
+                <div key={k} className="flex justify-between text-sm"><span className="text-gray-500">{k}</span><span className={cn("font-medium", k?.toString().startsWith("Ваша") ? "text-amber-400" : "text-white")}>{v}</span></div>
               ))}
             </div>
             <Select label="Доставити на підприємство *" placeholder="Оберіть підприємство..." value={buyEntId} onChange={(e) => setBuyEntId(e.target.value)} options={enterprises.map((en) => ({ value: en.id, label: `${en.name} (${en.cityName})` }))} />

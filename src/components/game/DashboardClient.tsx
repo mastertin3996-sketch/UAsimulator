@@ -34,7 +34,7 @@ interface DashData {
   player: {
     companyName: string; cashBalance: number; balanceUsd: number; netWorth: number;
     creditRating: number; reputationScore: number; companyValuationUah: number;
-    isOperationsFrozen: boolean; isBankrupt: boolean;
+    isOperationsFrozen: boolean; isBankrupt: boolean; isAccreditedSupplier: boolean;
   };
   enterprises: { id: string; name: string; type: string; city: string; isActive: boolean; isFrozen: boolean; employees: number; workshops: number }[];
   chartData: { date: string; revenue: number; expenses: number; profit: number }[];
@@ -241,6 +241,7 @@ export default function DashboardClient() {
             </span>
             {player.isOperationsFrozen && <span className="text-xs bg-red-950 text-red-400 border border-red-800 px-2 py-0.5 rounded-full">Операції заморожені</span>}
             {player.isBankrupt && <span className="text-xs bg-red-950 text-red-400 border border-red-800 px-2 py-0.5 rounded-full">БАНКРУТСТВО</span>}
+            {player.isAccreditedSupplier && <span className="text-xs bg-amber-950 text-amber-400 border border-amber-700 px-2 py-0.5 rounded-full">⭐ Акредитований постачальник</span>}
             <RefreshCountdown onRefresh={loadData} />
           </div>
         </div>
