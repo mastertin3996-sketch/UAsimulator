@@ -59,6 +59,7 @@ export async function GET() {
           mood: true, efficiency: true, isOnStrike: true, strikeStartedTick: true,
         },
       },
+      workshops: { select: { _count: { select: { equipment: true } } } },
     },
     orderBy: { id: "asc" },
   });
@@ -108,6 +109,13 @@ export async function GET() {
     const workersCurrent = ent.employees.length;
     const workersMax    = Math.max(workersCurrent, roles.length * 5);
 
+    // Обладнання офісу
+    const equipmentCount = ent.workshops.reduce((s, w) => s + w._count.equipment, 0);
+    const equipRatio     = workersCurrent > 0 ? equipmentCount / workersCurrent : 0;
+    const equipMoodDelta = ent.type === "OFFICE"
+      ? (equipRatio >= 1.0 ? +0.015 : equipRatio < 0.5 ? -0.020 : 0)
+      : null;
+
     return {
       id: ent.id, name: ent.name,
       cityName: ent.landPlot.city.nameUa,
@@ -123,6 +131,7 @@ export async function GET() {
       strikeEndsAt,
       totalSalaryPerTick: Math.round(totalSalary),
       roles,
+      equipment: ent.type === "OFFICE" ? { count: equipmentCount, ratio: +equipRatio.toFixed(2), moodDelta: equipMoodDelta } : null,
     };
   });
 

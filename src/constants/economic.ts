@@ -89,6 +89,9 @@ export const MOOD = {
   // Штраф за зарплату нижче міського мінімуму (wageBaselineUah):
   // maxPenalty при зарплаті ₴0; лінійно масштабується до 0 на рівні базової.
   UNDERPAY_PENALTY_MAX:   0.06,  // макс. -0.06/тік при salary = 0% від baseline
+  // Обладнання офісу (лише для OFFICE підприємств):
+  EQUIP_BONUS:            0.015, // +0.015/тік при ratio ≥ 1.0 (≥1 unit/employee)
+  EQUIP_PENALTY:         -0.020, // -0.020/тік при ratio < 0.5
 } as const;
 
 // Ефективність (0.0–1.15) залежно від настрою (0.0–1.0)

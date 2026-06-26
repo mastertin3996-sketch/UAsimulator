@@ -35,6 +35,7 @@ interface EntData {
   strikeEndsAt   : number | null;
   totalSalaryPerTick: number;
   roles          : RoleData[];
+  equipment      : { count: number; ratio: number; moodDelta: number | null } | null;
 }
 
 interface HrData {
@@ -221,6 +222,42 @@ function EnterpriseRow({ ent, tickNumber }: { ent: EntData; tickNumber: number }
             <span className="text-gray-500">Персонал: <span className="text-white">{ent.workersCurrent}/{ent.workersMax}</span></span>
             <span className="text-gray-500">ЗП: <span className="text-red-400">−{formatNumber(Math.round(ent.totalSalaryPerTick))} ₴/тік</span></span>
           </div>
+
+          {/* Office equipment mood panel */}
+          {ent.equipment !== null && (
+            <div className={cn(
+              "mb-3 rounded-lg border px-3 py-2.5 flex items-center justify-between gap-4",
+              ent.equipment.moodDelta === null ? "border-gray-700 bg-gray-800/30"
+              : ent.equipment.moodDelta > 0   ? "border-emerald-700/40 bg-emerald-950/20"
+              : ent.equipment.moodDelta < 0   ? "border-red-700/40 bg-red-950/20"
+              : "border-gray-700 bg-gray-800/30",
+            )}>
+              <div className="flex items-center gap-2">
+                <span className="text-base">🖥️</span>
+                <div>
+                  <p className="text-xs font-medium text-gray-300">Обладнання офісу</p>
+                  <p className="text-[11px] text-gray-500">
+                    {ent.equipment.count} од. на {ent.workersCurrent} прац.
+                    {" · "}ratio {(ent.equipment.ratio).toFixed(2)}
+                  </p>
+                </div>
+              </div>
+              <div className="text-right shrink-0">
+                {ent.equipment.moodDelta === null ? (
+                  <span className="text-xs text-gray-500">—</span>
+                ) : ent.equipment.moodDelta > 0 ? (
+                  <span className="text-xs font-semibold text-emerald-400">😊 +{(ent.equipment.moodDelta * 100).toFixed(1)}% настрій/тік</span>
+                ) : ent.equipment.moodDelta < 0 ? (
+                  <span className="text-xs font-semibold text-red-400">😔 {(ent.equipment.moodDelta * 100).toFixed(1)}% настрій/тік</span>
+                ) : (
+                  <span className="text-xs text-gray-400">😐 нейтрально</span>
+                )}
+                <p className="text-[10px] text-gray-600 mt-0.5">
+                  {ent.equipment.ratio >= 1.0 ? "≥1 од/прац. — добре" : ent.equipment.ratio >= 0.5 ? "0.5–1 — нейтрально" : "< 0.5 — нестача!"}
+                </p>
+              </div>
+            </div>
+          )}
 
           <table className="w-full text-xs">
             <thead>

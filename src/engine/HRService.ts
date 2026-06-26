@@ -51,6 +51,21 @@ export class HRService {
       },
     });
 
+    // ── Обладнання офісу: ratio = equipment / employees per OFFICE enterprise ──
+    const officeEnts = await this.prisma.enterprise.findMany({
+      where:  { playerId, type: 'OFFICE' },
+      select: {
+        id: true,
+        _count: { select: { employees: true } },
+        workshops: { select: { _count: { select: { equipment: true } } } },
+      },
+    });
+    const officeEquipRatio = new Map(officeEnts.map(e => {
+      const eqCount  = e.workshops.reduce((s, w) => s + w._count.equipment, 0);
+      const empCount = e._count.employees;
+      return [e.id, empCount > 0 ? eqCount / empCount : 0];
+    }));
+
     const results: HRTickResult[] = [];
 
     for (const emp of employees) {
@@ -92,7 +107,15 @@ export class HRService {
         else                                 payForce = MOOD.NO_PAY_60TICK_PENALTY;
       }
 
-      const newMood = clamp(moodBefore + drift + overworkPenalty + payForce + underpayPenalty, 0, 1);
+      // 5. Бонус/штраф за обладнання (лише OFFICE підприємства)
+      let equipBonus = 0;
+      const eqRatio = officeEquipRatio.get(emp.enterpriseId);
+      if (eqRatio !== undefined) {
+        if (eqRatio >= 1.0)      equipBonus = MOOD.EQUIP_BONUS;
+        else if (eqRatio < 0.5)  equipBonus = MOOD.EQUIP_PENALTY;
+      }
+
+      const newMood = clamp(moodBefore + drift + overworkPenalty + payForce + underpayPenalty + equipBonus, 0, 1);
       const efficiency   = moodToProductivity(newMood); // 0.0–1.15
 
       // ── Страйк ───────────────────────────────────────────────────────
