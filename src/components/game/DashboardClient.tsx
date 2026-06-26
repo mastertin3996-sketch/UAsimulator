@@ -44,7 +44,7 @@ interface DashData {
   recentTxns: { type: string; amount: number; description: string | null; date: string }[];
   stats: { employeeCount: number; avgEfficiency: number; avgMood: number; totalUnitsThisTick: number; avgQualityThisTick: number; ticksUntilMonth: number };
   pnl: { revenue: number; opex: number; netProfit: number; employees: number; mood: number } | null;
-  compliance: { score: number; consecutiveViolations: number; lastAuditTick: number | null; riskLevel: "low" | "medium" | "high" } | null;
+  compliance: { score: number; consecutiveViolations: number; lastAuditTick: number | null; riskLevel: "low" | "medium" | "high"; violations: string[] } | null;
   activeResearch: { name: string; current: number; required: number; pct: number } | null;
   macroEvents: { type: string; description: string; ticksLeft: number }[];
 }
@@ -426,9 +426,20 @@ export default function DashboardClient() {
                   <div className={cn("h-full rounded-full transition-all", bar)} style={{ width: `${pct}%` }} />
                 </div>
                 {compliance.consecutiveViolations > 0 && (
-                  <p className="text-xs text-red-400">
-                    {compliance.consecutiveViolations} тіків з порушеннями поспіль
-                  </p>
+                  <div className="space-y-1">
+                    <p className="text-xs text-red-400">
+                      {compliance.consecutiveViolations} тіків з порушеннями поспіль
+                    </p>
+                    {compliance.violations.length > 0 && (
+                      <ul className="space-y-0.5">
+                        {compliance.violations.map((v, i) => (
+                          <li key={i} className="text-xs text-red-300/80 flex items-start gap-1.5">
+                            <span className="mt-0.5 shrink-0">⚠</span>{v}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
                 )}
                 {compliance.lastAuditTick && (
                   <p className="text-xs text-gray-600">Остання перевірка: тік {compliance.lastAuditTick}</p>

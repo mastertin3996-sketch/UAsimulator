@@ -216,6 +216,47 @@ export async function GET() {
   const nextMonthlyTick = tick === 0 ? TICKS_PER_MONTH : Math.ceil(tick / TICKS_PER_MONTH) * TICKS_PER_MONTH;
   const ticksUntilMonth = tick === 0 ? TICKS_PER_MONTH : nextMonthlyTick - tick;
 
+  // ── Compliance violation reasons ─────────────────────────────────────
+  const violationReasons: string[] = [];
+  if (compliance && compliance.consecutiveViolations > 0) {
+    const [unpaidTaxes, empData, missedLoans, entData] = await Promise.all([
+      prisma.taxRecord.aggregate({ where: { playerId, isPaid: false }, _sum: { totalUah: true } }),
+      prisma.employee.findMany({
+        where: { enterprise: { playerId } },
+        select: { salaryUah: true, enterprise: { select: { landPlot: { select: { city: { select: { wageBaselineUah: true } } } } } } },
+      }),
+      prisma.loan.aggregate({ where: { playerId, status: "ACTIVE" }, _sum: { missedPayments: true } }),
+      prisma.enterprise.findMany({
+        where: { playerId, isOperational: true },
+        select: { id: true, type: true, name: true },
+      }),
+    ]);
+
+    if (Number(unpaidTaxes._sum.totalUah ?? 0) > 0)
+      violationReasons.push(`Несплачені податки: ₴${Number(unpaidTaxes._sum.totalUah).toFixed(0)}`);
+
+    const underpaid = empData.filter((e: typeof empData[0]) => {
+      const baseline = Number(e.enterprise.landPlot.city.wageBaselineUah);
+      return Number(e.salaryUah) < baseline * 0.95;
+    });
+    if (underpaid.length > 0)
+      violationReasons.push(`${underpaid.length} працівників з зарплатою нижче мінімуму міста`);
+
+    if (Number(missedLoans._sum.missedPayments ?? 0) > 0)
+      violationReasons.push(`Пропущені платежі по кредитах: ${missedLoans._sum.missedPayments}`);
+
+    const LICENSE_REQUIRED: Record<string, string> = {
+      RETAIL_STORE: "TRADE_LICENSE", FOOD_PROCESSING: "FOOD_SAFETY",
+      AGRO_FARM: "AGRO_PERMIT", CONSTRUCTION: "CONSTRUCTION_PERMIT",
+    };
+    for (const ent of entData) {
+      const required = LICENSE_REQUIRED[ent.type];
+      if (!required) continue;
+      const lic = await prisma.license.findFirst({ where: { enterpriseId: ent.id, type: required as any, status: "ACTIVE" } });
+      if (!lic) violationReasons.push(`"${ent.name}": немає ліцензії ${required}`);
+    }
+  }
+
   return NextResponse.json({
     player: {
       companyName:         player.companyName,
@@ -265,6 +306,7 @@ export async function GET() {
       riskLevel:
         compliance.score < 0.40 ? "high" :
         compliance.score < 0.70 ? "medium" : "low",
+      violations: violationReasons,
     } : null,
     macroEvents: macroEvents.map(e => ({
       type:        e.type,
