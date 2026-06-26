@@ -220,35 +220,46 @@ export async function GET() {
   const violationReasons: string[] = [];
   if (compliance && compliance.consecutiveViolations > 0) {
     try {
-      const [unpaidTaxes, missedLoans, entData] = await Promise.all([
-        prisma.taxRecord.aggregate({ where: { playerId, isPaid: false }, _sum: { totalUah: true } }),
-        prisma.loan.aggregate({ where: { playerId, status: "ACTIVE" }, _sum: { missedPayments: true } }),
+      const [unpaidTaxCount, empList, loans, entData] = await Promise.all([
+        prisma.taxRecord.count({ where: { playerId, isPaid: false } }),
+        prisma.employee.findMany({
+          where:  { playerId },
+          select: { salaryUah: true,
+            enterprise: { select: { name: true, landPlot: { select: { city: { select: { wageBaselineUah: true } } } } } } },
+        }),
+        prisma.loan.findMany({
+          where:  { playerId, status: { in: ["ACTIVE", "OVERDUE"] } },
+          select: { missedPayments: true },
+        }),
         prisma.enterprise.findMany({
-          where: { playerId, isOperational: true },
-          select: { id: true, type: true, name: true,
-            employees: { select: { salaryUah: true } },
-            landPlot:  { select: { city: { select: { wageBaselineUah: true } } } },
-          },
+          where:  { playerId, isOperational: true },
+          select: { id: true, type: true, name: true },
         }),
       ]);
 
-      if (Number(unpaidTaxes._sum.totalUah ?? 0) > 0)
-        violationReasons.push(`Несплачені податки: ₴${Number(unpaidTaxes._sum.totalUah).toFixed(0)}`);
+      if (unpaidTaxCount > 0)
+        violationReasons.push(`Несплачені податки (${unpaidTaxCount} записів)`);
 
-      if (Number(missedLoans._sum.missedPayments ?? 0) > 0)
-        violationReasons.push(`Пропущені платежі по кредитах: ${missedLoans._sum.missedPayments}`);
+      const totalMissed = loans.reduce((s, l) => s + l.missedPayments, 0);
+      if (totalMissed > 0)
+        violationReasons.push(`Пропущені платежі по кредитах: ${totalMissed}`);
+
+      const underpaidByEnt = new Map<string, number>();
+      for (const emp of empList) {
+        const baseline = Number(emp.enterprise?.landPlot?.city?.wageBaselineUah ?? 0);
+        if (baseline > 0 && Number(emp.salaryUah) < baseline * 0.95) {
+          const name = emp.enterprise?.name ?? "?";
+          underpaidByEnt.set(name, (underpaidByEnt.get(name) ?? 0) + 1);
+        }
+      }
+      for (const [name, count] of underpaidByEnt)
+        violationReasons.push(`"${name}": ${count} працівників з зарплатою нижче мінімуму`);
 
       const LICENSE_REQUIRED: Record<string, string> = {
         RETAIL_STORE: "TRADE_LICENSE", FOOD_PROCESSING: "FOOD_SAFETY",
         AGRO_FARM: "AGRO_PERMIT", CONSTRUCTION: "CONSTRUCTION_PERMIT",
       };
       for (const ent of entData) {
-        const baseline = Number(ent.landPlot?.city?.wageBaselineUah ?? 0);
-        if (baseline > 0) {
-          const underpaid = ent.employees.filter(e => Number(e.salaryUah) < baseline * 0.95).length;
-          if (underpaid > 0)
-            violationReasons.push(`"${ent.name}": ${underpaid} працівників з зарплатою нижче мінімуму`);
-        }
         const required = LICENSE_REQUIRED[ent.type];
         if (!required) continue;
         const lic = await prisma.license.findFirst({ where: { enterpriseId: ent.id, type: required as any, status: "ACTIVE" } });
