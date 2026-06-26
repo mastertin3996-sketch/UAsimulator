@@ -453,7 +453,7 @@ async function main() {
           status:          'AVAILABLE',
           totalAreaM2:     tmpl.area,
           purchasePriceUah:    basePurchaseUah * tmpl.purchase * tmpl.area,
-          monthlyLeaseCostUah: baseLeaseUah * tmpl.lease,
+          monthlyLeaseCostUah: baseLeaseUah * tmpl.area,  // 120 UAH/m²/month × area
         },
       });
       plotCount++;
