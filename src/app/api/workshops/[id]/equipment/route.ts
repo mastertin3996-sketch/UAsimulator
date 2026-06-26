@@ -33,6 +33,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
   const allowedSkus = entType === 'RETAIL_STORE' ? RETAIL_SKUS
                     : entType === 'OFFICE'        ? OFFICE_SKUS
                     : FACTORY_SKUS;
+  const debugType = String(entType);
 
   const catalogItems = await prisma.product.findMany({
     where:   { isEquipmentItem: true, sku: { in: allowedSkus } },
@@ -52,6 +53,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
     workshopId,
     freeM2,
     maxSlots,
+    _debug: { entType: debugType, skuSet: allowedSkus === OFFICE_SKUS ? 'OFFICE' : allowedSkus === RETAIL_SKUS ? 'RETAIL' : 'FACTORY' },
     catalog: catalogItems.map((p) => ({
       id:          p.id,
       name:        p.nameUa,
