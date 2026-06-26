@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   MapPin, Building2, Maximize2, Leaf, ShoppingCart, AlertCircle, RefreshCw,
 } from "lucide-react";
@@ -37,6 +38,7 @@ const ENT_TYPE_LABEL: Record<string, string> = {
 };
 
 export default function LandPage() {
+  const router = useRouter();
   const [mine,      setMine]      = useState<MyPlot[]>([]);
   const [available, setAvailable] = useState<LandPlot[]>([]);
   const [loading,   setLoading]   = useState(true);
@@ -225,9 +227,12 @@ export default function LandPage() {
                     ) : (
                       <div className="rounded-lg border border-dashed border-gray-700 px-3 py-2 text-center">
                         <p className="text-xs text-gray-600">Підприємств немає</p>
-                        <Link href={`/enterprises/create?plotId=${p.id}&action=${p.status === "OWNED" ? "buy" : "lease"}`} className="text-xs text-emerald-500 hover:text-emerald-400">
+                        <button
+                          onClick={() => router.push(`/enterprises/create?plotId=${p.id}&action=${p.status === "OWNED" ? "buy" : "lease"}`)}
+                          className="text-xs text-emerald-500 hover:text-emerald-400"
+                        >
                           Побудувати →
-                        </Link>
+                        </button>
                       </div>
                     )}
                   </CardContent>
