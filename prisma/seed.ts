@@ -164,6 +164,8 @@ async function main() {
     { sku: 'FG-PASTA',   name: 'Pasta',              nameUa: 'Макарони',         category: 'FINISHED_GOOD', unit: 'kg',    baseWeightKg: 1 },
     { sku: 'FG-STEEL-P', name: 'Steel Products',     nameUa: 'Сталеві вироби',   category: 'FINISHED_GOOD', unit: 'kg',    baseWeightKg: 1 },
     { sku: 'FG-FURN',    name: 'Furniture',          nameUa: 'Меблі',            category: 'FINISHED_GOOD', unit: 'unit',  baseWeightKg: 45 },
+    // ── Агровитратні матеріали ────────────────────────────────────────────────
+    { sku: 'AG-FERTILIZER', name: 'Mineral Fertilizer', nameUa: 'Мінеральне добриво', category: 'RAW_MATERIAL', unit: 'kg', baseWeightKg: 1 },
     // ── Будівельні матеріали (RAW_MATERIAL / SEMI_FINISHED) ─────────────────
     // Ціни-орієнтири 2026 (UAH/тонна або UAH/шт):
     //   Цемент М500:    3 800 UAH/т  (2.8 т = 1 м³ бетону М300)

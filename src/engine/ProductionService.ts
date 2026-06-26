@@ -41,6 +41,12 @@ export class ProductionService {
     utilisationByWorkshop: Map<string, number>;
     overworkedEnterpriseIds: Set<string>;
   }> {
+    // Pre-fetch AG-FERTILIZER product ID for soil boost check (one query, used in inner loop)
+    const fertProduct = await this.prisma.product.findFirst({
+      where:  { sku: 'AG-FERTILIZER' },
+      select: { id: true },
+    });
+
     const enterprises = await this.prisma.enterprise.findMany({
       where:   { playerId, isOperational: true },
       include: {
@@ -226,16 +232,30 @@ export class ProductionService {
 
           // ── AGRO_FARM: update soil quality + rotation tracking ────────
           if (ent.type === 'AGRO_FARM' && ent.landPlot) {
-            const cropSku   = recipe.outputs[0]?.product.sku ?? null;
+            const cropSku    = recipe.outputs[0]?.product.sku ?? null;
             const isSameCrop = cropSku !== null && cropSku !== 'RM-MILK' && ent.landPlot.lastCropSku === cropSku;
-            const delta      = isSameCrop ? -0.05 : +0.02;
+            let   delta      = isSameCrop ? -0.05 : +0.02;
+
+            // Fertilizer: consume 1 kg → +0.5 soil quality boost this tick
+            if (fertProduct) {
+              const fertInv = ent.inventory.find(i => i.productId === fertProduct.id);
+              if (fertInv && fertInv.quantity >= 1) {
+                delta += 0.5;
+                await this.prisma.enterpriseInventory.update({
+                  where: { id: fertInv.id },
+                  data:  { quantity: { decrement: 1 } },
+                });
+                fertInv.quantity -= 1;
+              }
+            }
+
             const newQuality = Math.max(1.0, Math.min(10.0, ent.landPlot.soilQuality + delta));
             await this.prisma.landPlot.update({
               where: { id: ent.landPlot.id },
               data:  { soilQuality: newQuality, lastCropSku: cropSku },
             });
-            ent.landPlot.soilQuality  = newQuality;
-            ent.landPlot.lastCropSku  = cropSku;
+            ent.landPlot.soilQuality = newQuality;
+            ent.landPlot.lastCropSku = cropSku;
           }
 
           results.push({
