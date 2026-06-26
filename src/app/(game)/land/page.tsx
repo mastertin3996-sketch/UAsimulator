@@ -225,7 +225,7 @@ export default function LandPage() {
                     ) : (
                       <div className="rounded-lg border border-dashed border-gray-700 px-3 py-2 text-center">
                         <p className="text-xs text-gray-600">Підприємств немає</p>
-                        <Link href="/enterprises/new" className="text-xs text-emerald-500 hover:text-emerald-400">
+                        <Link href={`/enterprises/create?plotId=${p.id}&action=${p.status === "OWNED" ? "buy" : "lease"}`} className="text-xs text-emerald-500 hover:text-emerald-400">
                           Побудувати →
                         </Link>
                       </div>

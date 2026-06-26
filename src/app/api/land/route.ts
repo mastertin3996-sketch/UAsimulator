@@ -8,7 +8,18 @@ export async function GET(req: NextRequest) {
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
-  const cityId = searchParams.get("cityId");
+  const cityId  = searchParams.get("cityId");
+  const plotId  = searchParams.get("plotId");
+
+  // Single plot lookup (for enterprise create wizard pre-fill)
+  if (plotId) {
+    const p = await prisma.landPlot.findUnique({
+      where: { id: plotId },
+      select: { id: true, status: true, city: { select: { id: true, name: true, nameUa: true, region: true } } },
+    });
+    if (!p) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return NextResponse.json({ plot: { cityId: p.city.id, cityName: p.city.name, cityNameUa: p.city.nameUa, region: p.city.region, status: p.status } });
+  }
 
   const plots = await prisma.landPlot.findMany({
     where: {
