@@ -437,7 +437,7 @@ async function main() {
   let plotCount = 0;
   for (const city of allCities) {
     const basePurchaseUah = 15_000 * city.landPriceCoeff; // base 15,000 UAH/m² scaled by city
-    const baseLeaseUah    = 100   * city.landPriceCoeff;  // base 100 UAH/m²/month
+    const baseLeaseUah    = 120   * city.landPriceCoeff;  // base 120 UAH/m²/month
 
     for (let i = 0; i < landPlotTemplates.length; i++) {
       const tmpl = landPlotTemplates[i];
