@@ -1257,11 +1257,11 @@ function ShowcaseTab({ enterpriseId, onGoToSupply }: { enterpriseId: string; onG
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
         {data.items.map(item => (
-          <button
+          <div
             key={item.productId}
             onClick={() => openItem(item)}
             className={cn(
-              "rounded-xl border p-4 text-left transition-all",
+              "rounded-xl border p-4 text-left transition-all cursor-pointer",
               selected?.productId === item.productId
                 ? "border-emerald-500 bg-emerald-500/10"
                 : item.isActive
@@ -1286,7 +1286,15 @@ function ShowcaseTab({ enterpriseId, onGoToSupply }: { enterpriseId: string; onG
             ) : (
               <p className="text-xs text-red-400/70 mt-1.5">Немає на складі</p>
             )}
-          </button>
+            <div className="flex gap-1.5 mt-3" onClick={e => e.stopPropagation()}>
+              <Link
+                href={`/market?product=${item.productId}`}
+                className="flex-1 text-center text-xs px-2 py-1 rounded-lg bg-blue-600/20 border border-blue-500/30 hover:bg-blue-600/30 text-blue-400 transition-colors"
+              >
+                🛒 Ринок
+              </Link>
+            </div>
+          </div>
         ))}
       </div>
 
