@@ -221,6 +221,13 @@ export class TickEngine {
         .catch(e => console.error(`[Tick ${tickNumber}] ДержПром replenish failed:`, e));
     }
 
+    // ── 3a1b. Держзамовлення — нові BUY-ордери з премією кожні 24 тіки ──
+    if (Number(tickNumber) % 24 === 0) {
+      const count = await this.market.generateStateOrders()
+        .catch(e => { console.error(`[Tick ${tickNumber}] State orders failed:`, e); return 0; });
+      if (count > 0) console.log(`[Tick ${tickNumber}] Держзамовлення: ${count} нових ордерів.`);
+    }
+
     // ── 3a2. NPC market buying — скуповує SELL-ордери до referencePrice ──
     const npcMarketUnits = await this.market.matchNpcMarketOrders()
       .catch(e => { console.error(`[Tick ${tickNumber}] NPC market buy failed:`, e); return 0; });

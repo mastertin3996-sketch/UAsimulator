@@ -52,6 +52,10 @@ export class MarketService {
       const buys = await this.prisma.marketOrder.findMany({
         where:   { productId, type: 'BUY',  status: { in: ['OPEN', 'PARTIALLY_FILLED'] } },
         orderBy: [{ pricePerUnit: 'desc' }, { createdAt: 'asc' }],
+        select: {
+          id: true, playerId: true, pricePerUnit: true, qualityMin: true,
+          quantityTotal: true, quantityFilled: true, isStateOrder: true,
+        },
       });
 
       let si = 0;
@@ -189,6 +193,22 @@ export class MarketService {
               referenceId:   buy.id,
             },
           });
+
+          // Держзамовлення — бонус репутації продавцю +0.3 (max 10)
+          if (buy.isStateOrder) {
+            const seller = await tx.player.findUniqueOrThrow({ where: { id: sell.playerId }, select: { reputationScore: true } });
+            const newRep = Math.min(10, seller.reputationScore + 0.3);
+            await tx.player.update({ where: { id: sell.playerId }, data: { reputationScore: newRep } });
+            await tx.notification.create({
+              data: {
+                playerId: sell.playerId,
+                type: 'MARKET_FILLED',
+                title: '🏛️ Держзамовлення виконано!',
+                body: `Ви поставили ${tradeQty} × ${tradeQty} ₴${sellPrice.toFixed(0)}/од. Репутація +0.3`,
+                entityId: sell.id,
+              },
+            });
+          }
         });
 
         sells[si] = { ...sell, quantityFilled: sell.quantityFilled + tradeQty };
@@ -493,5 +513,72 @@ export class MarketService {
         },
       });
     }
+  }
+
+  /**
+   * Генерує держзамовлення від ДержПром — BUY-ордери з премією +20% до referencePrice.
+   * Запускається кожні 24 тіки (ігровий тиждень).
+   */
+  async generateStateOrders(): Promise<number> {
+    const derzhprom = await this.prisma.player.findFirst({
+      where: { username: 'derzhprom', isNpcSeller: true },
+      select: { id: true },
+    });
+    if (!derzhprom) return 0;
+
+    // Скасувати попередні невиконані держзамовлення
+    await this.prisma.marketOrder.updateMany({
+      where: { playerId: derzhprom.id, isStateOrder: true, status: { in: ['OPEN', 'PARTIALLY_FILLED'] } },
+      data:  { status: 'CANCELLED' },
+    });
+
+    // Продукти для держзамовлень (реальні товари, не сировина і не обладнання)
+    const TARGET_SKUS = [
+      'FG-BREAD', 'FG-MILK', 'FG-PASTA', 'FG-SUNOIL',
+      'SF-FLOUR', 'SF-SUGAR', 'SF-STEEL', 'SF-PLANKS',
+      'CM-BRICK', 'CM-CEMENT', 'CM-REBAR',
+    ];
+
+    // Беремо 4 випадкових продукти
+    const shuffled = TARGET_SKUS.sort(() => Math.random() - 0.5).slice(0, 4);
+    const products = await this.prisma.product.findMany({
+      where: { sku: { in: shuffled } },
+      select: { id: true, sku: true, nameUa: true },
+    });
+
+    const npcPrices = await this.prisma.npcDemand.groupBy({
+      by: ['productId'],
+      where: { productId: { in: products.map(p => p.id) } },
+      _avg: { referencePrice: true },
+    });
+    const priceMap = new Map(npcPrices.map(n => [n.productId, Number(n._avg.referencePrice ?? 0)]));
+
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000 * 3); // 3 доби (≈24 тіки)
+    let created = 0;
+
+    for (const product of products) {
+      const ref = priceMap.get(product.id) ?? 30;
+      const buyPrice  = +(ref * 1.20).toFixed(2); // +20% до ринку
+      const quantity  = Math.round(200 + Math.random() * 800);
+
+      await this.prisma.marketOrder.create({
+        data: {
+          playerId:       derzhprom.id,
+          productId:      product.id,
+          resourceType:   product.sku,
+          type:           'BUY',
+          status:         'OPEN',
+          pricePerUnit:   buyPrice,
+          qualityMin:     6.0,
+          quantityTotal:  quantity,
+          quantityFilled: 0,
+          isStateOrder:   true,
+          expiresAt,
+        },
+      });
+      created++;
+    }
+
+    return created;
   }
 }

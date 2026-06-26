@@ -818,6 +818,7 @@ model MarketOrder {
   expiresAt      DateTime
   createdAt      DateTime          @default(now())
   filledAt       DateTime?
+  isStateOrder   Boolean           @default(false)  // держзамовлення від ДержПром
 
   player      Player        @relation(fields: [playerId], references: [id])
   product     Product       @relation(fields: [productId], references: [id])

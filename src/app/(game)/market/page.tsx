@@ -872,17 +872,166 @@ function MyOrdersTab() {
   );
 }
 
+// ─── State Orders Tab ─────────────────────────────────────────────────────────
+
+type StateOrder = {
+  id: string; productId: string; productName: string; unit: string;
+  resourceType: string; price: number; refPrice: number; premium: string;
+  qualityMin: number; quantityTotal: number; quantityLeft: number; expiresAt: string;
+};
+
+function StateOrdersTab() {
+  const [orders,      setOrders]      = useState<StateOrder[]>([]);
+  const [loading,     setLoading]     = useState(true);
+  const [enterprises, setEnterprises] = useState<Enterprise[]>([]);
+  const [fillOrder,   setFillOrder]   = useState<StateOrder | null>(null);
+  const [fillEnt,     setFillEnt]     = useState("");
+  const [fillQty,     setFillQty]     = useState("");
+  const [fillErr,     setFillErr]     = useState("");
+  const [filling,     setFilling]     = useState(false);
+  const [fillOk,      setFillOk]      = useState("");
+
+  useEffect(() => {
+    setLoading(true);
+    fetch("/api/market/state-orders").then(r => r.json()).then(d => setOrders(d.orders ?? [])).finally(() => setLoading(false));
+    fetch("/api/enterprises").then(r => r.json()).then(d => setEnterprises((d.enterprises ?? []).map((e: { id: string; name: string; cityName: string }) => ({ id: e.id, name: e.name, cityName: e.cityName }))));
+  }, []);
+
+  async function handleFill(e: React.FormEvent) {
+    e.preventDefault();
+    if (!fillOrder || !fillEnt || !fillQty) { setFillErr("Заповніть всі поля"); return; }
+    setFilling(true); setFillErr(""); setFillOk("");
+    const res = await fetch("/api/market", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        enterpriseId: fillEnt,
+        productId:    fillOrder.productId,
+        quantity:     Number(fillQty),
+        price:        fillOrder.price,
+        minOrder:     1,
+        daysValid:    3,
+      }),
+    });
+    const data = await res.json();
+    setFilling(false);
+    if (!res.ok) { setFillErr(data.error ?? "Помилка"); return; }
+    setFillOk(`✓ SELL ордер виставлено за ₴${fillOrder.price}/${fillOrder.unit} — матчиться автоматично`);
+    window.dispatchEvent(new CustomEvent("game:balance"));
+    setTimeout(() => { setFillOrder(null); setFillOk(""); }, 3000);
+  }
+
+  if (loading) return <SkeletonTable rows={4} />;
+
+  if (orders.length === 0) return (
+    <div className="rounded-xl border border-dashed border-amber-800/40 py-16 text-center">
+      <span className="text-4xl block mb-3">🏛️</span>
+      <p className="text-gray-400 font-medium">Активних держзамовлень немає</p>
+      <p className="text-gray-600 text-sm mt-1">Нові замовлення з'являються кожні 24 тіки</p>
+    </div>
+  );
+
+  return (
+    <>
+      <div className="grid gap-4 sm:grid-cols-2">
+        {orders.map(o => (
+          <div key={o.id} className="rounded-xl border border-amber-700/30 bg-amber-950/10 p-5 space-y-4">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">{CAT_META[o.resourceType?.split("-")[0] ?? ""]?.emoji ?? "📦"}</span>
+                <div>
+                  <p className="font-semibold text-white">{o.productName}</p>
+                  <p className="text-xs text-gray-500">{o.resourceType}</p>
+                </div>
+              </div>
+              <span className="text-xs font-bold px-2 py-1 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 shrink-0">
+                +{o.premium}% від ринку
+              </span>
+            </div>
+
+            <div className="rounded-lg bg-gray-900 border border-gray-800 divide-y divide-gray-800 text-sm">
+              <div className="flex justify-between px-3 py-2"><span className="text-gray-500">Ціна закупівлі</span><span className="font-mono text-emerald-400 font-bold">₴{o.price}/{o.unit}</span></div>
+              <div className="flex justify-between px-3 py-2"><span className="text-gray-500">Ринкова ціна</span><span className="font-mono text-gray-400">₴{o.refPrice.toFixed(1)}/{o.unit}</span></div>
+              <div className="flex justify-between px-3 py-2"><span className="text-gray-500">Потрібно</span><span className="font-mono text-white">{formatNumber(o.quantityLeft)} {o.unit}</span></div>
+              <div className="flex justify-between px-3 py-2"><span className="text-gray-500">Мін. якість</span><span className="font-mono text-white">{o.qualityMin.toFixed(1)}</span></div>
+            </div>
+
+            {/* Прогрес */}
+            <div>
+              <div className="flex justify-between text-xs text-gray-500 mb-1">
+                <span>Виконано</span>
+                <span>{formatNumber(o.quantityTotal - o.quantityLeft)} / {formatNumber(o.quantityTotal)}</span>
+              </div>
+              <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                <div className="h-full bg-amber-500 rounded-full transition-all" style={{ width: `${((o.quantityTotal - o.quantityLeft) / o.quantityTotal) * 100}%` }} />
+              </div>
+            </div>
+
+            <Button
+              className="w-full bg-amber-600 hover:bg-amber-500 text-white"
+              onClick={() => { setFillOrder(o); setFillEnt(""); setFillQty(String(Math.min(100, o.quantityLeft))); setFillErr(""); setFillOk(""); }}
+            >
+              <ShoppingCart size={14} /> Виконати замовлення
+            </Button>
+          </div>
+        ))}
+      </div>
+
+      <Dialog open={!!fillOrder} onClose={() => setFillOrder(null)} title="Виконати держзамовлення" size="md">
+        {fillOrder && (
+          <form onSubmit={handleFill} className="space-y-4">
+            <div className="rounded-xl bg-amber-950/30 border border-amber-700/30 p-4 space-y-1.5">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-2xl">{CAT_META[fillOrder.resourceType?.split("-")[0] ?? ""]?.emoji ?? "📦"}</span>
+                <div>
+                  <p className="font-semibold text-white">{fillOrder.productName}</p>
+                  <p className="text-xs text-amber-400">🏛️ Держзамовлення · +{fillOrder.premium}% премія</p>
+                </div>
+              </div>
+              {[
+                ["Ціна закупівлі", `₴${fillOrder.price}/${fillOrder.unit}`],
+                ["Залишилось купити", `${formatNumber(fillOrder.quantityLeft)} ${fillOrder.unit}`],
+                ["Мін. якість", fillOrder.qualityMin.toFixed(1)],
+              ].map(([k, v]) => (
+                <div key={k} className="flex justify-between text-sm"><span className="text-gray-500">{k}</span><span className="text-white">{v}</span></div>
+              ))}
+            </div>
+
+            <p className="text-xs text-gray-500 bg-gray-900 border border-gray-800 rounded-lg px-3 py-2">
+              💡 Ваш SELL ордер виставляється за ₴{fillOrder.price}/{fillOrder.unit} і автоматично матчиться з держзамовленням на наступному тіку. Репутація +0.3 після виконання.
+            </p>
+
+            <Select label="Підприємство *" placeholder="Оберіть..." value={fillEnt} onChange={e => setFillEnt(e.target.value)} options={enterprises.map(en => ({ value: en.id, label: `${en.name} (${en.cityName})` }))} required />
+            <Input label={`Кількість (${fillOrder.unit}) *`} type="number" min={1} max={fillOrder.quantityLeft} value={fillQty} onChange={e => setFillQty(e.target.value)} required />
+
+            {fillErr && <p className="text-sm text-red-400 bg-red-950/30 border border-red-800/30 rounded-lg px-3 py-2">{fillErr}</p>}
+            {fillOk  && <p className="text-sm text-emerald-400 bg-emerald-950/30 border border-emerald-800/30 rounded-lg px-3 py-2">{fillOk}</p>}
+
+            <div className="flex gap-3 pt-1">
+              <Button type="button" variant="outline" className="flex-1" onClick={() => setFillOrder(null)}>Скасувати</Button>
+              <Button type="submit" loading={filling} className="flex-1 bg-amber-600 hover:bg-amber-500">
+                <ShoppingCart size={14} /> Виконати
+              </Button>
+            </div>
+          </form>
+        )}
+      </Dialog>
+    </>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-type MarketTab = "offers" | "orderbook" | "myorders";
+type MarketTab = "offers" | "orderbook" | "myorders" | "stateorders";
 
 export default function MarketPage() {
   const [tab, setTab] = useState<MarketTab>("offers");
 
-  const TABS: { key: MarketTab; label: string; icon: React.ElementType }[] = [
-    { key: "offers",    label: "Пропозиції",  icon: ShoppingCart },
-    { key: "orderbook", label: "Order Book",  icon: BookOpen     },
-    { key: "myorders",  label: "Мої ордери",  icon: ListOrdered  },
+  const TABS: { key: MarketTab; label: string; icon?: React.ElementType; emoji?: string }[] = [
+    { key: "offers",      label: "Пропозиції",       icon: ShoppingCart },
+    { key: "stateorders", label: "Держзамовлення",   emoji: "🏛️"        },
+    { key: "orderbook",   label: "Order Book",        icon: BookOpen     },
+    { key: "myorders",    label: "Мої ордери",        icon: ListOrdered  },
   ];
 
   return (
@@ -894,7 +1043,7 @@ export default function MarketPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-gray-800">
-        {TABS.map(({ key, label, icon: Icon }) => (
+        {TABS.map(({ key, label, icon: Icon, emoji }) => (
           <button
             key={key}
             onClick={() => setTab(key)}
@@ -905,14 +1054,15 @@ export default function MarketPage() {
                 : "text-gray-500 border-transparent hover:text-gray-300 hover:border-gray-600",
             )}
           >
-            <Icon size={14} /> {label}
+            {Icon ? <Icon size={14} /> : <span>{emoji}</span>} {label}
           </button>
         ))}
       </div>
 
-      {tab === "offers"    && <OffersTab />}
-      {tab === "orderbook" && <OrderBookPanel />}
-      {tab === "myorders"  && <MyOrdersTab />}
+      {tab === "offers"      && <OffersTab />}
+      {tab === "stateorders" && <StateOrdersTab />}
+      {tab === "orderbook"   && <OrderBookPanel />}
+      {tab === "myorders"    && <MyOrdersTab />}
     </div>
   );
 }
