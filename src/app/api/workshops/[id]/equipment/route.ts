@@ -44,24 +44,47 @@ export async function GET(_req: NextRequest, { params }: Params) {
     orderBy: { nameUa: "asc" },
   });
 
-  const FOOTPRINT = 30;
-  const usedM2    = workshop._count.equipment * FOOTPRINT;
-  const freeM2    = workshop.footprintM2 - usedM2;
-  const maxSlots  = Math.floor(freeM2 / FOOTPRINT);
+  const SKU_FOOTPRINT: Record<string, number> = {
+    // Office
+    'EQ-DESK':       6,  'EQ-OFFCHAIR':  1,  'EQ-COMPUTER':  2,
+    'EQ-PRINTER':    2,  'EQ-PROJECTOR': 10, 'EQ-SERVER':    5,
+    'EQ-PBXPHONE':   2,  'EQ-AIRCON':    2,  'EQ-COFFEEMACH':3,
+    'EQ-OFFICESAFE': 2,
+    // Retail
+    'EQ-CASHREGISTER':5, 'EQ-POSTERMINAL':2, 'EQ-SHELVING':   8,
+    'EQ-DISPLAYFRIDGE':6,'EQ-FREEZER':    8,  'EQ-CCTV':       1,
+    'EQ-SCALE':      2,  'EQ-PRICETAG':   1,  'EQ-SELFCHECKOUT':6,
+    'EQ-CONVEYOR':   10,
+    // Factory
+    'EQ-MILLGRIND':  30, 'EQ-OILPRESS':  30,  'EQ-FURNACE':   30,
+    'EQ-TRACTOR':    30, 'EQ-SAWMILL':   30,  'EQ-DAIRYLINE': 30,
+  };
+  const DEFAULT_FOOTPRINT = 30;
+
+  // freeM2 обчислюється з реальних даних equipment у цеху
+  const installedEquip = await prisma.equipment.findMany({
+    where: { workshopId },
+    select: { catalogProduct: { select: { sku: true } } },
+  });
+  const usedM2  = installedEquip.reduce((s, e) => s + (SKU_FOOTPRINT[e.catalogProduct.sku] ?? DEFAULT_FOOTPRINT), 0);
+  const freeM2  = workshop.footprintM2 - usedM2;
 
   return NextResponse.json({
     workshopId,
     freeM2,
-    maxSlots,
-    _debug: { entType: debugType, skuSet: allowedSkus === OFFICE_SKUS ? 'OFFICE' : allowedSkus === RETAIL_SKUS ? 'RETAIL' : 'FACTORY' },
-    catalog: catalogItems.map((p) => ({
-      id:          p.id,
-      name:        p.nameUa,
-      sku:         p.sku,
-      basePrice:   Number(p.npcDemand[0]?.referencePrice ?? 50_000),
-      unit:        p.unit,
-      footprintM2: FOOTPRINT,
-    })),
+    maxSlots: catalogItems.length, // shown per-item now
+    catalog: catalogItems.map((p) => {
+      const fp = SKU_FOOTPRINT[p.sku] ?? DEFAULT_FOOTPRINT;
+      return {
+        id:          p.id,
+        name:        p.nameUa,
+        sku:         p.sku,
+        basePrice:   Number(p.npcDemand[0]?.referencePrice ?? 50_000),
+        unit:        p.unit,
+        footprintM2: fp,
+        canBuy:      freeM2 >= fp,
+      };
+    }),
   });
 }
 
@@ -79,11 +102,20 @@ export async function POST(req: NextRequest, { params }: Params) {
   }
 
   try {
+    const SKU_FOOTPRINT: Record<string, number> = {
+      'EQ-DESK':6,'EQ-OFFCHAIR':1,'EQ-COMPUTER':2,'EQ-PRINTER':2,'EQ-PROJECTOR':10,
+      'EQ-SERVER':5,'EQ-PBXPHONE':2,'EQ-AIRCON':2,'EQ-COFFEEMACH':3,'EQ-OFFICESAFE':2,
+      'EQ-CASHREGISTER':5,'EQ-POSTERMINAL':2,'EQ-SHELVING':8,'EQ-DISPLAYFRIDGE':6,
+      'EQ-FREEZER':8,'EQ-CCTV':1,'EQ-SCALE':2,'EQ-PRICETAG':1,'EQ-SELFCHECKOUT':6,'EQ-CONVEYOR':10,
+    };
+    const product = await prisma.product.findUnique({ where: { id: body.productId }, select: { sku: true } });
+    const footprintM2 = product ? (SKU_FOOTPRINT[product.sku] ?? 30) : 30;
+
     const svc = new CompanyService(prisma);
     const eqId = await svc.installEquipment(playerId, {
       workshopId,
       productId:   body.productId,
-      footprintM2: 30,
+      footprintM2,
       priceUah:    body.priceUah,
     });
     return NextResponse.json({ ok: true, equipmentId: eqId });

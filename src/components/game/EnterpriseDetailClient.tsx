@@ -44,7 +44,7 @@ function productEmoji(sku: string): string {
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
-interface EquipCatalogItem { id: string; name: string; sku: string; basePrice: number; unit: string; footprintM2: number }
+interface EquipCatalogItem { id: string; name: string; sku: string; basePrice: number; unit: string; footprintM2: number; canBuy: boolean }
 
 type Tab = "management" | "workshops" | "hr" | "warehouse" | "production" | "supply" | "showcase";
 
@@ -674,7 +674,7 @@ function BuyEquipmentModal({
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-800 shrink-0">
           <div>
             <h3 className="text-base font-semibold text-white">Купити обладнання</h3>
-            <p className="text-xs text-gray-500 mt-0.5">{workshopName} · {maxSlots} слот{maxSlots === 1 ? "" : "ів"} вільно ({freeM2.toFixed(0)} м²)</p>
+            <p className="text-xs text-gray-500 mt-0.5">{workshopName} · {freeM2.toFixed(0)} м² вільно</p>
           </div>
           <button onClick={onClose} className="text-gray-500 hover:text-white"><X size={16} /></button>
         </div>
@@ -682,14 +682,16 @@ function BuyEquipmentModal({
         <div className="overflow-y-auto flex-1 px-5 py-3 space-y-2">
           {loading && <p className="text-gray-500 text-sm text-center py-8">Завантаження…</p>}
           {!loading && catalog.length === 0 && <p className="text-gray-500 text-sm text-center py-8">Каталог порожній</p>}
-          {!loading && maxSlots === 0 && <p className="text-amber-400 text-sm text-center py-2">Немає вільного місця в цеху (по 30 м² на одиницю)</p>}
           {catalog.map((item) => (
             <button
               key={item.id}
-              onClick={() => selectItem(item)}
+              onClick={() => item.canBuy ? selectItem(item) : undefined}
+              disabled={!item.canBuy}
               className={cn(
                 "w-full flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all",
-                selected?.id === item.id
+                !item.canBuy
+                  ? "border-gray-800 bg-gray-900 opacity-40 cursor-not-allowed"
+                  : selected?.id === item.id
                   ? "border-emerald-600 bg-emerald-950/30"
                   : "border-gray-800 bg-gray-900 hover:border-gray-700",
               )}
@@ -697,7 +699,7 @@ function BuyEquipmentModal({
               <span className="text-xl shrink-0">{productEmoji(item.sku)}</span>
               <div className="flex-1">
                 <p className="text-sm font-medium text-white">{item.name}</p>
-                <p className="text-xs text-gray-500">Займає {item.footprintM2} м²</p>
+                <p className="text-xs text-gray-500">Займає {item.footprintM2} м²{!item.canBuy ? " · не вміщається" : ""}</p>
               </div>
               <span className="text-sm font-mono text-gray-300">₴{(item.basePrice / 1000).toFixed(0)}K</span>
             </button>
