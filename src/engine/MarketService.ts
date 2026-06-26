@@ -332,17 +332,22 @@ export class MarketService {
       const city    = shop.landPlot.city;
       const demands = await this.prisma.npcDemand.findMany({ where: { cityId: city.id } });
 
+      // Завантажуємо RetailListing для цього магазину
+      const listings = await this.prisma.retailListing.findMany({
+        where: { enterpriseId: shop.id, isActive: true },
+      });
+      const listingMap = new Map(listings.map(l => [l.productId, Number(l.pricePerUnit)]));
+
       for (const demand of demands) {
         const inv = shop.inventory.find(i => i.productId === demand.productId);
         if (!inv || inv.quantity < 0.001) continue;
 
-        // referencePrice — Decimal, конвертуємо у number лише для розрахунку попиту
         const refPrice    = new Decimal(demand.referencePrice.toString()).toNumber();
-        const listedPrice = refPrice;
+        // Ціна: з RetailListing (гравець) або referencePrice
+        const listedPrice = listingMap.get(demand.productId) ?? refPrice;
         const qualityFactor =
           demand.qualityWeight * (inv.avgQuality / 10) + (1 - demand.qualityWeight);
 
-        // city.demandCoefficient — Float (вже number, касту не потрібно)
         const demandQty = demand.baseUnitsPerDay
           * Math.pow(refPrice / listedPrice, Math.abs(demand.priceElasticity))
           * qualityFactor
@@ -351,7 +356,6 @@ export class MarketService {
         const actualSold = Math.min(demandQty, inv.quantity);
         if (actualSold < 0.001) continue;
 
-        // revenue — Decimal: qty (number) × price (number → Decimal)
         const revenue       = new Decimal(listedPrice).times(actualSold);
         const player        = await this.prisma.player.findUniqueOrThrow({ where: { id: playerId } });
         const balanceBefore = new Decimal(player.cashBalance.toString());
@@ -364,18 +368,28 @@ export class MarketService {
           }),
           this.prisma.player.update({
             where: { id: playerId },
-            data:  { cashBalance: { increment: revenue } }, // Decimal ✓
+            data:  { cashBalance: { increment: revenue } },
           }),
           this.prisma.financialTransaction.create({
             data: {
               playerId,
               type:          'NPC_SALE',
-              amountUah:     revenue,          // Decimal ✓
-              balanceBefore,                   // Decimal ✓
-              balanceAfter,                    // Decimal ✓
+              amountUah:     revenue,
+              balanceBefore,
+              balanceAfter,
               description:
                 `NPC роздріб: ${actualSold.toFixed(2)} × ${demand.productId} у ${city.name}`,
               referenceId: demand.id,
+            },
+          }),
+          this.prisma.financialLog.create({
+            data: {
+              playerId,
+              category:    'REVENUE_RETAIL',
+              amountUah:   revenue,
+              description: `Роздрібний продаж у "${shop.name}": ${actualSold.toFixed(1)} од.`,
+              referenceId: shop.id,
+              tickNumber,
             },
           }),
         ]);
