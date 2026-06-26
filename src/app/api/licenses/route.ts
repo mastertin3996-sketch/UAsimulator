@@ -8,6 +8,7 @@ const LICENSE_FEE: Record<LicenseType, number> = {
   AGRO_PERMIT:           15_000,
   MANUFACTURING_LICENSE: 45_000,
   RETAIL_PERMIT:          8_000,
+  AGRO_INSURANCE:         5_000,
 };
 
 const LICENSE_DURATION_TICKS = 30;
@@ -16,6 +17,7 @@ const LICENSE_NAME: Record<LicenseType, string> = {
   AGRO_PERMIT:           "Агро-дозвіл",
   MANUFACTURING_LICENSE: "Ліцензія виробника",
   RETAIL_PERMIT:         "Торговий дозвіл",
+  AGRO_INSURANCE:        "Агрострахування",
 };
 
 const ENTERPRISE_LICENSE: Record<string, LicenseType> = {
@@ -23,6 +25,11 @@ const ENTERPRISE_LICENSE: Record<string, LicenseType> = {
   FOOD_PROCESSING: "AGRO_PERMIT",
   TEXTILE_FACTORY: "MANUFACTURING_LICENSE",
   RETAIL_STORE:    "RETAIL_PERMIT",
+};
+
+// Additional optional licenses available per enterprise type
+const OPTIONAL_LICENSE: Record<string, LicenseType[]> = {
+  AGRO_FARM: ["AGRO_INSURANCE"],
 };
 
 export async function GET() {
@@ -39,7 +46,7 @@ export async function GET() {
         licenses: {
           where: { status: { in: ["ACTIVE", "EXPIRED"] } },
           orderBy: { expiresAtTick: "desc" },
-          take: 1,
+          select: { id: true, type: true, status: true, expiresAtTick: true },
         },
       },
     }),
@@ -49,35 +56,53 @@ export async function GET() {
 
   const currentTick = Number(lastTick?.tickNumber ?? 0n);
 
+  const makeItem = (
+    e: typeof enterprises[0],
+    licType: LicenseType,
+    licFilterFn: (l: typeof e.licenses[0]) => boolean = () => true,
+  ) => {
+    const existing  = e.licenses.filter(licFilterFn).sort(
+      (a, b) => Number(b.expiresAtTick) - Number(a.expiresAtTick),
+    )[0];
+    const expiresAt = existing ? Number(existing.expiresAtTick) : null;
+    const ticksLeft = expiresAt !== null ? expiresAt - currentTick : null;
+    const status    = !existing
+      ? "NONE"
+      : existing.status === "EXPIRED" || (ticksLeft !== null && ticksLeft <= 0)
+      ? "EXPIRED"
+      : ticksLeft !== null && ticksLeft <= 5
+      ? "EXPIRING_SOON"
+      : "ACTIVE";
+    return {
+      enterpriseId:   e.id,
+      enterpriseName: e.name,
+      enterpriseType: e.type,
+      licenseType:    licType,
+      licenseName:    LICENSE_NAME[licType],
+      fee:            LICENSE_FEE[licType],
+      durationTicks:  LICENSE_DURATION_TICKS,
+      licenseId:      existing?.id ?? null,
+      optional:       false,
+      status,
+      expiresAtTick:  expiresAt,
+      ticksLeft,
+      currentTick,
+    };
+  };
+
   const items = enterprises
     .filter((e) => ENTERPRISE_LICENSE[e.type])
-    .map((e) => {
-      const licType   = ENTERPRISE_LICENSE[e.type];
-      const existing  = e.licenses[0];
-      const expiresAt = existing ? Number(existing.expiresAtTick) : null;
-      const ticksLeft = expiresAt !== null ? expiresAt - currentTick : null;
-      const status    = !existing
-        ? "NONE"
-        : existing.status === "EXPIRED" || (ticksLeft !== null && ticksLeft <= 0)
-        ? "EXPIRED"
-        : ticksLeft !== null && ticksLeft <= 5
-        ? "EXPIRING_SOON"
-        : "ACTIVE";
-
-      return {
-        enterpriseId:   e.id,
-        enterpriseName: e.name,
-        enterpriseType: e.type,
-        licenseType:    licType,
-        licenseName:    LICENSE_NAME[licType],
-        fee:            LICENSE_FEE[licType],
-        durationTicks:  LICENSE_DURATION_TICKS,
-        licenseId:      existing?.id ?? null,
-        status,
-        expiresAtTick:  expiresAt,
-        ticksLeft,
-        currentTick,
-      };
+    .flatMap((e) => {
+      const required = makeItem(
+        e,
+        ENTERPRISE_LICENSE[e.type],
+        (l) => l.type === ENTERPRISE_LICENSE[e.type],
+      );
+      const optional = (OPTIONAL_LICENSE[e.type] ?? []).map((licType) => ({
+        ...makeItem(e, licType, (l) => l.type === licType),
+        optional: true,
+      }));
+      return [required, ...optional];
     });
 
   return NextResponse.json({

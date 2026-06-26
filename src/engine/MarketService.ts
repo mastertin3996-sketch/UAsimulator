@@ -555,6 +555,7 @@ export class MarketService {
     'FG-CAKE':              [1.0, 0.9, 1.1, 1.4],  // зимою та восени — кондитерські вироби
     'FG-CORN-SYRUP':        [1.0, 1.2, 1.0, 0.9],
     'FG-CONDENSED-MILK':    [0.9, 0.8, 1.0, 1.3],  // зимою — традиційний
+    'FG-MEAT':              [1.0, 1.1, 1.2, 1.3],  // осінньо-зимовий пік (шашлики + свята)
   };
 
   async matchNpcMarketOrders(tickNumber?: bigint): Promise<number> {

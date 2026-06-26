@@ -35,6 +35,7 @@ const LICENSE_FEE: Record<LicenseType, Decimal> = {
   AGRO_PERMIT:           new Decimal('15000'),
   MANUFACTURING_LICENSE: new Decimal('45000'),
   RETAIL_PERMIT:         new Decimal('8000'),
+  AGRO_INSURANCE:        new Decimal('5000'),
 };
 
 const LICENSE_DURATION_TICKS = 30n;
@@ -609,6 +610,23 @@ export class StateRegulationService {
       data: { type: 'DROUGHT', affectedCityId: cityId, startTick: currentTick, endTick: currentTick + DROUGHT_TICKS, description },
     });
 
+    // AGRO_INSURANCE payout: ₴4/m² footprint for insured AGRO_FARM enterprises in this city
+    const insuredEnts = await this.db.enterprise.findMany({
+      where: { isOperational: true, type: 'AGRO_FARM', landPlot: { cityId }, licenses: { some: { type: 'AGRO_INSURANCE', status: 'ACTIVE' } } },
+      include: { workshops: { where: { isActive: true }, select: { footprintM2: true } } },
+    });
+    for (const insEnt of insuredEnts) {
+      const totalM2  = insEnt.workshops.reduce((s, w) => s + w.footprintM2, 0);
+      const payout   = Math.round(totalM2 * 4);
+      if (payout <= 0) continue;
+      await this.db.player.update({ where: { id: insEnt.playerId }, data: { cashBalance: { increment: payout } } });
+      await this.db.notification.create({ data: {
+        playerId: insEnt.playerId, type: 'MACRO_EVENT',
+        title: 'Страхова виплата',
+        body: `AGRO_INSURANCE: отримано ₴${payout.toLocaleString('uk-UA')} за посуху у ${cityName} (₴4/м² × ${totalM2.toFixed(0)} м²)`,
+      } }).catch(() => {});
+    }
+
     return { fired: true, eventId: event.id, type: 'DROUGHT', description };
   }
 
@@ -656,6 +674,20 @@ export class StateRegulationService {
 
       const pct = Math.round(destroyFraction * 100);
       description = `Нашестя шкідників у "${ent.name}" (${ent.landPlot.city.nameUa}): знищено ${pct}% врожаю (≈${totalDestroyed.toFixed(0)} кг). Тримайте RM-PESTICIDE для захисту!`;
+
+      // AGRO_INSURANCE: pay 50% of estimated crop value (₴15/kg average)
+      const hasInsurance = await this.db.license.findFirst({
+        where: { enterpriseId: ent.id, type: 'AGRO_INSURANCE', status: 'ACTIVE' },
+      });
+      if (hasInsurance && totalDestroyed > 0) {
+        const payout = Math.round(totalDestroyed * 15 * 0.5);
+        await this.db.player.update({ where: { id: ent.playerId }, data: { cashBalance: { increment: payout } } });
+        await this.db.notification.create({ data: {
+          playerId: ent.playerId, type: 'MACRO_EVENT',
+          title: 'Страхова виплата',
+          body: `AGRO_INSURANCE: отримано ₴${payout.toLocaleString('uk-UA')} за знищений врожай (50% від ${totalDestroyed.toFixed(0)} кг × ₴15/кг)`,
+        } }).catch(() => {});
+      }
     }
 
     // Notify affected player

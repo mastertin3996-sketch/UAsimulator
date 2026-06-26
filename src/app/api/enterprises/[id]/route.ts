@@ -56,7 +56,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
             select: {
               id: true, targetQuantity: true, completedQuantity: true,
               outputQuality: true, ticksRemaining: true,
-              recipe: { select: { id: true, name: true, enterpriseType: true } },
+              recipe: { select: { id: true, name: true, enterpriseType: true, outputs: { take: 1, select: { product: { select: { sku: true, nameUa: true } } } } } },
             },
           },
         },

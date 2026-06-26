@@ -46,7 +46,7 @@ function productEmoji(sku: string): string {
 
 interface EquipCatalogItem { id: string; name: string; sku: string; basePrice: number; unit: string; footprintM2: number; canBuy: boolean }
 
-type Tab = "management" | "workshops" | "hr" | "warehouse" | "production" | "supply" | "showcase";
+type Tab = "management" | "workshops" | "hr" | "warehouse" | "production" | "supply" | "showcase" | "fields";
 
 interface Props { enterpriseId: string; initialTab?: Tab; title?: string }
 
@@ -65,7 +65,7 @@ interface Equipment {
 interface ProductionOrder {
   id: string; targetQuantity: number; completedQuantity: number;
   outputQuality: number | null; ticksRemaining: number;
-  recipe: { id: string; name: string } | null;
+  recipe: { id: string; name: string; outputs: { product: { sku: string; nameUa: string } }[] } | null;
 }
 
 interface Workshop {
@@ -1507,6 +1507,98 @@ function SupplyTab({ enterpriseId }: { enterpriseId: string }) {
   );
 }
 
+// ─── Fields Tab (AGRO_FARM) ────────────────────────────────────────────────────
+
+const AGRO_SEASON_MULTS_UI: Record<string, [number, number, number, number]> = {
+  'RM-WHEAT':     [1.0, 0.8, 0.15, 0.0],
+  'RM-SUNFL':     [0.2, 1.0, 0.75, 0.0],
+  'RM-SUGBEET':   [0.4, 0.8, 1.0,  0.0],
+  'RM-CORN':      [0.3, 1.0, 0.80, 0.0],
+  'RM-MILK':      [1.0, 0.9, 1.0,  0.75],
+  'RM-LIVESTOCK': [1.0, 1.0, 1.0,  0.80],
+  'SF-COMPOST':   [1.0, 1.0, 1.0,  1.00],
+};
+const ROTATION_NEXT_UI: Record<string, string> = {
+  'RM-WHEAT': 'RM-SUNFL', 'RM-SUNFL': 'RM-SUGBEET', 'RM-SUGBEET': 'RM-WHEAT', 'RM-CORN': 'RM-WHEAT',
+};
+const FIELD_CROPS_UI = new Set(['RM-WHEAT', 'RM-SUNFL', 'RM-SUGBEET', 'RM-CORN']);
+
+function FieldsTab({ enterprise, agroInfo }: { enterprise: EnterpriseData; agroInfo: AgroInfo | null }) {
+  const season   = agroInfo?.seasonIndex ?? 0;
+  const lastCrop = agroInfo?.lastCropSku ?? null;
+
+  return (
+    <div className="space-y-3 p-1">
+      {agroInfo && (
+        <div className="text-xs text-gray-500">
+          Якість ґрунту <span className="font-mono text-white">{agroInfo.soilQuality.toFixed(1)}/10</span>
+          {" · "}Сезон: <span className="text-white">{agroInfo.currentSeason}</span>
+          {" · "}Остання культура: <span className="font-mono text-white">{agroInfo.lastCropSku ?? "—"}</span>
+        </div>
+      )}
+      <div className="grid gap-2 sm:grid-cols-2">
+        {enterprise.workshops.map((ws) => {
+          const order   = ws.productionOrders[0] ?? null;
+          const cropSku = order?.recipe?.outputs?.[0]?.product?.sku ?? null;
+          const cropName = order?.recipe?.outputs?.[0]?.product?.nameUa ?? null;
+          const seasonMult = cropSku ? (AGRO_SEASON_MULTS_UI[cropSku]?.[season] ?? 1.0) : null;
+
+          let rotationStatus: 'optimal' | 'mono' | 'neutral' | null = null;
+          if (cropSku && FIELD_CROPS_UI.has(cropSku)) {
+            if (lastCrop === cropSku) rotationStatus = 'mono';
+            else if (lastCrop && ROTATION_NEXT_UI[lastCrop] === cropSku) rotationStatus = 'optimal';
+            else if (lastCrop) rotationStatus = 'neutral';
+          }
+
+          const multColor = seasonMult === null ? '' : seasonMult >= 0.8 ? 'text-emerald-400' : seasonMult >= 0.4 ? 'text-amber-400' : 'text-red-400';
+
+          return (
+            <div key={ws.id} className="rounded-lg border border-gray-800 bg-gray-900 p-3 space-y-2">
+              <div className="flex items-start justify-between gap-2">
+                <p className="text-sm font-medium text-white leading-tight">{ws.name}</p>
+                <span className="shrink-0 text-[10px] text-gray-500 font-mono">{ws.footprintM2.toLocaleString()} м²</span>
+              </div>
+              {cropSku ? (
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs text-emerald-300">{cropSku}</span>
+                    <span className="text-xs text-gray-500">{cropName}</span>
+                  </div>
+                  {seasonMult !== null && (
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="text-gray-500">Сезон:</span>
+                      <span className={`font-mono font-semibold ${multColor}`}>{Math.round(seasonMult * 100)}%</span>
+                      {seasonMult === 0 && <span className="text-red-500">позасезонно</span>}
+                    </div>
+                  )}
+                  {rotationStatus === 'optimal' && (
+                    <div className="text-[10px] text-emerald-400 flex items-center gap-1">
+                      <span>✓ Оптимальна ротація +15%</span>
+                    </div>
+                  )}
+                  {rotationStatus === 'mono' && (
+                    <div className="text-[10px] text-red-400 flex items-center gap-1">
+                      <span>✗ Монокультура −15%</span>
+                    </div>
+                  )}
+                  {rotationStatus === 'neutral' && (
+                    <div className="text-[10px] text-gray-500">— Нейтральна ротація</div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-xs text-gray-600 italic">Немає активного виробництва</p>
+              )}
+              <div className={cn("text-[10px] px-1.5 py-0.5 rounded w-fit", ws.isActive ? "text-emerald-500 bg-emerald-950" : "text-gray-600 bg-gray-800")}>
+                {ws.isActive ? "активний" : "не активний"}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── Main ──────────────────────────────────────────────────────────────────────
 
 const BASE_TABS: { key: Tab; label: string }[] = [
@@ -1516,6 +1608,7 @@ const BASE_TABS: { key: Tab; label: string }[] = [
   { key: "warehouse",  label: "Склад" },
   { key: "supply",     label: "Постачання" },
   { key: "production", label: "Фінанси" },
+  // "fields" is injected dynamically for AGRO_FARM
 ];
 
 export default function EnterpriseDetailClient({ enterpriseId, initialTab }: Props) {
@@ -1567,9 +1660,12 @@ export default function EnterpriseDetailClient({ enterpriseId, initialTab }: Pro
 
   const { enterprise, agroInfo, stats, logs, productionLogs = [] } = data;
   const isActive = enterprise.isOperational && !enterprise.isSeized && !enterprise.isFrozenByInspection && !enterprise.isLegallyFrozen;
-  const TABS = enterprise.type === "RETAIL_STORE"
-    ? [...BASE_TABS.slice(0, 4), { key: "showcase" as Tab, label: "🏪 Вітрина" }, ...BASE_TABS.slice(4)]
-    : BASE_TABS;
+  const TABS: { key: Tab; label: string }[] =
+    enterprise.type === "RETAIL_STORE"
+      ? [...BASE_TABS.slice(0, 4), { key: "showcase", label: "🏪 Вітрина" }, ...BASE_TABS.slice(4)]
+      : enterprise.type === "AGRO_FARM"
+      ? [...BASE_TABS, { key: "fields", label: "🌾 Поля" }]
+      : BASE_TABS;
 
   return (
     <div className="space-y-5">
@@ -1688,6 +1784,7 @@ export default function EnterpriseDetailClient({ enterpriseId, initialTab }: Pro
       {tab === "showcase"   && <ShowcaseTab enterpriseId={enterpriseId} onGoToSupply={() => setTab("supply")} />}
       {tab === "supply"     && <SupplyTab enterpriseId={enterpriseId} />}
       {tab === "production" && <LogsTab logs={logs} />}
+      {tab === "fields"     && <FieldsTab enterprise={enterprise} agroInfo={agroInfo} />}
     </div>
   );
 }

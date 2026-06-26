@@ -30,10 +30,13 @@ export class ProductionService {
   // Seasonal yield multipliers for AGRO_FARM crops
   // season index: 0=Spring(ticks 0-29), 1=Summer(30-59), 2=Autumn(60-89), 3=Winter(90-119)
   private static readonly AGRO_SEASON_MULTS: Record<string, [number, number, number, number]> = {
-    'RM-WHEAT':   [1.0, 0.8, 0.15, 0.0],
-    'RM-SUNFL':   [0.2, 1.0, 0.75, 0.0],
-    'RM-SUGBEET': [0.4, 0.8, 1.0,  0.0],
-    'RM-MILK':    [1.0, 0.9, 1.0,  0.75],
+    'RM-WHEAT':      [1.0, 0.8, 0.15, 0.0],
+    'RM-SUNFL':      [0.2, 1.0, 0.75, 0.0],
+    'RM-SUGBEET':    [0.4, 0.8, 1.0,  0.0],
+    'RM-CORN':       [0.3, 1.0, 0.80, 0.0],
+    'RM-MILK':       [1.0, 0.9, 1.0,  0.75],
+    'RM-LIVESTOCK':  [1.0, 1.0, 1.0,  0.80],
+    'SF-COMPOST':    [1.0, 1.0, 1.0,  1.00],
   };
 
   async processProduction(playerId: string, tickNumber?: bigint): Promise<{
@@ -57,6 +60,11 @@ export class ProductionService {
     // Pre-fetch EQ-IRRIGATION product ID for drought mitigation + summer bonus
     const irrigationProduct = await this.prisma.product.findFirst({
       where: { sku: 'EQ-IRRIGATION' }, select: { id: true },
+    });
+
+    // Pre-fetch SF-COMPOST product ID for organic soil bonus
+    const compostProduct = await this.prisma.product.findFirst({
+      where: { sku: 'SF-COMPOST' }, select: { id: true },
     });
 
     const enterprises = await this.prisma.enterprise.findMany({
@@ -126,11 +134,12 @@ export class ProductionService {
             const OPTIMAL_NEXT: Record<string, string> = {
               'RM-WHEAT': 'RM-SUNFL', 'RM-SUNFL': 'RM-SUGBEET', 'RM-SUGBEET': 'RM-WHEAT', 'RM-CORN': 'RM-WHEAT',
             };
+            const FIELD_CROPS = new Set(['RM-WHEAT', 'RM-SUNFL', 'RM-SUGBEET', 'RM-CORN']);
             const lastCrop = ent.landPlot?.lastCropSku;
             let rotationMult = 1.0;
-            if (cropSku !== 'RM-MILK') {
-              if (lastCrop === cropSku)                        rotationMult = 0.85; // monoculture penalty
-              else if (lastCrop && OPTIMAL_NEXT[lastCrop] === cropSku) rotationMult = 1.15; // optimal rotation bonus
+            if (FIELD_CROPS.has(cropSku)) {
+              if (lastCrop === cropSku)                                rotationMult = 0.85;
+              else if (lastCrop && OPTIMAL_NEXT[lastCrop] === cropSku) rotationMult = 1.15;
             }
 
             // EQ-IRRIGATION: drought mitigation + summer bonus
@@ -143,10 +152,14 @@ export class ProductionService {
             const irrigationBonus = (hasIrrigation && season === 1) ? 1.10 : 1.0;
 
             // AGRONOMIST: +8% per agronomist (max 2 give bonus)
-            const agronomists  = ent.employees.filter(e => e.profession === 'AGRONOMIST').length;
+            const agronomists    = ent.employees.filter(e => e.profession === 'AGRONOMIST').length;
             const agronomistMult = 1 + Math.min(agronomists, 2) * 0.08;
 
-            baseCapacity = ws.footprintM2 * soilMult * seasonMult * rotationMult * droughtMult * irrigationBonus * agronomistMult;
+            // Planting bonus: +20% if field crop order runs in first 5 ticks of spring
+            const tickInYear   = Number(tickNumber ?? 0n) % 120;
+            const plantingBonus = (FIELD_CROPS.has(cropSku) && tickInYear < 5) ? 1.20 : 1.0;
+
+            baseCapacity = ws.footprintM2 * soilMult * seasonMult * rotationMult * droughtMult * irrigationBonus * agronomistMult * plantingBonus;
           } else {
             baseCapacity = ws.maxCapacity;
           }
@@ -267,7 +280,7 @@ export class ProductionService {
             const isSameCrop = cropSku !== null && cropSku !== 'RM-MILK' && ent.landPlot.lastCropSku === cropSku;
             let   delta      = isSameCrop ? -0.05 : +0.02;
 
-            // Fertilizer: consume 1 kg → +0.5 soil quality boost this tick
+            // AG-FERTILIZER: consume 1 kg → +0.5 soil quality this tick
             if (fertProduct) {
               const fertInv = ent.inventory.find(i => i.productId === fertProduct.id);
               if (fertInv && fertInv.quantity >= 1) {
@@ -277,6 +290,18 @@ export class ProductionService {
                   data:  { quantity: { decrement: 1 } },
                 });
                 fertInv.quantity -= 1;
+              }
+            }
+            // SF-COMPOST (organic): consume 1 kg → +0.3 soil quality this tick
+            if (compostProduct) {
+              const compostInv = ent.inventory.find(i => i.productId === compostProduct.id);
+              if (compostInv && compostInv.quantity >= 1) {
+                delta += 0.3;
+                await this.prisma.enterpriseInventory.update({
+                  where: { id: compostInv.id },
+                  data:  { quantity: { decrement: 1 } },
+                });
+                compostInv.quantity -= 1;
               }
             }
 

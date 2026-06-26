@@ -208,6 +208,7 @@ enum LicenseType {
   AGRO_PERMIT            // AGRO_FARM, FOOD_PROCESSING
   MANUFACTURING_LICENSE  // TEXTILE_FACTORY
   RETAIL_PERMIT          // RETAIL_STORE
+  AGRO_INSURANCE         // Страхування AGRO_FARM від посухи та шкідників
 }
 
 enum LicenseStatus {

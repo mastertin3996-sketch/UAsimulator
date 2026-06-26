@@ -168,10 +168,13 @@ async function main() {
     { sku: 'AG-FERTILIZER',   name: 'Mineral Fertilizer', nameUa: 'Мінеральне добриво',  category: 'RAW_MATERIAL',   unit: 'kg',   baseWeightKg: 1 },
     { sku: 'RM-PESTICIDE',   name: 'Pesticide',           nameUa: 'Пестицид',             category: 'RAW_MATERIAL',   unit: 'kg',   baseWeightKg: 1 },
     { sku: 'EQ-IRRIGATION',  name: 'Irrigation System',   nameUa: 'Зрошувальна система',  category: 'EQUIPMENT_ITEM', unit: 'item', baseWeightKg: 800 },
-    { sku: 'SF-CORN-STARCH',      name: 'Corn Starch',       nameUa: 'Кукурудзяний крохмаль',  category: 'SEMI_FINISHED', unit: 'kg', baseWeightKg: 1 },
-    { sku: 'FG-CAKE',             name: 'Pastry Cake',       nameUa: 'Кондитерський виріб',    category: 'FINISHED_GOOD', unit: 'kg', baseWeightKg: 1 },
-    { sku: 'FG-CORN-SYRUP',       name: 'Corn Syrup',        nameUa: 'Кукурудзяний сироп',     category: 'FINISHED_GOOD', unit: 'kg', baseWeightKg: 1 },
-    { sku: 'FG-CONDENSED-MILK',   name: 'Condensed Milk',    nameUa: 'Згущене молоко',          category: 'FINISHED_GOOD', unit: 'kg', baseWeightKg: 1 },
+    { sku: 'SF-CORN-STARCH',      name: 'Corn Starch',       nameUa: 'Кукурудзяний крохмаль',  category: 'SEMI_FINISHED', unit: 'kg',   baseWeightKg: 1 },
+    { sku: 'FG-CAKE',             name: 'Pastry Cake',       nameUa: 'Кондитерський виріб',    category: 'FINISHED_GOOD', unit: 'kg',   baseWeightKg: 1 },
+    { sku: 'FG-CORN-SYRUP',       name: 'Corn Syrup',        nameUa: 'Кукурудзяний сироп',     category: 'FINISHED_GOOD', unit: 'kg',   baseWeightKg: 1 },
+    { sku: 'FG-CONDENSED-MILK',   name: 'Condensed Milk',    nameUa: 'Згущене молоко',         category: 'FINISHED_GOOD', unit: 'kg',   baseWeightKg: 1 },
+    { sku: 'RM-LIVESTOCK',        name: 'Livestock (Live)',  nameUa: 'Худоба (жива)',           category: 'RAW_MATERIAL',  unit: 'head', baseWeightKg: 250 },
+    { sku: 'SF-COMPOST',          name: 'Organic Compost',   nameUa: 'Органічний компост',      category: 'SEMI_FINISHED', unit: 'kg',   baseWeightKg: 1 },
+    { sku: 'FG-MEAT',             name: 'Processed Meat',    nameUa: "М'ясо оброблене",         category: 'FINISHED_GOOD', unit: 'kg',   baseWeightKg: 1 },
     // ── Будівельні матеріали (RAW_MATERIAL / SEMI_FINISHED) ─────────────────
     // Ціни-орієнтири 2026 (UAH/тонна або UAH/шт):
     //   Цемент М500:    3 800 UAH/т  (2.8 т = 1 м³ бетону М300)
@@ -307,6 +310,24 @@ async function main() {
       inputs:  [{ sku: 'RM-WHEAT', qty: 0.5 }],  // корм: 0.5 кг зерна → 0.6 л молока
       outputs: [{ sku: 'RM-MILK',      qty: 0.6 }],
     },
+    {
+      name: 'Livestock Farming',        enterpriseType: 'AGRO_FARM',
+      ticksToComplete: 3,               laborHoursPerUnit: 0.06,  baseQuality: 7.8, powerKwhPerUnit: 0.08,
+      inputs:  [{ sku: 'RM-WHEAT', qty: 1.2 }],  // корм: 1.2 кг зерна → 1 голова
+      outputs: [{ sku: 'RM-LIVESTOCK', qty: 1.0 }],
+    },
+    {
+      name: 'Composting',               enterpriseType: 'AGRO_FARM',
+      ticksToComplete: 2,               laborHoursPerUnit: 0.01,  baseQuality: 7.0, powerKwhPerUnit: 0.01,
+      inputs:  [{ sku: 'RM-WHEAT', qty: 0.15 }],  // органічна маса → компост
+      outputs: [{ sku: 'SF-COMPOST',   qty: 1.0 }],
+    },
+    {
+      name: 'Meat Processing',          enterpriseType: 'FOOD_PROCESSING',
+      ticksToComplete: 2,               laborHoursPerUnit: 0.10,  baseQuality: 7.5, powerKwhPerUnit: 0.20,
+      inputs:  [{ sku: 'RM-LIVESTOCK', qty: 1.4 }],  // 1.4 голови → 1 кг м'яса
+      outputs: [{ sku: 'FG-MEAT',      qty: 1.0 }],
+    },
     // TEXTILE_FACTORY — важка промисловість і деревообробка (поки найближчий тип)
     {
       name: 'Steel Smelting',         enterpriseType: 'TEXTILE_FACTORY',
@@ -384,8 +405,12 @@ async function main() {
     'FG-SUNOIL':  { baseUnits: 120,  priceUah:    85, elasticity: -1.0, qualityWeight: 0.50 }, // олія
     'FG-MILK':    { baseUnits: 350,  priceUah:    55, elasticity: -0.9, qualityWeight: 0.55 }, // молоко
     'FG-PASTA':   { baseUnits: 200,  priceUah:    48, elasticity: -1.0, qualityWeight: 0.45 }, // макарони
-    'FG-STEEL-P': { baseUnits:  80,  priceUah:    65, elasticity: -1.3, qualityWeight: 0.70 }, // сталеві вироби
-    'FG-FURN':    { baseUnits:   5,  priceUah:  8500, elasticity: -1.5, qualityWeight: 0.80 }, // меблі — еластичний (люксовий товар)
+    'FG-STEEL-P':         { baseUnits:  80,  priceUah:    65,  elasticity: -1.3, qualityWeight: 0.70 }, // сталеві вироби
+    'FG-FURN':            { baseUnits:   5,  priceUah:  8500, elasticity: -1.5, qualityWeight: 0.80 }, // меблі
+    'FG-MEAT':            { baseUnits: 180,  priceUah:   175, elasticity: -1.1, qualityWeight: 0.65 }, // м'ясо
+    'FG-CAKE':            { baseUnits:  80,  priceUah:   145, elasticity: -1.2, qualityWeight: 0.70 }, // кондитерські вироби
+    'FG-CORN-SYRUP':      { baseUnits:  40,  priceUah:    95, elasticity: -1.0, qualityWeight: 0.45 }, // кукурудзяний сироп
+    'FG-CONDENSED-MILK':  { baseUnits:  60,  priceUah:    88, elasticity: -1.0, qualityWeight: 0.55 }, // згущене молоко
   };
 
   // Попит з боку будівельної галузі (B2B-орієнтований, але частина йде через роздріб)
