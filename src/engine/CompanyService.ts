@@ -329,6 +329,7 @@ export class CompanyService {
       'EQ-SERVER':5,'EQ-PBXPHONE':2,'EQ-AIRCON':2,'EQ-COFFEEMACH':3,'EQ-OFFICESAFE':2,
       'EQ-CASHREGISTER':5,'EQ-POSTERMINAL':2,'EQ-SHELVING':8,'EQ-DISPLAYFRIDGE':6,
       'EQ-FREEZER':8,'EQ-CCTV':1,'EQ-SCALE':2,'EQ-PRICETAG':1,'EQ-SELFCHECKOUT':6,'EQ-CONVEYOR':10,
+      'EQ-MILLGRIND':25,'EQ-OILPRESS':20,'EQ-FURNACE':35,'EQ-TRACTOR':40,'EQ-SAWMILL':60,'EQ-DAIRYLINE':50,
     };
     const usedFloorM2 = workshop.equipment.reduce(
       (s, e) => s + (SKU_FP[e.catalogProduct.sku] ?? EQUIPMENT_UNIT_FOOTPRINT_M2), 0

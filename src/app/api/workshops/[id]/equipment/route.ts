@@ -55,9 +55,9 @@ export async function GET(_req: NextRequest, { params }: Params) {
     'EQ-DISPLAYFRIDGE':6,'EQ-FREEZER':    8,  'EQ-CCTV':       1,
     'EQ-SCALE':      2,  'EQ-PRICETAG':   1,  'EQ-SELFCHECKOUT':6,
     'EQ-CONVEYOR':   10,
-    // Factory
-    'EQ-MILLGRIND':  30, 'EQ-OILPRESS':  30,  'EQ-FURNACE':   30,
-    'EQ-TRACTOR':    30, 'EQ-SAWMILL':   30,  'EQ-DAIRYLINE': 30,
+    // Factory / Agro
+    'EQ-MILLGRIND':  25, 'EQ-OILPRESS':  20,  'EQ-FURNACE':   35,
+    'EQ-TRACTOR':    40, 'EQ-SAWMILL':   60,  'EQ-DAIRYLINE': 50,
   };
   const DEFAULT_FOOTPRINT = 30;
 
