@@ -411,7 +411,7 @@ export default function SettingsClient() {
           <Skeleton className="h-32 w-full" />
           <Skeleton className="h-48 w-full" />
         </div>
-      ) : !data ? (
+      ) : !data?.user ? (
         <p className="text-red-400">Не вдалося завантажити налаштування</p>
       ) : (
         <>
