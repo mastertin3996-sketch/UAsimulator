@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState, useCallback, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   ShoppingCart, TrendingUp, TrendingDown, Minus, Search,
   CheckCircle2, AlertCircle, Loader2, BookOpen, ArrowDownUp,
@@ -1058,9 +1058,9 @@ function StateOrdersTab() {
 
 type MarketTab = "offers" | "orderbook" | "myorders" | "stateorders";
 
-export default function MarketPage() {
-  const preselectId = typeof window !== "undefined"
-    ? new URLSearchParams(window.location.search).get("product") : null;
+function MarketPageInner() {
+  const searchParams = useSearchParams();
+  const preselectId = searchParams.get("product");
   const [tab, setTab] = useState<MarketTab>("offers");
 
   const TABS: { key: MarketTab; label: string; icon?: React.ElementType; emoji?: string }[] = [
@@ -1100,5 +1100,13 @@ export default function MarketPage() {
       {tab === "orderbook"   && <OrderBookPanel />}
       {tab === "myorders"    && <MyOrdersTab />}
     </div>
+  );
+}
+
+export default function MarketPage() {
+  return (
+    <Suspense>
+      <MarketPageInner />
+    </Suspense>
   );
 }
