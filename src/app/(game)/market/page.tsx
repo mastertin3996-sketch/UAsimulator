@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import {
   ShoppingCart, TrendingUp, TrendingDown, Minus, Search,
   CheckCircle2, AlertCircle, Loader2, BookOpen, ArrowDownUp,
@@ -86,6 +87,7 @@ function timeAgo(iso: string) {
 interface PricePoint { date: string; avgPrice: number; minPrice: number; maxPrice: number; volume: number; count: number }
 
 function OrderBookPanel() {
+  const router = useRouter();
   const [products,        setProducts]        = useState<Product[]>([]);
   const [selectedId,      setSelectedId]      = useState("");
   const [book,            setBook]            = useState<OrderBook | null>(null);
@@ -481,6 +483,7 @@ function OrderBookPanel() {
 // ─── Offers tab ───────────────────────────────────────────────────────────────
 
 function OffersTab() {
+  const router = useRouter();
   const [offers,           setOffers]           = useState<Offer[]>([]);
   const [isAccredited,     setIsAccredited]     = useState(false);
   const [loading,     setLoading]     = useState(true);
@@ -766,7 +769,16 @@ function OffersTab() {
               <span className="text-lg font-bold font-mono text-emerald-400">{formatNumber(buyQty * buyOffer.price)} ₴</span>
             </div>
             {buyError   && <div className="flex items-center gap-2 text-red-400 text-sm bg-red-950/40 border border-red-800/40 rounded-xl px-4 py-3"><AlertCircle size={15} />{buyError}</div>}
-            {buySuccess && <div className="flex items-center gap-2 text-emerald-400 text-sm bg-emerald-950/40 border border-emerald-800/40 rounded-xl px-4 py-3"><CheckCircle2 size={15} />{buySuccess}</div>}
+            {buySuccess && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-emerald-400 text-sm bg-emerald-950/40 border border-emerald-800/40 rounded-xl px-4 py-3">
+                  <CheckCircle2 size={15} />{buySuccess}
+                </div>
+                <Button variant="outline" className="w-full" onClick={() => router.back()}>
+                  ← Повернутись назад
+                </Button>
+              </div>
+            )}
             <div className="flex gap-3">
               <Button variant="outline" className="flex-1" onClick={() => setBuyOffer(null)}>Скасувати</Button>
               <Button className="flex-1" onClick={handleBuy} disabled={buying || !buyEntId || buyQty < buyOffer.minOrder}>
