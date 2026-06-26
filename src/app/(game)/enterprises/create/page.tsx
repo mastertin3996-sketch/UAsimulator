@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import {
   ArrowLeft, ArrowRight, Check, Building2, MapPin, Factory,
   Layers, Users, Zap, AlertCircle, ChevronRight, Loader2,
@@ -457,8 +457,7 @@ function StepSuccess({ id, name }: { id: string; name: string }) {
 // ─── Main Wizard ──────────────────────────────────────────────────────────────
 
 export default function CreateEnterprisePage() {
-  const router       = useRouter();
-  const searchParams = useSearchParams();
+  const router  = useRouter();
   const [step,  setStep]  = useState(1);
   const [city,  setCity]  = useState<City | null>(null);
   const [plotId, setPlotId] = useState("");
@@ -471,8 +470,9 @@ export default function CreateEnterprisePage() {
 
   // Pre-fill from land page: skip steps 1 & 2
   useEffect(() => {
-    const pid    = searchParams.get("plotId");
-    const action = searchParams.get("action") as "buy" | "lease" | null;
+    const params = new URLSearchParams(window.location.search);
+    const pid    = params.get("plotId");
+    const action = params.get("action") as "buy" | "lease" | null;
     if (!pid) return;
     fetch(`/api/land?plotId=${pid}`)
       .then(r => r.json())
@@ -481,12 +481,11 @@ export default function CreateEnterprisePage() {
         if (!plot) return;
         setPlotId(pid);
         setPlotAction(action ?? "lease");
-        // Minimal City object sufficient for StepType & StepConfirm
         setCity({ id: plot.cityId, name: plot.cityName, nameUa: plot.cityNameUa ?? plot.cityName, region: plot.region ?? "", population: 0, wageBaselineUah: 0, energyTariffUah: 0, demandCoefficient: 1, availablePlots: 0 });
         setStep(3);
       })
-      .catch(() => {/* fallback to normal flow */});
-  }, [searchParams]);
+      .catch(() => {});
+  }, []);
 
   const STEPS = [
     { n: 1, label: "Місто" },
