@@ -255,25 +255,25 @@ async function main() {
       name: 'Wheat Growing',            enterpriseType: 'AGRO_FARM',
       ticksToComplete: 3,               laborHoursPerUnit: 0.006, baseQuality: 7.5, powerKwhPerUnit: 0.01,
       inputs:  [],
-      outputs: [{ sku: 'RM-WHEAT',     qty: 1.0 }],
+      outputs: [{ sku: 'RM-WHEAT',     qty: 15.0 }],
     },
     {
       name: 'Sunflower Growing',        enterpriseType: 'AGRO_FARM',
       ticksToComplete: 4,               laborHoursPerUnit: 0.007, baseQuality: 7.5, powerKwhPerUnit: 0.01,
       inputs:  [],
-      outputs: [{ sku: 'RM-SUNFL',     qty: 1.0 }],
+      outputs: [{ sku: 'RM-SUNFL',     qty: 8.0 }],
     },
     {
       name: 'Sugar Beet Growing',       enterpriseType: 'AGRO_FARM',
       ticksToComplete: 4,               laborHoursPerUnit: 0.005, baseQuality: 7.2, powerKwhPerUnit: 0.008,
       inputs:  [],
-      outputs: [{ sku: 'RM-SUGBEET',   qty: 1.0 }],
+      outputs: [{ sku: 'RM-SUGBEET',   qty: 50.0 }],
     },
     {
       name: 'Dairy Farming',            enterpriseType: 'AGRO_FARM',
       ticksToComplete: 1,               laborHoursPerUnit: 0.04,  baseQuality: 8.5, powerKwhPerUnit: 0.06,
       inputs:  [],
-      outputs: [{ sku: 'RM-MILK',      qty: 1.0 }],
+      outputs: [{ sku: 'RM-MILK',      qty: 6.0 }],
     },
     // TEXTILE_FACTORY — важка промисловість і деревообробка (поки найближчий тип)
     {
