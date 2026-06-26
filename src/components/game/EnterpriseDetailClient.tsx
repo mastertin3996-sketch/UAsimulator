@@ -32,6 +32,10 @@ const SKU_EMOJI: Record<string, string> = {
   "EQ-CASHREGISTER":"🖥️","EQ-POSTERMINAL":"💳","EQ-SHELVING":"🗄️",
   "EQ-DISPLAYFRIDGE":"❄️","EQ-FREEZER":"🧊","EQ-CCTV":"📷",
   "EQ-SCALE":"⚖️","EQ-PRICETAG":"🏷️","EQ-SELFCHECKOUT":"🤖","EQ-CONVEYOR":"🔄",
+  // Office
+  "EQ-DESK":"🪑","EQ-OFFCHAIR":"💺","EQ-COMPUTER":"🖥️","EQ-PRINTER":"🖨️",
+  "EQ-PROJECTOR":"📽️","EQ-SERVER":"🗄️","EQ-PBXPHONE":"☎️",
+  "EQ-AIRCON":"❄️","EQ-COFFEEMACH":"☕","EQ-OFFICESAFE":"🔒",
 };
 
 function productEmoji(sku: string): string {
