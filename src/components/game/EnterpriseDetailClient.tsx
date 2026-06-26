@@ -632,9 +632,7 @@ function BuyEquipmentModal({
 }: { workshopId: string; workshopName: string; onBought: () => void; onClose: () => void }) {
   const [catalog,  setCatalog]  = useState<EquipCatalogItem[]>([]);
   const [freeM2,   setFreeM2]   = useState(0);
-  const [maxSlots, setMaxSlots] = useState(0);
   const [selected, setSelected] = useState<EquipCatalogItem | null>(null);
-  const [price,    setPrice]    = useState("");
   const [loading,  setLoading]  = useState(true);
   const [saving,   setSaving]   = useState(false);
   const [err,      setErr]      = useState("");
@@ -642,25 +640,17 @@ function BuyEquipmentModal({
   useEffect(() => {
     fetch(`/api/workshops/${workshopId}/equipment`)
       .then((r) => r.json())
-      .then((d) => { setCatalog(d.catalog ?? []); setFreeM2(d.freeM2 ?? 0); setMaxSlots(d.maxSlots ?? 0); setLoading(false); })
+      .then((d) => { setCatalog(d.catalog ?? []); setFreeM2(d.freeM2 ?? 0); setLoading(false); })
       .catch(() => setLoading(false));
   }, [workshopId]);
 
-  function selectItem(item: EquipCatalogItem) {
-    setSelected(item);
-    setPrice(item.basePrice.toFixed(0));
-    setErr("");
-  }
-
   async function buy() {
     if (!selected) return;
-    const priceNum = Number(price);
-    if (!priceNum || priceNum <= 0) { setErr("Введіть ціну придбання"); return; }
     setSaving(true); setErr("");
     const res = await fetch(`/api/workshops/${workshopId}/equipment`, {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ productId: selected.id, priceUah: priceNum }),
+      body:    JSON.stringify({ productId: selected.id, priceUah: selected.basePrice }),
     });
     const d = await res.json();
     setSaving(false);
@@ -685,7 +675,7 @@ function BuyEquipmentModal({
           {catalog.map((item) => (
             <button
               key={item.id}
-              onClick={() => item.canBuy ? selectItem(item) : undefined}
+              onClick={() => item.canBuy ? (setSelected(item), setErr("")) : undefined}
               disabled={!item.canBuy}
               className={cn(
                 "w-full flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all",
@@ -708,19 +698,20 @@ function BuyEquipmentModal({
 
         {selected && (
           <div className="px-5 pb-4 pt-3 border-t border-gray-800 space-y-3 shrink-0">
-            <div>
-              <label className="text-xs text-gray-500 mb-1 block">Ціна придбання (₴)</label>
-              <input
-                type="number" min={1} value={price}
-                onChange={(e) => setPrice(e.target.value)}
-                className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500"
-              />
-              <p className="text-xs text-gray-600 mt-1">Вартість ТО = 3% від ціни за обслуговування</p>
+            <div className="flex items-center justify-between rounded-lg bg-gray-900 border border-gray-800 px-4 py-3">
+              <div>
+                <p className="text-xs text-gray-500">Вартість</p>
+                <p className="text-base font-semibold text-white">₴{selected.basePrice.toLocaleString("uk")}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-gray-500">ТО/обслуговування</p>
+                <p className="text-sm text-amber-400">₴{(selected.basePrice * 0.03).toLocaleString("uk", { maximumFractionDigits: 0 })}/міс</p>
+              </div>
             </div>
             {err && <p className="text-sm text-red-400">{err}</p>}
             <div className="flex gap-2">
               <Button variant="outline" className="flex-1" onClick={onClose} disabled={saving}>Скасувати</Button>
-              <Button className="flex-1 bg-emerald-600 hover:bg-emerald-500" onClick={buy} disabled={saving || maxSlots === 0}>
+              <Button className="flex-1 bg-emerald-600 hover:bg-emerald-500" onClick={buy} disabled={saving}>
                 {saving ? <Loader2 size={13} className="animate-spin mr-1" /> : <Plus size={13} className="mr-1" />}
                 Придбати
               </Button>
