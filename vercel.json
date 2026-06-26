@@ -5,6 +5,7 @@
   "devCommand": "next dev",
   "installCommand": "npm install",
   "framework": "nextjs",
+  "alias": ["uaeconomy-api.vercel.app"],
   "crons": [
     {
       "path": "/api/cron/tick",
