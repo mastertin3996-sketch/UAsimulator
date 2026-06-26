@@ -219,41 +219,43 @@ export async function GET() {
   // ── Compliance violation reasons ─────────────────────────────────────
   const violationReasons: string[] = [];
   if (compliance && compliance.consecutiveViolations > 0) {
-    const [unpaidTaxes, empData, missedLoans, entData] = await Promise.all([
-      prisma.taxRecord.aggregate({ where: { playerId, isPaid: false }, _sum: { totalUah: true } }),
-      prisma.employee.findMany({
-        where: { enterprise: { playerId } },
-        select: { salaryUah: true, enterprise: { select: { landPlot: { select: { city: { select: { wageBaselineUah: true } } } } } } },
-      }),
-      prisma.loan.aggregate({ where: { playerId, status: "ACTIVE" }, _sum: { missedPayments: true } }),
-      prisma.enterprise.findMany({
-        where: { playerId, isOperational: true },
-        select: { id: true, type: true, name: true },
-      }),
-    ]);
+    try {
+      const [unpaidTaxes, missedLoans, entData] = await Promise.all([
+        prisma.taxRecord.aggregate({ where: { playerId, isPaid: false }, _sum: { totalUah: true } }),
+        prisma.loan.aggregate({ where: { playerId, status: "ACTIVE" }, _sum: { missedPayments: true } }),
+        prisma.enterprise.findMany({
+          where: { playerId, isOperational: true },
+          select: { id: true, type: true, name: true,
+            employees: { select: { salaryUah: true } },
+            landPlot:  { select: { city: { select: { wageBaselineUah: true } } } },
+          },
+        }),
+      ]);
 
-    if (Number(unpaidTaxes._sum.totalUah ?? 0) > 0)
-      violationReasons.push(`Несплачені податки: ₴${Number(unpaidTaxes._sum.totalUah).toFixed(0)}`);
+      if (Number(unpaidTaxes._sum.totalUah ?? 0) > 0)
+        violationReasons.push(`Несплачені податки: ₴${Number(unpaidTaxes._sum.totalUah).toFixed(0)}`);
 
-    const underpaid = empData.filter((e: typeof empData[0]) => {
-      const baseline = Number(e.enterprise.landPlot.city.wageBaselineUah);
-      return Number(e.salaryUah) < baseline * 0.95;
-    });
-    if (underpaid.length > 0)
-      violationReasons.push(`${underpaid.length} працівників з зарплатою нижче мінімуму міста`);
+      if (Number(missedLoans._sum.missedPayments ?? 0) > 0)
+        violationReasons.push(`Пропущені платежі по кредитах: ${missedLoans._sum.missedPayments}`);
 
-    if (Number(missedLoans._sum.missedPayments ?? 0) > 0)
-      violationReasons.push(`Пропущені платежі по кредитах: ${missedLoans._sum.missedPayments}`);
-
-    const LICENSE_REQUIRED: Record<string, string> = {
-      RETAIL_STORE: "TRADE_LICENSE", FOOD_PROCESSING: "FOOD_SAFETY",
-      AGRO_FARM: "AGRO_PERMIT", CONSTRUCTION: "CONSTRUCTION_PERMIT",
-    };
-    for (const ent of entData) {
-      const required = LICENSE_REQUIRED[ent.type];
-      if (!required) continue;
-      const lic = await prisma.license.findFirst({ where: { enterpriseId: ent.id, type: required as any, status: "ACTIVE" } });
-      if (!lic) violationReasons.push(`"${ent.name}": немає ліцензії ${required}`);
+      const LICENSE_REQUIRED: Record<string, string> = {
+        RETAIL_STORE: "TRADE_LICENSE", FOOD_PROCESSING: "FOOD_SAFETY",
+        AGRO_FARM: "AGRO_PERMIT", CONSTRUCTION: "CONSTRUCTION_PERMIT",
+      };
+      for (const ent of entData) {
+        const baseline = Number(ent.landPlot?.city?.wageBaselineUah ?? 0);
+        if (baseline > 0) {
+          const underpaid = ent.employees.filter(e => Number(e.salaryUah) < baseline * 0.95).length;
+          if (underpaid > 0)
+            violationReasons.push(`"${ent.name}": ${underpaid} працівників з зарплатою нижче мінімуму`);
+        }
+        const required = LICENSE_REQUIRED[ent.type];
+        if (!required) continue;
+        const lic = await prisma.license.findFirst({ where: { enterpriseId: ent.id, type: required as any, status: "ACTIVE" } });
+        if (!lic) violationReasons.push(`"${ent.name}": немає ліцензії ${required}`);
+      }
+    } catch (e) {
+      console.error("[Dashboard] violation check failed:", e);
     }
   }
 
