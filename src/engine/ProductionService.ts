@@ -47,11 +47,18 @@ export class ProductionService {
       select: { id: true },
     });
 
+    // Pre-fetch cities affected by active DROUGHT events
+    const droughtRows = await this.prisma.macroEvent.findMany({
+      where:  { type: 'DROUGHT', status: 'ACTIVE' },
+      select: { affectedCityId: true },
+    });
+    const droughtCities = new Set<string>(droughtRows.map(d => d.affectedCityId).filter(Boolean) as string[]);
+
     const enterprises = await this.prisma.enterprise.findMany({
       where:   { playerId, isOperational: true },
       include: {
         employees: true,
-        landPlot: { select: { id: true, soilQuality: true, lastCropSku: true } },
+        landPlot: { select: { id: true, soilQuality: true, lastCropSku: true, cityId: true } },
         workshops: {
           where:   { isActive: true },
           include: {
@@ -115,7 +122,10 @@ export class ProductionService {
             const rotationMult =
               cropSku !== 'RM-MILK' && ent.landPlot?.lastCropSku === cropSku ? 0.85 : 1.0;
 
-            baseCapacity = ws.footprintM2 * soilMult * seasonMult * rotationMult;
+            // Drought: −60% yield in affected city
+            const droughtMult = (ent.landPlot && droughtCities.has(ent.landPlot.cityId)) ? 0.4 : 1.0;
+
+            baseCapacity = ws.footprintM2 * soilMult * seasonMult * rotationMult * droughtMult;
           } else {
             baseCapacity = ws.maxCapacity;
           }

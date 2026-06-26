@@ -445,7 +445,20 @@ export class MarketService {
    * Об'єднує попит по всіх містах для кожного продукту і скуповує доступні SELL-ордери
    * за ціною ≤ referencePrice, симулюючи кінцевих споживачів та дистриб'юторів.
    */
-  async matchNpcMarketOrders(): Promise<number> {
+  // Seasonal NPC demand multipliers [spring, summer, autumn, winter]
+  private static readonly SEASONAL_NPC_DEMAND: Record<string, [number, number, number, number]> = {
+    'FG-BREAD':        [1.0, 0.9, 1.0, 1.3],
+    'FG-MILK':         [1.0, 0.8, 1.0, 1.2],
+    'FG-PASTA':        [0.9, 0.8, 1.0, 1.2],
+    'FG-SUNOIL':       [0.9, 1.3, 1.1, 0.8],
+    'SF-SUGAR':        [0.9, 1.2, 1.1, 0.9],
+    'SF-FLOUR':        [0.9, 0.9, 1.1, 1.2],
+    'SF-CORN-STARCH':  [1.0, 1.1, 1.0, 0.9],
+  };
+
+  async matchNpcMarketOrders(tickNumber?: bigint): Promise<number> {
+    const season = Math.floor((Number(tickNumber ?? 0n) % 120) / 30);
+
     // Aggregate total NPC demand by product across all cities
     const demands = await this.prisma.npcDemand.groupBy({
       by:     ['productId'],
@@ -453,10 +466,17 @@ export class MarketService {
       _avg:   { referencePrice: true },
     });
 
+    // SKU map for seasonal demand lookup
+    const products = await this.prisma.product.findMany({ select: { id: true, sku: true } });
+    const skuMap   = new Map(products.map(p => [p.id, p.sku]));
+
     let totalTraded = 0;
 
     for (const d of demands) {
-      const totalDemand  = d._sum.baseUnitsPerDay ?? 0;
+      const baseDemand = d._sum.baseUnitsPerDay ?? 0;
+      const sku        = skuMap.get(d.productId) ?? '';
+      const seasonMult = MarketService.SEASONAL_NPC_DEMAND[sku]?.[season] ?? 1.0;
+      const totalDemand = baseDemand * seasonMult;
       const refPrice     = new Decimal(String(d._avg.referencePrice ?? 0));
       if (totalDemand <= 0 || refPrice.lte(0)) continue;
 

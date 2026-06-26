@@ -85,6 +85,14 @@ interface FinancialLog {
   description: string; recordedAt: string; tickNumber: string;
 }
 
+interface AgroInfo {
+  soilQuality:   number;
+  lastCropSku:   string | null;
+  currentSeason: string;
+  seasonIndex:   number;
+  tickNumber:    number;
+}
+
 interface EnterpriseData {
   id: string; name: string; type: string;
   footprintM2: number; totalFloorAreaM2: number; usedFloorAreaM2: number;
@@ -1513,6 +1521,7 @@ export default function EnterpriseDetailClient({ enterpriseId, initialTab }: Pro
   const [tab,  setTab]  = useState<Tab>(initialTab ?? "management");
   const [data, setData] = useState<{
     enterprise: EnterpriseData;
+    agroInfo: AgroInfo | null;
     stats: { salaryPerTick: number; rentPerTick: number; avgEfficiency: number; avgMood: number };
     logs: FinancialLog[];
     productionLogs: { tickNumber: string; unitsProduced: number; avgQuality: number }[];
@@ -1555,7 +1564,7 @@ export default function EnterpriseDetailClient({ enterpriseId, initialTab }: Pro
     );
   }
 
-  const { enterprise, stats, logs, productionLogs = [] } = data;
+  const { enterprise, agroInfo, stats, logs, productionLogs = [] } = data;
   const isActive = enterprise.isOperational && !enterprise.isSeized && !enterprise.isFrozenByInspection && !enterprise.isLegallyFrozen;
   const TABS = enterprise.type === "RETAIL_STORE"
     ? [...BASE_TABS.slice(0, 4), { key: "showcase" as Tab, label: "🏪 Вітрина" }, ...BASE_TABS.slice(4)]
@@ -1595,6 +1604,59 @@ export default function EnterpriseDetailClient({ enterpriseId, initialTab }: Pro
           </div>
         ))}
       </div>
+
+      {/* ─── AGRO_FARM агро-показники ──────────────────────────────────────── */}
+      {enterprise.type === "AGRO_FARM" && agroInfo && (
+        <div className="rounded-xl border border-emerald-800/40 bg-emerald-950/20 p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Leaf size={14} className="text-emerald-400" />
+            <span className="text-xs font-semibold text-emerald-300 uppercase tracking-wider">Агро-показники</span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {/* Soil quality */}
+            <div className="rounded-lg border border-gray-800 bg-gray-900 p-3 space-y-1.5">
+              <p className="text-[10px] text-gray-500 uppercase tracking-wider">Якість ґрунту</p>
+              <p className={cn("text-lg font-bold font-mono",
+                agroInfo.soilQuality >= 8 ? "text-emerald-400" :
+                agroInfo.soilQuality >= 5 ? "text-amber-400" : "text-red-400"
+              )}>{agroInfo.soilQuality.toFixed(1)}<span className="text-xs text-gray-500 font-normal ml-1">/ 10</span></p>
+              <div className="w-full h-1.5 rounded-full bg-gray-800">
+                <div className="h-full rounded-full bg-emerald-500 transition-all"
+                  style={{ width: `${(agroInfo.soilQuality / 10) * 100}%` }} />
+              </div>
+            </div>
+            {/* Season */}
+            <div className="rounded-lg border border-gray-800 bg-gray-900 p-3 space-y-1">
+              <p className="text-[10px] text-gray-500 uppercase tracking-wider">Поточний сезон</p>
+              <p className={cn("text-lg font-bold",
+                agroInfo.seasonIndex === 0 ? "text-emerald-400" :
+                agroInfo.seasonIndex === 1 ? "text-yellow-400" :
+                agroInfo.seasonIndex === 2 ? "text-orange-400" : "text-blue-400"
+              )}>{agroInfo.currentSeason}</p>
+              <p className="text-[10px] text-gray-600">Тік {agroInfo.tickNumber % 120}/120</p>
+            </div>
+            {/* Last crop */}
+            <div className="rounded-lg border border-gray-800 bg-gray-900 p-3 space-y-1">
+              <p className="text-[10px] text-gray-500 uppercase tracking-wider">Остання культура</p>
+              <p className="text-sm font-mono text-white">{agroInfo.lastCropSku ?? "—"}</p>
+              <p className="text-[10px] text-gray-600">{agroInfo.lastCropSku ? "Можлива ротація" : "Не виявлено"}</p>
+            </div>
+            {/* Season multipliers reference */}
+            <div className="rounded-lg border border-gray-800 bg-gray-900 p-3 space-y-1">
+              <p className="text-[10px] text-gray-500 uppercase tracking-wider">Врожайність ×</p>
+              {[['RM-WHEAT', [1.0,0.8,0.15,0.0]], ['RM-SUNFL', [0.2,1.0,0.75,0.0]], ['RM-MILK', [1.0,0.9,1.0,0.75]]].map(([sku, mults]) => (
+                <div key={sku as string} className="flex items-center justify-between text-[10px]">
+                  <span className="text-gray-500">{(sku as string).replace('RM-','')}</span>
+                  <span className={cn("font-mono font-medium",
+                    (mults as number[])[agroInfo.seasonIndex] >= 0.8 ? "text-emerald-400" :
+                    (mults as number[])[agroInfo.seasonIndex] >= 0.3 ? "text-amber-400" : "text-red-400"
+                  )}>{((mults as number[])[agroInfo.seasonIndex] * 100).toFixed(0)}%</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex gap-1 border-b border-gray-800 overflow-x-auto">
         {TABS.map(({ key, label }) => (

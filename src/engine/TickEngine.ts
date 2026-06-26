@@ -230,7 +230,7 @@ export class TickEngine {
     }
 
     // ── 3a2. NPC market buying — скуповує SELL-ордери до referencePrice ──
-    const npcMarketUnits = await this.market.matchNpcMarketOrders()
+    const npcMarketUnits = await this.market.matchNpcMarketOrders(tickNumber)
       .catch(e => { console.error(`[Tick ${tickNumber}] NPC market buy failed:`, e); return 0; });
     if (npcMarketUnits > 0) {
       console.log(`[Tick ${tickNumber}] NPC market: bought ${npcMarketUnits.toFixed(0)} units.`);
@@ -294,6 +294,7 @@ export class TickEngine {
           POWER_OUTAGE:         { title: 'Відключення електрики', body: 'Аварійне відключення в регіоні. Підприємства сплачують надбавку за дизель протягом кількох тіків.' },
           LOGISTICS_BOTTLENECK: { title: 'Логістичні затримки',   body: 'Затор на маршруті. Поставки затримуються на 2 тіки.' },
           GRAIN_MARKET_BOOM:    { title: 'Зерновий бум',          body: 'Попит на зерно зріс. Агропідприємства отримують +35% до виручки протягом 5 тіків.' },
+          DROUGHT:              { title: 'Посуха',                 body: 'Посуха у регіоні. AGRO_FARM-підприємства виробляють −60% від норми протягом 8 тіків.' },
         };
         const label = macroLabels[regulationSummary.macroEvent.type] ?? { title: 'Макро-подія', body: regulationSummary.macroEvent.description ?? '' };
         const allPlayers = await this.db.player.findMany({ where: { isBankrupt: false }, select: { id: true } });

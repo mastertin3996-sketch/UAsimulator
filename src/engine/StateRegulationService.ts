@@ -74,6 +74,7 @@ const GRAIN_BOOM_MULTIPLIER   = 1.35;
 const GRAIN_BOOM_TICKS        = 5n;
 const POWER_OUTAGE_TICKS      = 3n;
 const LOGISTICS_DELAY_TICKS   = 2;        // extra ticks added to deliveries
+const DROUGHT_TICKS           = 8n;       // тривалість посухи
 
 // ── Return types ─────────────────────────────────────────────────────────────
 
@@ -483,14 +484,16 @@ export class StateRegulationService {
 
     const r = Math.random();
     const type: MacroEventType =
-      r < 0.40 ? 'POWER_OUTAGE' :
-      r < 0.75 ? 'LOGISTICS_BOTTLENECK' :
-                 'GRAIN_MARKET_BOOM';
+      r < 0.35 ? 'POWER_OUTAGE' :
+      r < 0.65 ? 'LOGISTICS_BOTTLENECK' :
+      r < 0.85 ? 'GRAIN_MARKET_BOOM' :
+                 'DROUGHT';
 
     switch (type) {
       case 'POWER_OUTAGE':          return this.createPowerOutageEvent(currentTick);
       case 'LOGISTICS_BOTTLENECK':  return this.createLogisticsBottleneckEvent(currentTick);
       case 'GRAIN_MARKET_BOOM':     return this.createGrainBoomEvent(currentTick);
+      case 'DROUGHT':               return this.createDroughtEvent(currentTick);
     }
   }
 
@@ -588,6 +591,25 @@ export class StateRegulationService {
     return { fired: true, eventId: event.id, type: 'GRAIN_MARKET_BOOM', description };
   }
 
+  private async createDroughtEvent(currentTick: bigint): Promise<MacroEventResult> {
+    const agroEnt = await this.db.enterprise.findFirst({
+      where:   { isOperational: true, type: 'AGRO_FARM' },
+      include: { landPlot: { select: { cityId: true, city: { select: { nameUa: true } } } } },
+      skip:    Math.floor(Math.random() * 5),
+    });
+    if (!agroEnt) return { fired: false };
+
+    const cityId   = agroEnt.landPlot.cityId;
+    const cityName = agroEnt.landPlot.city.nameUa;
+    const description = `Посуха у ${cityName}: врожайність AGRO_FARM знижена на 60% протягом ${DROUGHT_TICKS} тіків.`;
+
+    const event = await this.db.macroEvent.create({
+      data: { type: 'DROUGHT', affectedCityId: cityId, startTick: currentTick, endTick: currentTick + DROUGHT_TICKS, description },
+    });
+
+    return { fired: true, eventId: event.id, type: 'DROUGHT', description };
+  }
+
   // ── Private: apply active event effects each tick ─────────────────────────
 
   private async applyActiveMacroEffects(currentTick: bigint): Promise<number> {
@@ -612,6 +634,8 @@ export class StateRegulationService {
         );
       }
       // LOGISTICS_BOTTLENECK effect applied once at creation (delivery time increment)
+      // DROUGHT yield reduction is applied per-enterprise in ProductionService
+      if (event.type === 'DROUGHT') effectsApplied += 1;
     }
 
     return effectsApplied;

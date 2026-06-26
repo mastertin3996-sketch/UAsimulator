@@ -165,7 +165,8 @@ async function main() {
     { sku: 'FG-STEEL-P', name: 'Steel Products',     nameUa: 'Сталеві вироби',   category: 'FINISHED_GOOD', unit: 'kg',    baseWeightKg: 1 },
     { sku: 'FG-FURN',    name: 'Furniture',          nameUa: 'Меблі',            category: 'FINISHED_GOOD', unit: 'unit',  baseWeightKg: 45 },
     // ── Агровитратні матеріали ────────────────────────────────────────────────
-    { sku: 'AG-FERTILIZER', name: 'Mineral Fertilizer', nameUa: 'Мінеральне добриво', category: 'RAW_MATERIAL', unit: 'kg', baseWeightKg: 1 },
+    { sku: 'AG-FERTILIZER',   name: 'Mineral Fertilizer', nameUa: 'Мінеральне добриво',  category: 'RAW_MATERIAL',  unit: 'kg', baseWeightKg: 1 },
+    { sku: 'SF-CORN-STARCH',  name: 'Corn Starch',        nameUa: 'Кукурудзяний крохмаль', category: 'SEMI_FINISHED', unit: 'kg', baseWeightKg: 1 },
     // ── Будівельні матеріали (RAW_MATERIAL / SEMI_FINISHED) ─────────────────
     // Ціни-орієнтири 2026 (UAH/тонна або UAH/шт):
     //   Цемент М500:    3 800 UAH/т  (2.8 т = 1 м³ бетону М300)
@@ -251,6 +252,12 @@ async function main() {
       ticksToComplete: 1,             laborHoursPerUnit: 0.07, baseQuality: 8.2, powerKwhPerUnit: 0.10,
       inputs:  [{ sku: 'RM-MILK',    qty: 1.05 }],
       outputs: [{ sku: 'FG-MILK',    qty: 1.0 }],
+    },
+    {
+      name: 'Corn Starch Milling',    enterpriseType: 'FOOD_PROCESSING',
+      ticksToComplete: 2,             laborHoursPerUnit: 0.05, baseQuality: 7.5, powerKwhPerUnit: 0.12,
+      inputs:  [{ sku: 'RM-CORN',    qty: 1.1 }],
+      outputs: [{ sku: 'SF-CORN-STARCH', qty: 1.0 }],
     },
     // AGRO_FARM — рослинництво і тваринництво
     {

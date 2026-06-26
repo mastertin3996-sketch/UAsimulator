@@ -26,6 +26,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
         select: {
           id: true, cadastralNumber: true, totalAreaM2: true, usedAreaM2: true,
           status: true, monthlyLeaseCostUah: true, purchasePriceUah: true,
+          soilQuality: true, lastCropSku: true,
           city: { select: { id: true, name: true, nameUa: true, region: true, energyTariffUah: true } },
         },
       },
@@ -93,6 +94,22 @@ export async function GET(_req: NextRequest, { params }: Params) {
     select: { id: true, workshopId: true, recipeId: true, tickNumber: true, unitsProduced: true, avgQuality: true, recordedAt: true },
   });
 
+  // AGRO_FARM: compute current season for UI
+  const currentTick = await prisma.gameTick.findFirst({
+    orderBy: { tickNumber: "desc" },
+    select:  { tickNumber: true },
+  });
+  const tickNum   = Number(currentTick?.tickNumber ?? 0);
+  const seasonIdx = Math.floor((tickNum % 120) / 30);
+  const SEASON_NAMES_UA = ['Весна', 'Літо', 'Осінь', 'Зима'];
+  const agroInfo = enterprise.type === "AGRO_FARM" ? {
+    soilQuality:   enterprise.landPlot.soilQuality,
+    lastCropSku:   enterprise.landPlot.lastCropSku,
+    currentSeason: SEASON_NAMES_UA[seasonIdx],
+    seasonIndex:   seasonIdx,
+    tickNumber:    tickNum,
+  } : null;
+
   const TICKS_PER_MONTH = 30;
   const salaryPerTick = enterprise.employees.reduce((s, emp) => s + Number(emp.salaryUah) * 1.22, 0) / TICKS_PER_MONTH;
   const rentPerTick = Number(enterprise.landPlot.monthlyLeaseCostUah) / TICKS_PER_MONTH;
@@ -141,6 +158,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
         expiresAtTick: l.expiresAtTick.toString(),
       })),
     },
+    agroInfo,
     stats: { salaryPerTick, rentPerTick, avgEfficiency, avgMood },
     logs: logs.map((l) => ({ ...l, amountUah: Number(l.amountUah), tickNumber: l.tickNumber.toString() })),
     productionLogs: productionLogs.map((l) => ({ ...l, tickNumber: l.tickNumber.toString() })),

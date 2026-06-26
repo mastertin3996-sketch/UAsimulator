@@ -220,6 +220,7 @@ enum MacroEventType {
   POWER_OUTAGE           // Аварійне відключення електроенергії
   LOGISTICS_BOTTLENECK   // Затримки на маршруті
   GRAIN_MARKET_BOOM      // Ціновий спалах на зернові
+  DROUGHT                // Посуха: AGRO_FARM −60% врожайності у місті
 }
 
 enum MacroEventStatus {
