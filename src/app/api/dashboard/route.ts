@@ -256,8 +256,10 @@ export async function GET() {
         violationReasons.push(`"${name}": ${count} працівників з зарплатою нижче мінімуму`);
 
       const LICENSE_REQUIRED: Record<string, string> = {
-        RETAIL_STORE: "TRADE_LICENSE", FOOD_PROCESSING: "FOOD_SAFETY",
-        AGRO_FARM: "AGRO_PERMIT", CONSTRUCTION: "CONSTRUCTION_PERMIT",
+        AGRO_FARM:       "AGRO_PERMIT",
+        FOOD_PROCESSING: "AGRO_PERMIT",
+        TEXTILE_FACTORY: "MANUFACTURING_LICENSE",
+        RETAIL_STORE:    "RETAIL_PERMIT",
       };
       for (const ent of entData) {
         const required = LICENSE_REQUIRED[ent.type];
