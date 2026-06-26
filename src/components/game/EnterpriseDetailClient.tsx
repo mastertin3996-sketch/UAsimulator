@@ -1195,51 +1195,94 @@ interface ShowcaseItem {
   productId: string; sku: string; nameUa: string; unit: string;
   baseUnitsPerDay: number; referencePrice: number;
   inStock: number; avgQuality: number;
+  playerPrice: number | null; isActive: boolean; estimatedDemand: number;
 }
 
 function ShowcaseTab({ enterpriseId, onGoToSupply }: { enterpriseId: string; onGoToSupply: () => void }) {
-  const [data, setData] = useState<{ cityName: string; items: ShowcaseItem[] } | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [data,     setData]     = useState<{ cityName: string; items: ShowcaseItem[] } | null>(null);
+  const [loading,  setLoading]  = useState(true);
   const [selected, setSelected] = useState<ShowcaseItem | null>(null);
+  const [priceInput, setPriceInput] = useState("");
+  const [saving,   setSaving]   = useState(false);
+  const [saveMsg,  setSaveMsg]  = useState<string | null>(null);
 
-  useEffect(() => {
+  const load = useCallback(() => {
     fetch(`/api/enterprises/${enterpriseId}/showcase`)
-      .then(r => r.json())
-      .then(setData)
-      .catch(console.error)
-      .finally(() => setLoading(false));
+      .then(r => r.json()).then(setData).catch(console.error).finally(() => setLoading(false));
   }, [enterpriseId]);
+  useEffect(() => { load(); }, [load]);
+
+  function openItem(item: ShowcaseItem) {
+    setSelected(item);
+    setPriceInput(item.playerPrice ? item.playerPrice.toFixed(2) : item.referencePrice.toFixed(2));
+    setSaveMsg(null);
+  }
+
+  // Попередній розрахунок попиту на основі введеної ціни
+  function previewDemand(item: ShowcaseItem, price: number): number {
+    if (!price || price <= 0) return item.baseUnitsPerDay;
+    const e = 1.2;
+    return Math.max(0, item.baseUnitsPerDay * Math.pow(item.referencePrice / price, e));
+  }
+
+  async function savePrice() {
+    if (!selected) return;
+    const price = parseFloat(priceInput);
+    if (!price || price <= 0) { setSaveMsg("Введіть коректну ціну"); return; }
+    setSaving(true); setSaveMsg(null);
+    const res = await fetch(`/api/enterprises/${enterpriseId}/showcase`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ productId: selected.productId, price, isActive: true }),
+    });
+    setSaving(false);
+    if (res.ok) { setSaveMsg("✓ Збережено"); load(); }
+    else { const d = await res.json(); setSaveMsg(d.error ?? "Помилка"); }
+  }
 
   if (loading) return <div className="py-12 text-center text-gray-500">Завантаження…</div>;
   if (!data) return null;
+
+  const previewPrice = parseFloat(priceInput);
+  const demand       = selected ? previewDemand(selected, previewPrice) : 0;
+  const revenue      = selected ? demand * previewPrice : 0;
+  const refRevenue   = selected ? selected.baseUnitsPerDay * selected.referencePrice : 0;
 
   return (
     <div className="space-y-4">
       <p className="text-sm text-gray-500">
         Товари з NPC-попитом у <span className="text-white font-medium">{data.cityName}</span>.
-        Натисни на товар щоб придбати або налаштувати постачання.
+        Виставте ціну — попит змінюється відповідно до еластичності.
       </p>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
         {data.items.map(item => (
           <button
             key={item.productId}
-            onClick={() => setSelected(selected?.productId === item.productId ? null : item)}
+            onClick={() => openItem(item)}
             className={cn(
               "rounded-xl border p-4 text-left transition-all",
               selected?.productId === item.productId
                 ? "border-emerald-500 bg-emerald-500/10"
-                : item.inStock > 0
+                : item.isActive
                   ? "border-emerald-800/50 bg-gray-900 hover:border-emerald-600"
-                  : "border-gray-800 bg-gray-900 hover:border-gray-600",
+                  : item.inStock > 0
+                    ? "border-gray-700 bg-gray-900 hover:border-gray-600"
+                    : "border-gray-800 bg-gray-900 hover:border-gray-700",
             )}
           >
             <div className="text-3xl mb-2">{productEmoji(item.sku)}</div>
             <p className="text-sm font-medium text-white leading-tight">{item.nameUa}</p>
-            <p className="text-xs text-gray-500 mt-1">₴{item.referencePrice}/{item.unit}</p>
-            <p className="text-xs text-gray-500">{item.baseUnitsPerDay.toFixed(0)}/день попит</p>
+            {item.playerPrice ? (
+              <p className="text-xs text-emerald-400 mt-1 font-mono">₴{item.playerPrice.toFixed(2)}/{item.unit}</p>
+            ) : (
+              <p className="text-xs text-gray-600 mt-1">Ціна не встановлена</p>
+            )}
+            <p className="text-xs text-gray-500 mt-0.5">
+              {item.isActive ? `~${item.estimatedDemand.toFixed(1)}/день` : `${item.baseUnitsPerDay.toFixed(0)}/день база`}
+            </p>
             {item.inStock > 0 ? (
-              <p className="text-xs text-emerald-400 mt-1.5 font-mono">На складі: {item.inStock.toFixed(0)} {item.unit}</p>
+              <p className="text-xs text-blue-400 mt-1.5 font-mono">{item.inStock.toFixed(0)} {item.unit} на складі</p>
             ) : (
               <p className="text-xs text-red-400/70 mt-1.5">Немає на складі</p>
             )}
@@ -1248,31 +1291,68 @@ function ShowcaseTab({ enterpriseId, onGoToSupply }: { enterpriseId: string; onG
       </div>
 
       {selected && (
-        <div className="rounded-xl border border-emerald-600/30 bg-emerald-500/5 p-4 space-y-3">
+        <div className="rounded-xl border border-emerald-600/30 bg-gray-900 p-4 space-y-4">
+          {/* Header */}
           <div className="flex items-center gap-3">
             <span className="text-3xl">{productEmoji(selected.sku)}</span>
             <div>
-              <p className="font-medium text-white">{selected.nameUa}</p>
-              <p className="text-xs text-gray-400">
-                Попит: {selected.baseUnitsPerDay.toFixed(0)} {selected.unit}/день · NPC ціна: ₴{selected.referencePrice}/{selected.unit}
-              </p>
-              <p className="text-xs text-gray-400">
-                Потенційний дохід: ≈ ₴{(selected.baseUnitsPerDay * selected.referencePrice).toLocaleString("uk-UA", { maximumFractionDigits: 0 })}/день
-              </p>
+              <p className="font-semibold text-white">{selected.nameUa}</p>
+              <p className="text-xs text-gray-400">Базовий NPC попит: {selected.baseUnitsPerDay.toFixed(1)} {selected.unit}/день · Довідкова ціна: ₴{selected.referencePrice}</p>
             </div>
           </div>
-          <div className="flex flex-wrap gap-2">
+
+          {/* Price input */}
+          <div className="space-y-2">
+            <label className="text-xs text-gray-400">Ціна продажу (₴/{selected.unit})</label>
+            <div className="flex gap-2">
+              <input
+                type="number" min={0.01} step={0.01}
+                value={priceInput}
+                onChange={e => setPriceInput(e.target.value)}
+                className="flex-1 rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500"
+                placeholder={`≈ ${selected.referencePrice}`}
+              />
+              <Button onClick={savePrice} disabled={saving} className="bg-emerald-600 hover:bg-emerald-500 shrink-0">
+                {saving ? <Loader2 size={13} className="animate-spin" /> : "Зберегти"}
+              </Button>
+            </div>
+            {saveMsg && <p className={cn("text-xs", saveMsg.startsWith("✓") ? "text-emerald-400" : "text-red-400")}>{saveMsg}</p>}
+          </div>
+
+          {/* Live demand preview */}
+          {previewPrice > 0 && (
+            <div className="grid grid-cols-3 gap-3 text-center">
+              <div className="rounded-lg bg-gray-800 p-2">
+                <p className="text-xs text-gray-500">Попит/день</p>
+                <p className={cn("text-sm font-semibold", demand < selected.baseUnitsPerDay ? "text-amber-400" : "text-emerald-400")}>
+                  {demand.toFixed(1)} {selected.unit}
+                </p>
+              </div>
+              <div className="rounded-lg bg-gray-800 p-2">
+                <p className="text-xs text-gray-500">Дохід/день</p>
+                <p className="text-sm font-semibold text-white">₴{revenue.toLocaleString("uk-UA", { maximumFractionDigits: 0 })}</p>
+              </div>
+              <div className="rounded-lg bg-gray-800 p-2">
+                <p className="text-xs text-gray-500">vs довідк.</p>
+                <p className={cn("text-sm font-semibold", revenue >= refRevenue ? "text-emerald-400" : "text-amber-400")}>
+                  {revenue >= refRevenue ? "+" : ""}{((revenue / refRevenue - 1) * 100).toFixed(0)}%
+                </p>
+              </div>
+            </div>
+          )}
+
+          <div className="flex flex-wrap gap-2 pt-1">
             <Link
               href={`/market?product=${selected.productId}`}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-colors"
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-600/20 border border-blue-500/30 hover:bg-blue-600/30 text-blue-400 text-xs font-medium transition-colors"
             >
-              🛒 Купити на ринку
+              🛒 Ринок
             </Link>
             <button
               onClick={onGoToSupply}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-white text-sm font-medium transition-colors"
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs font-medium transition-colors"
             >
-              🏭 Постачання з підприємства
+              🏭 Постачання
             </button>
           </div>
         </div>

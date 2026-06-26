@@ -514,6 +514,7 @@ model Enterprise {
   workshops            Workshop[]
   employees            Employee[]
   inventory            EnterpriseInventory[]
+  retailListings       RetailListing[]
   constructionProjects ConstructionProject[]
   warehouse            Warehouse?
   collateralLoans      Loan[]     @relation("CollateralEnterprise")
@@ -528,6 +529,25 @@ model Enterprise {
   @@index([playerId])
   @@index([landPlotId])
   @@index([type])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// RETAIL STORE — ціни на полицях (встановлює гравець)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model RetailListing {
+  id           String   @id @default(uuid())
+  enterpriseId String
+  productId    String
+  pricePerUnit Decimal  @db.Decimal(12, 4)
+  isActive     Boolean  @default(true)
+  updatedAt    DateTime @updatedAt
+
+  enterprise Enterprise @relation(fields: [enterpriseId], references: [id], onDelete: Cascade)
+  product    Product    @relation(fields: [productId], references: [id])
+
+  @@unique([enterpriseId, productId])
+  @@index([enterpriseId])
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -652,6 +672,7 @@ model Product {
   playerInventory     PlayerInventory[]
   enterpriseInventory EnterpriseInventory[]
   npcDemand           NpcDemand[]
+  retailListings      RetailListing[]
   pendingDeliveries   PendingDelivery[]
   replenishRules      ReplenishRule[]
   supplyRoutes        SupplyRoute[]

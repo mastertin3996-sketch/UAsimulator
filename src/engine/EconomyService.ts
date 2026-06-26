@@ -488,15 +488,11 @@ export class EconomyService {
     });
     if (demands.length === 0) return summary;
 
-    // ── Відкриті SELL-ордери власників магазинів (для роздрібних цін) ─────
+    // ── Роздрібні ціни з RetailListing (встановлені гравцем) ────────────
     const sellerIds = [...new Set(stores.map(s => s.playerId))];
-    const openSellOrders = await this.prisma.marketOrder.findMany({
-      where: {
-        playerId:  { in: sellerIds },
-        type:      'SELL',
-        status:    'OPEN',
-        expiresAt: { gt: new Date() },
-      },
+    const storeIds  = stores.map(s => s.id);
+    const retailListings = await this.prisma.retailListing.findMany({
+      where: { enterpriseId: { in: storeIds }, isActive: true },
     });
 
     // Заздалегідь завантажуємо баланси всіх власників для пакетного оновлення
@@ -517,12 +513,12 @@ export class EconomyService {
         const invRow = store.inventory.find(i => i.productId === demand.productId);
         if (!invRow || invRow.quantity < 0.001) continue;
 
-        // Роздрібна ціна: відкритий SELL-ордер або базова ціна + 20%
-        const sellOrder = openSellOrders.find(
-          o => o.playerId === store.playerId && o.productId === demand.productId,
+        // Роздрібна ціна: RetailListing (гравець) або базова ціна + 20%
+        const listing = retailListings.find(
+          l => l.enterpriseId === store.id && l.productId === demand.productId,
         );
-        const retailPrice: Decimal = sellOrder
-          ? new Decimal(sellOrder.pricePerUnit.toString())
+        const retailPrice: Decimal = listing
+          ? new Decimal(listing.pricePerUnit.toString())
           : new Decimal(demand.referencePrice.toString()).times(1 + DEFAULT_RETAIL_MARKUP);
 
         // Ефективність персоналу (тільки активні, без страйкуючих)
