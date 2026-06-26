@@ -29,6 +29,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
   const OFFICE_SKUS = ['EQ-DESK','EQ-OFFCHAIR','EQ-COMPUTER','EQ-PRINTER','EQ-PROJECTOR',
                        'EQ-SERVER','EQ-PBXPHONE','EQ-AIRCON','EQ-COFFEEMACH','EQ-OFFICESAFE'];
   const FACTORY_SKUS = ['EQ-MILLGRIND','EQ-OILPRESS','EQ-FURNACE','EQ-TRACTOR','EQ-SAWMILL','EQ-DAIRYLINE'];
+  // entType is Prisma EnterpriseType string; triple-equals comparison
   const allowedSkus = entType === 'RETAIL_STORE' ? RETAIL_SKUS
                     : entType === 'OFFICE'        ? OFFICE_SKUS
                     : FACTORY_SKUS;
