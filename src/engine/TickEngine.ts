@@ -392,7 +392,7 @@ export class TickEngine {
 
     // ── b. Production ────────────────────────────────────────────────────
     const { results: productionResults, utilisationByWorkshop, overworkedEnterpriseIds } =
-      await this.production.processProduction(playerId);
+      await this.production.processProduction(playerId, tickNumber);
 
     // ── c. NPC retail sales ──────────────────────────────────────────────
     await this.market.processNpcSales(playerId, tickNumber);

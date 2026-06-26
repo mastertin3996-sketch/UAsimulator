@@ -27,7 +27,16 @@ export class ProductionService {
    *  - utilisationMap     — workshopId → 0–1 fraction used (fed to energy + degradation)
    *  - overworkedEntIds   — set of enterprise ids running above designed capacity
    */
-  async processProduction(playerId: string): Promise<{
+  // Seasonal yield multipliers for AGRO_FARM crops
+  // season index: 0=Spring(ticks 0-29), 1=Summer(30-59), 2=Autumn(60-89), 3=Winter(90-119)
+  private static readonly AGRO_SEASON_MULTS: Record<string, [number, number, number, number]> = {
+    'RM-WHEAT':   [1.0, 0.8, 0.15, 0.0],
+    'RM-SUNFL':   [0.2, 1.0, 0.75, 0.0],
+    'RM-SUGBEET': [0.4, 0.8, 1.0,  0.0],
+    'RM-MILK':    [1.0, 0.9, 1.0,  0.75],
+  };
+
+  async processProduction(playerId: string, tickNumber?: bigint): Promise<{
     results: ProductionResult[];
     utilisationByWorkshop: Map<string, number>;
     overworkedEnterpriseIds: Set<string>;
@@ -36,6 +45,7 @@ export class ProductionService {
       where:   { playerId, isOperational: true },
       include: {
         employees: true,
+        landPlot: { select: { id: true, soilQuality: true, lastCropSku: true } },
         workshops: {
           where:   { isActive: true },
           include: {
@@ -84,13 +94,26 @@ export class ProductionService {
           const remaining  = order.targetQuantity - order.completedQuantity;
           if (remaining <= 0) continue;
 
-          // Output per tick is the fraction of workshop capacity this recipe uses,
-          // scaled by efficiency and capped at remaining quantity.
-          // AGRO_FARM: виробництво прив'язане до площі цеху (м²/тік)
-          const baseCapacity = ent.type === 'AGRO_FARM'
-            ? ws.footprintM2
-            : ws.maxCapacity;
-          const maxThisTick = baseCapacity * efficiency;
+          // Output per tick scaled by efficiency and capped at remaining quantity.
+          // AGRO_FARM: base = land footprint × soil quality × season × crop rotation
+          let baseCapacity: number;
+          if (ent.type === 'AGRO_FARM') {
+            const cropSku  = recipe.outputs[0]?.product.sku ?? '';
+            const soilMult = ent.landPlot ? ent.landPlot.soilQuality / 7.0 : 1.0;
+
+            // Season: 1 year = 120 ticks, 4 seasons of 30 ticks each
+            const season = Math.floor((Number(tickNumber ?? 0n) % 120) / 30);
+            const seasonMult = ProductionService.AGRO_SEASON_MULTS[cropSku]?.[season] ?? 1.0;
+
+            // Rotation penalty: same crop as last harvest → −15% yield
+            const rotationMult =
+              cropSku !== 'RM-MILK' && ent.landPlot?.lastCropSku === cropSku ? 0.85 : 1.0;
+
+            baseCapacity = ws.footprintM2 * soilMult * seasonMult * rotationMult;
+          } else {
+            baseCapacity = ws.maxCapacity;
+          }
+          const maxThisTick   = baseCapacity * efficiency;
           const unitsThisTick = Math.min(maxThisTick, remaining);
 
           if (unitsThisTick < 0.001) {
@@ -200,6 +223,20 @@ export class ProductionService {
               completedAt: nowDone ? new Date()  : null,
             },
           });
+
+          // ── AGRO_FARM: update soil quality + rotation tracking ────────
+          if (ent.type === 'AGRO_FARM' && ent.landPlot) {
+            const cropSku   = recipe.outputs[0]?.product.sku ?? null;
+            const isSameCrop = cropSku !== null && cropSku !== 'RM-MILK' && ent.landPlot.lastCropSku === cropSku;
+            const delta      = isSameCrop ? -0.05 : +0.02;
+            const newQuality = Math.max(1.0, Math.min(10.0, ent.landPlot.soilQuality + delta));
+            await this.prisma.landPlot.update({
+              where: { id: ent.landPlot.id },
+              data:  { soilQuality: newQuality, lastCropSku: cropSku },
+            });
+            ent.landPlot.soilQuality  = newQuality;
+            ent.landPlot.lastCropSku  = cropSku;
+          }
 
           results.push({
             enterpriseId:    ent.id,

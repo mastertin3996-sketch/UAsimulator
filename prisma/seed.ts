@@ -272,7 +272,7 @@ async function main() {
     {
       name: 'Dairy Farming',            enterpriseType: 'AGRO_FARM',
       ticksToComplete: 1,               laborHoursPerUnit: 0.04,  baseQuality: 8.5, powerKwhPerUnit: 0.06,
-      inputs:  [],
+      inputs:  [{ sku: 'RM-WHEAT', qty: 0.5 }],  // корм: 0.5 кг зерна → 0.6 л молока
       outputs: [{ sku: 'RM-MILK',      qty: 0.6 }],
     },
     // TEXTILE_FACTORY — важка промисловість і деревообробка (поки найближчий тип)

@@ -426,6 +426,9 @@ model LandPlot {
   purchasePriceUah    Decimal    @db.Decimal(14, 2)
   // Фіксована місячна орендна плата за всю ділянку (UAH)
   monthlyLeaseCostUah Decimal    @db.Decimal(12, 2)
+  // Агро-характеристики ділянки
+  soilQuality     Float   @default(7.0)   // 1.0–10.0; чорнозем ≈ 9–10, піщана ≈ 3–4
+  lastCropSku     String?                  // SKU останньої культури для ротаційного штрафу
   leaseStartDate      DateTime?
   leaseEndDate        DateTime?
   purchasedAt         DateTime?
