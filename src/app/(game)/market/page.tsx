@@ -24,7 +24,7 @@ import ProductPriceChart from "@/components/game/charts/ProductPriceChart";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Offer = {
-  id: string; productName: string; unit: string; basePrice: number;
+  id: string; productId: string; productName: string; unit: string; basePrice: number;
   cityName: string; sellerName: string; sellerRating: number;
   price: number; quantity: number; minOrder: number; quality: number;
   expiresAt: string | null; priceVsBase: number; isNpc?: boolean;
@@ -482,7 +482,7 @@ function OrderBookPanel() {
 
 // ─── Offers tab ───────────────────────────────────────────────────────────────
 
-function OffersTab() {
+function OffersTab({ preselectId }: { preselectId?: string | null }) {
   const router = useRouter();
   const [offers,           setOffers]           = useState<Offer[]>([]);
   const [isAccredited,     setIsAccredited]     = useState(false);
@@ -564,6 +564,7 @@ function OffersTab() {
 
   const filtered = offers
     .filter((o) => {
+      if (preselectId && o.productId !== preselectId) return false;
       const cat = o.resourceType?.split("-")[0] ?? "";
       if (activeCategory !== "all" && cat !== activeCategory) return false;
       if (sellerType === "npc"    && !o.isNpc)  return false;
@@ -1058,6 +1059,8 @@ function StateOrdersTab() {
 type MarketTab = "offers" | "orderbook" | "myorders" | "stateorders";
 
 export default function MarketPage() {
+  const preselectId = typeof window !== "undefined"
+    ? new URLSearchParams(window.location.search).get("product") : null;
   const [tab, setTab] = useState<MarketTab>("offers");
 
   const TABS: { key: MarketTab; label: string; icon?: React.ElementType; emoji?: string }[] = [
@@ -1092,7 +1095,7 @@ export default function MarketPage() {
         ))}
       </div>
 
-      {tab === "offers"      && <OffersTab />}
+      {tab === "offers"      && <OffersTab preselectId={preselectId} />}
       {tab === "stateorders" && <StateOrdersTab />}
       {tab === "orderbook"   && <OrderBookPanel />}
       {tab === "myorders"    && <MyOrdersTab />}

@@ -39,6 +39,7 @@ export async function GET() {
     const basePrice = basePriceMap.get(o.product.id) ?? price;
     return {
       id:            o.id,
+      productId:     o.product.id,
       productName:   o.product.nameUa,
       unit:          o.product.unit,
       basePrice,
