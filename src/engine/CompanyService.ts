@@ -309,7 +309,10 @@ export class CompanyService {
     const workshop = await this.prisma.workshop
       .findUniqueOrThrow({
         where:   { id: dto.workshopId },
-        include: { enterprise: true, equipment: true },
+        include: {
+          enterprise: true,
+          equipment:  { include: { catalogProduct: { select: { sku: true } } } },
+        },
       })
       .catch(() => { throw new NotFoundError('Workshop', dto.workshopId); });
 
@@ -321,7 +324,15 @@ export class CompanyService {
     }
 
     // ── Перевірка площі підлоги цеху ─────────────────────────────────────
-    const usedFloorM2 = workshop.equipment.length * EQUIPMENT_UNIT_FOOTPRINT_M2;
+    const SKU_FP: Record<string, number> = {
+      'EQ-DESK':6,'EQ-OFFCHAIR':1,'EQ-COMPUTER':2,'EQ-PRINTER':2,'EQ-PROJECTOR':10,
+      'EQ-SERVER':5,'EQ-PBXPHONE':2,'EQ-AIRCON':2,'EQ-COFFEEMACH':3,'EQ-OFFICESAFE':2,
+      'EQ-CASHREGISTER':5,'EQ-POSTERMINAL':2,'EQ-SHELVING':8,'EQ-DISPLAYFRIDGE':6,
+      'EQ-FREEZER':8,'EQ-CCTV':1,'EQ-SCALE':2,'EQ-PRICETAG':1,'EQ-SELFCHECKOUT':6,'EQ-CONVEYOR':10,
+    };
+    const usedFloorM2 = workshop.equipment.reduce(
+      (s, e) => s + (SKU_FP[e.catalogProduct.sku] ?? EQUIPMENT_UNIT_FOOTPRINT_M2), 0
+    );
     if (usedFloorM2 + dto.footprintM2 > workshop.footprintM2) {
       throw new WorkshopCapacityExceededError(
         workshop.id,
