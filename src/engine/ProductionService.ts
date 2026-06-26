@@ -54,6 +54,11 @@ export class ProductionService {
     });
     const droughtCities = new Set<string>(droughtRows.map(d => d.affectedCityId).filter(Boolean) as string[]);
 
+    // Pre-fetch EQ-IRRIGATION product ID for drought mitigation + summer bonus
+    const irrigationProduct = await this.prisma.product.findFirst({
+      where: { sku: 'EQ-IRRIGATION' }, select: { id: true },
+    });
+
     const enterprises = await this.prisma.enterprise.findMany({
       where:   { playerId, isOperational: true },
       include: {
@@ -114,18 +119,34 @@ export class ProductionService {
             const cropSku  = recipe.outputs[0]?.product.sku ?? '';
             const soilMult = ent.landPlot ? ent.landPlot.soilQuality / 7.0 : 1.0;
 
-            // Season: 1 year = 120 ticks, 4 seasons of 30 ticks each
-            const season = Math.floor((Number(tickNumber ?? 0n) % 120) / 30);
+            const season     = Math.floor((Number(tickNumber ?? 0n) % 120) / 30);
             const seasonMult = ProductionService.AGRO_SEASON_MULTS[cropSku]?.[season] ?? 1.0;
 
-            // Rotation penalty: same crop as last harvest → −15% yield
-            const rotationMult =
-              cropSku !== 'RM-MILK' && ent.landPlot?.lastCropSku === cropSku ? 0.85 : 1.0;
+            // 3-field crop rotation: WHEAT→SUNFL→SUGBEET→WHEAT
+            const OPTIMAL_NEXT: Record<string, string> = {
+              'RM-WHEAT': 'RM-SUNFL', 'RM-SUNFL': 'RM-SUGBEET', 'RM-SUGBEET': 'RM-WHEAT', 'RM-CORN': 'RM-WHEAT',
+            };
+            const lastCrop = ent.landPlot?.lastCropSku;
+            let rotationMult = 1.0;
+            if (cropSku !== 'RM-MILK') {
+              if (lastCrop === cropSku)                        rotationMult = 0.85; // monoculture penalty
+              else if (lastCrop && OPTIMAL_NEXT[lastCrop] === cropSku) rotationMult = 1.15; // optimal rotation bonus
+            }
 
-            // Drought: −60% yield in affected city
-            const droughtMult = (ent.landPlot && droughtCities.has(ent.landPlot.cityId)) ? 0.4 : 1.0;
+            // EQ-IRRIGATION: drought mitigation + summer bonus
+            const hasIrrigation = irrigationProduct
+              ? ws.equipment.some(eq => eq.catalogProductId === irrigationProduct.id)
+              : false;
+            const droughtMult = (ent.landPlot && droughtCities.has(ent.landPlot.cityId))
+              ? (hasIrrigation ? 0.65 : 0.4)
+              : 1.0;
+            const irrigationBonus = (hasIrrigation && season === 1) ? 1.10 : 1.0;
 
-            baseCapacity = ws.footprintM2 * soilMult * seasonMult * rotationMult * droughtMult;
+            // AGRONOMIST: +8% per agronomist (max 2 give bonus)
+            const agronomists  = ent.employees.filter(e => e.profession === 'AGRONOMIST').length;
+            const agronomistMult = 1 + Math.min(agronomists, 2) * 0.08;
+
+            baseCapacity = ws.footprintM2 * soilMult * seasonMult * rotationMult * droughtMult * irrigationBonus * agronomistMult;
           } else {
             baseCapacity = ws.maxCapacity;
           }

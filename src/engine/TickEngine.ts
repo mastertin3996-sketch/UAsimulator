@@ -302,6 +302,7 @@ export class TickEngine {
           LOGISTICS_BOTTLENECK: { title: 'Логістичні затримки',   body: 'Затор на маршруті. Поставки затримуються на 2 тіки.' },
           GRAIN_MARKET_BOOM:    { title: 'Зерновий бум',          body: 'Попит на зерно зріс. Агропідприємства отримують +35% до виручки протягом 5 тіків.' },
           DROUGHT:              { title: 'Посуха',                 body: 'Посуха у регіоні. AGRO_FARM-підприємства виробляють −60% від норми протягом 8 тіків.' },
+          PEST_ATTACK:          { title: 'Нашестя шкідників',     body: 'Шкідники атакують AGRO_FARM. Тримайте RM-PESTICIDE для захисту врожаю.' },
         };
         const label = macroLabels[regulationSummary.macroEvent.type] ?? { title: 'Макро-подія', body: regulationSummary.macroEvent.description ?? '' };
         const allPlayers = await this.db.player.findMany({ where: { isBankrupt: false }, select: { id: true } });

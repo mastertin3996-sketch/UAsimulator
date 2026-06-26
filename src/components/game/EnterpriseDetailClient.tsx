@@ -86,11 +86,12 @@ interface FinancialLog {
 }
 
 interface AgroInfo {
-  soilQuality:   number;
-  lastCropSku:   string | null;
-  currentSeason: string;
-  seasonIndex:   number;
-  tickNumber:    number;
+  soilQuality:        number;
+  lastCropSku:        string | null;
+  recommendedCropSku: string | null;
+  currentSeason:      string;
+  seasonIndex:        number;
+  tickNumber:         number;
 }
 
 interface EnterpriseData {
@@ -1635,11 +1636,15 @@ export default function EnterpriseDetailClient({ enterpriseId, initialTab }: Pro
               )}>{agroInfo.currentSeason}</p>
               <p className="text-[10px] text-gray-600">Тік {agroInfo.tickNumber % 120}/120</p>
             </div>
-            {/* Last crop */}
+            {/* Last crop + recommended next */}
             <div className="rounded-lg border border-gray-800 bg-gray-900 p-3 space-y-1">
               <p className="text-[10px] text-gray-500 uppercase tracking-wider">Остання культура</p>
               <p className="text-sm font-mono text-white">{agroInfo.lastCropSku ?? "—"}</p>
-              <p className="text-[10px] text-gray-600">{agroInfo.lastCropSku ? "Можлива ротація" : "Не виявлено"}</p>
+              {agroInfo.recommendedCropSku && (
+                <p className="text-[10px] text-emerald-500">
+                  → рекомендовано: <span className="font-mono">{agroInfo.recommendedCropSku}</span> (+15%)
+                </p>
+              )}
             </div>
             {/* Season multipliers reference */}
             <div className="rounded-lg border border-gray-800 bg-gray-900 p-3 space-y-1">

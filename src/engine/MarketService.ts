@@ -581,22 +581,38 @@ export class MarketService {
       const refPrice     = new Decimal(String(d._avg.referencePrice ?? 0));
       if (totalDemand <= 0 || refPrice.lte(0)) continue;
 
-      // Find cheapest SELL orders for this product at or below reference price
+      // Quality-tiered pricing for grain: high-quality grain can sell above referencePrice
+      const GRAIN_SKUS = new Set(['RM-WHEAT', 'RM-SUNFL', 'RM-SUGBEET', 'RM-CORN']);
+      const isGrain    = GRAIN_SKUS.has(sku);
+      const maxPrice   = isGrain ? refPrice.times(1.3) : refPrice;
+
+      // Find cheapest SELL orders at or below quality-adjusted ceiling
       const sells = await this.prisma.marketOrder.findMany({
         where: {
           productId:    d.productId,
           type:         'SELL',
           status:       { in: ['OPEN', 'PARTIALLY_FILLED'] },
-          pricePerUnit: { lte: refPrice },
+          pricePerUnit: { lte: maxPrice },
         },
         orderBy: [{ pricePerUnit: 'asc' }, { createdAt: 'asc' }],
         take: 20,
+        select: {
+          id: true, playerId: true, quantityTotal: true, quantityFilled: true,
+          pricePerUnit: true, quality: true, createdAt: true,
+        },
       });
 
       let remaining = totalDemand;
 
       for (const sell of sells) {
         if (remaining <= 0.001) break;
+
+        // For grain: NPC pays premium for quality ≥8, discount for quality <5
+        if (isGrain) {
+          const q = sell.quality ?? 5.0;
+          const qualityCeiling = q >= 8.0 ? refPrice.times(1.3) : q < 5.0 ? refPrice.times(0.8) : refPrice;
+          if (new Decimal(sell.pricePerUnit.toString()).gt(qualityCeiling)) continue;
+        }
 
         const available  = sell.quantityTotal - sell.quantityFilled;
         const tradeQty   = Math.min(available, remaining);

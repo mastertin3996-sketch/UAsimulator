@@ -221,6 +221,7 @@ enum MacroEventType {
   LOGISTICS_BOTTLENECK   // Затримки на маршруті
   GRAIN_MARKET_BOOM      // Ціновий спалах на зернові
   DROUGHT                // Посуха: AGRO_FARM −60% врожайності у місті
+  PEST_ATTACK            // Нашестя шкідників: знищує 25–40% врожаю (захист — RM-PESTICIDE)
 }
 
 enum MacroEventStatus {

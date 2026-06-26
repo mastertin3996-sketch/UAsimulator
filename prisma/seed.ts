@@ -165,7 +165,9 @@ async function main() {
     { sku: 'FG-STEEL-P', name: 'Steel Products',     nameUa: 'Сталеві вироби',   category: 'FINISHED_GOOD', unit: 'kg',    baseWeightKg: 1 },
     { sku: 'FG-FURN',    name: 'Furniture',          nameUa: 'Меблі',            category: 'FINISHED_GOOD', unit: 'unit',  baseWeightKg: 45 },
     // ── Агровитратні матеріали ────────────────────────────────────────────────
-    { sku: 'AG-FERTILIZER',   name: 'Mineral Fertilizer', nameUa: 'Мінеральне добриво',  category: 'RAW_MATERIAL',  unit: 'kg', baseWeightKg: 1 },
+    { sku: 'AG-FERTILIZER',   name: 'Mineral Fertilizer', nameUa: 'Мінеральне добриво',  category: 'RAW_MATERIAL',   unit: 'kg',   baseWeightKg: 1 },
+    { sku: 'RM-PESTICIDE',   name: 'Pesticide',           nameUa: 'Пестицид',             category: 'RAW_MATERIAL',   unit: 'kg',   baseWeightKg: 1 },
+    { sku: 'EQ-IRRIGATION',  name: 'Irrigation System',   nameUa: 'Зрошувальна система',  category: 'EQUIPMENT_ITEM', unit: 'item', baseWeightKg: 800 },
     { sku: 'SF-CORN-STARCH',      name: 'Corn Starch',       nameUa: 'Кукурудзяний крохмаль',  category: 'SEMI_FINISHED', unit: 'kg', baseWeightKg: 1 },
     { sku: 'FG-CAKE',             name: 'Pastry Cake',       nameUa: 'Кондитерський виріб',    category: 'FINISHED_GOOD', unit: 'kg', baseWeightKg: 1 },
     { sku: 'FG-CORN-SYRUP',       name: 'Corn Syrup',        nameUa: 'Кукурудзяний сироп',     category: 'FINISHED_GOOD', unit: 'kg', baseWeightKg: 1 },

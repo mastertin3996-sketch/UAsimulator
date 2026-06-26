@@ -484,16 +484,18 @@ export class StateRegulationService {
 
     const r = Math.random();
     const type: MacroEventType =
-      r < 0.35 ? 'POWER_OUTAGE' :
-      r < 0.65 ? 'LOGISTICS_BOTTLENECK' :
-      r < 0.85 ? 'GRAIN_MARKET_BOOM' :
-                 'DROUGHT';
+      r < 0.30 ? 'POWER_OUTAGE' :
+      r < 0.55 ? 'LOGISTICS_BOTTLENECK' :
+      r < 0.75 ? 'GRAIN_MARKET_BOOM' :
+      r < 0.90 ? 'DROUGHT' :
+                 'PEST_ATTACK';
 
     switch (type) {
       case 'POWER_OUTAGE':          return this.createPowerOutageEvent(currentTick);
       case 'LOGISTICS_BOTTLENECK':  return this.createLogisticsBottleneckEvent(currentTick);
       case 'GRAIN_MARKET_BOOM':     return this.createGrainBoomEvent(currentTick);
       case 'DROUGHT':               return this.createDroughtEvent(currentTick);
+      case 'PEST_ATTACK':           return this.createPestAttackEvent(currentTick);
     }
   }
 
@@ -608,6 +610,64 @@ export class StateRegulationService {
     });
 
     return { fired: true, eventId: event.id, type: 'DROUGHT', description };
+  }
+
+  private async createPestAttackEvent(currentTick: bigint): Promise<MacroEventResult> {
+    const CROP_SKUS = new Set(['RM-WHEAT', 'RM-SUNFL', 'RM-SUGBEET', 'RM-CORN']);
+
+    // Find AGRO_FARM enterprises that have crop inventory
+    const agroEnts = await this.db.enterprise.findMany({
+      where:   { isOperational: true, type: 'AGRO_FARM' },
+      include: {
+        landPlot:  { select: { cityId: true, city: { select: { nameUa: true } } } },
+        inventory: { include: { product: { select: { sku: true } } } },
+      },
+    });
+
+    const targets = agroEnts.filter(e =>
+      e.inventory.some(i => CROP_SKUS.has(i.product.sku) && i.quantity > 5)
+    );
+    if (targets.length === 0) return { fired: false };
+
+    const ent = targets[Math.floor(Math.random() * targets.length)];
+
+    // Check for pesticide protection (needs ≥10 kg RM-PESTICIDE)
+    const pesticideInv = ent.inventory.find(i => i.product.sku === 'RM-PESTICIDE' && i.quantity >= 10);
+
+    let description: string;
+
+    if (pesticideInv) {
+      await this.db.enterpriseInventory.update({
+        where: { id: pesticideInv.id },
+        data:  { quantity: { decrement: 10 } },
+      });
+      description = `Нашестя шкідників у "${ent.name}" (${ent.landPlot.city.nameUa}) відбито пестицидами. Витрачено 10 кг.`;
+    } else {
+      // Destroy 25–40% of all crop inventory
+      const destroyFraction = 0.25 + Math.random() * 0.15;
+      let totalDestroyed = 0;
+
+      for (const inv of ent.inventory) {
+        if (!CROP_SKUS.has(inv.product.sku) || inv.quantity <= 0) continue;
+        const destroyed = inv.quantity * destroyFraction;
+        await this.db.enterpriseInventory.update({ where: { id: inv.id }, data: { quantity: { decrement: destroyed } } });
+        totalDestroyed += destroyed;
+      }
+
+      const pct = Math.round(destroyFraction * 100);
+      description = `Нашестя шкідників у "${ent.name}" (${ent.landPlot.city.nameUa}): знищено ${pct}% врожаю (≈${totalDestroyed.toFixed(0)} кг). Тримайте RM-PESTICIDE для захисту!`;
+    }
+
+    // Notify affected player
+    await this.db.notification.create({
+      data: { playerId: ent.playerId, type: 'MACRO_EVENT', title: pesticideInv ? 'Шкідників відбито' : 'Нашестя шкідників', body: description },
+    }).catch(() => {});
+
+    const event = await this.db.macroEvent.create({
+      data: { type: 'PEST_ATTACK', affectedCityId: ent.landPlot.cityId, startTick: currentTick, endTick: currentTick + 1n, description },
+    });
+
+    return { fired: true, eventId: event.id, type: 'PEST_ATTACK', description };
   }
 
   // ── Private: apply active event effects each tick ─────────────────────────

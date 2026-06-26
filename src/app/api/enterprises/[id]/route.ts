@@ -102,9 +102,15 @@ export async function GET(_req: NextRequest, { params }: Params) {
   const tickNum   = Number(currentTick?.tickNumber ?? 0);
   const seasonIdx = Math.floor((tickNum % 120) / 30);
   const SEASON_NAMES_UA = ['Весна', 'Літо', 'Осінь', 'Зима'];
+  const ROTATION_NEXT: Record<string, string> = {
+    'RM-WHEAT': 'RM-SUNFL', 'RM-SUNFL': 'RM-SUGBEET', 'RM-SUGBEET': 'RM-WHEAT', 'RM-CORN': 'RM-WHEAT',
+  };
   const agroInfo = enterprise.type === "AGRO_FARM" ? {
-    soilQuality:   enterprise.landPlot.soilQuality,
-    lastCropSku:   enterprise.landPlot.lastCropSku,
+    soilQuality:        enterprise.landPlot.soilQuality,
+    lastCropSku:        enterprise.landPlot.lastCropSku,
+    recommendedCropSku: enterprise.landPlot.lastCropSku
+      ? (ROTATION_NEXT[enterprise.landPlot.lastCropSku] ?? null)
+      : 'RM-WHEAT',
     currentSeason: SEASON_NAMES_UA[seasonIdx],
     seasonIndex:   seasonIdx,
     tickNumber:    tickNum,
