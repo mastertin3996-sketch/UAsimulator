@@ -182,6 +182,20 @@ export class TickEngine {
       console.log(`[Tick ${tickNumber}] Supply routes: ${supplyTransfers} transfers executed.`);
     }
 
+    // ── 3a1. ДержПром replenishment — поповнення інвентарю кожні 5 тіків ──
+    if (Number(tickNumber) % 5 === 0) {
+      await this.market.replenishDerzhprom()
+        .catch(e => console.error(`[Tick ${tickNumber}] ДержПром replenish failed:`, e));
+    }
+
+    // ── 3a1b. Держзамовлення — нові BUY-ордери з премією кожні 8 тіків ──
+    // Виконується ДО matchOrders щоб нові ордери одразу потрапляли в матчинг
+    if (Number(tickNumber) % 8 === 0) {
+      const count = await this.market.generateStateOrders()
+        .catch(e => { console.error(`[Tick ${tickNumber}] State orders failed:`, e); return 0; });
+      if (count > 0) console.log(`[Tick ${tickNumber}] Держзамовлення: ${count} нових ордерів.`);
+    }
+
     // ── 3. Global B2B market matching ────────────────────────────────────
     const trades = await this.market.matchOrders();
 
@@ -213,19 +227,6 @@ export class TickEngine {
         });
       }
       await this.db.notification.createMany({ data: notifRows });
-    }
-
-    // ── 3a1. ДержПром replenishment — поповнення інвентарю кожні 5 тіків ──
-    if (Number(tickNumber) % 5 === 0) {
-      await this.market.replenishDerzhprom()
-        .catch(e => console.error(`[Tick ${tickNumber}] ДержПром replenish failed:`, e));
-    }
-
-    // ── 3a1b. Держзамовлення — нові BUY-ордери з премією кожні 24 тіки ──
-    if (Number(tickNumber) % 24 === 0) {
-      const count = await this.market.generateStateOrders()
-        .catch(e => { console.error(`[Tick ${tickNumber}] State orders failed:`, e); return 0; });
-      if (count > 0) console.log(`[Tick ${tickNumber}] Держзамовлення: ${count} нових ордерів.`);
     }
 
     // ── 3a2. NPC market buying — скуповує SELL-ордери до referencePrice ──
