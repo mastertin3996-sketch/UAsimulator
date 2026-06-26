@@ -86,7 +86,11 @@ export class ProductionService {
 
           // Output per tick is the fraction of workshop capacity this recipe uses,
           // scaled by efficiency and capped at remaining quantity.
-          const maxThisTick = ws.maxCapacity * efficiency;
+          // AGRO_FARM: виробництво прив'язане до площі цеху (м²/тік)
+          const baseCapacity = ent.type === 'AGRO_FARM'
+            ? ws.footprintM2
+            : ws.maxCapacity;
+          const maxThisTick = baseCapacity * efficiency;
           const unitsThisTick = Math.min(maxThisTick, remaining);
 
           if (unitsThisTick < 0.001) {
