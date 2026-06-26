@@ -47,6 +47,7 @@ export async function GET() {
       expiresAt:     o.expiresAt.toISOString(),
       priceVsBase:   basePrice > 0 ? price / basePrice : 1,
       isNpc:         o.player.isNpcSeller,
+      resourceType:  o.resourceType ?? "",
     };
   });
 

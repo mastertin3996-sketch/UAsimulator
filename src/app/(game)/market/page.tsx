@@ -27,7 +27,27 @@ type Offer = {
   cityName: string; sellerName: string; sellerRating: number;
   price: number; quantity: number; minOrder: number; quality: number;
   expiresAt: string | null; priceVsBase: number; isNpc?: boolean;
+  resourceType: string;
 };
+
+const CAT_META: Record<string, { label: string; emoji: string }> = {
+  all: { label: "Всі",        emoji: "🛒" },
+  RM:  { label: "Сировина",   emoji: "🌾" },
+  SF:  { label: "Напівфаб.",  emoji: "🔩" },
+  FG:  { label: "Готова",     emoji: "🍞" },
+  CM:  { label: "Будмат.",    emoji: "🧱" },
+  EQ:  { label: "Обладнання", emoji: "⚙️" },
+};
+
+const SORT_OPTS = [
+  { value: "default",         label: "За замовч." },
+  { value: "price_asc",       label: "Ціна ↑" },
+  { value: "price_desc",      label: "Ціна ↓" },
+  { value: "quality_desc",    label: "Якість ↓" },
+  { value: "quality_asc",     label: "Якість ↑" },
+  { value: "qty_desc",        label: "К-ть ↓" },
+  { value: "priceVsBase_asc", label: "Вигідні" },
+];
 
 type Enterprise = { id: string; name: string; cityName: string };
 type InvItem    = { productId: string; product: string; unit: string; quantity: number };
@@ -456,6 +476,13 @@ function OffersTab() {
   const [offers,      setOffers]      = useState<Offer[]>([]);
   const [loading,     setLoading]     = useState(true);
   const [search,      setSearch]      = useState("");
+  const [activeCategory, setActiveCategory] = useState("all");
+  const [sortBy,      setSortBy]      = useState("default");
+  const [sellerType,  setSellerType]  = useState<"all"|"npc"|"player">("all");
+  const [minQuality,  setMinQuality]  = useState("");
+  const [maxQuality,  setMaxQuality]  = useState("");
+  const [minPrice,    setMinPrice]    = useState("");
+  const [maxPrice,    setMaxPrice]    = useState("");
   const [modalOpen,   setModalOpen]   = useState(false);
   const [enterprises, setEnterprises] = useState<Enterprise[]>([]);
   const [inventory,   setInventory]   = useState<InvItem[]>([]);
@@ -518,36 +545,135 @@ function OffersTab() {
     loadOffers(); setTimeout(() => setBuyOffer(null), 2000);
   }
 
-  const filtered = offers.filter((o) =>
-    o.productName.toLowerCase().includes(search.toLowerCase()) ||
-    o.sellerName.toLowerCase().includes(search.toLowerCase()) ||
-    o.cityName.toLowerCase().includes(search.toLowerCase())
-  );
+  // Які категорії присутні в поточних офферах
+  const presentCats = ["all", ...Array.from(new Set(
+    offers.map(o => o.resourceType?.split("-")[0] ?? "").filter(Boolean)
+  )).sort()];
+
+  const filtered = offers
+    .filter((o) => {
+      const cat = o.resourceType?.split("-")[0] ?? "";
+      if (activeCategory !== "all" && cat !== activeCategory) return false;
+      if (sellerType === "npc"    && !o.isNpc)  return false;
+      if (sellerType === "player" && o.isNpc)   return false;
+      if (minQuality && o.quality < Number(minQuality)) return false;
+      if (maxQuality && o.quality > Number(maxQuality)) return false;
+      if (minPrice   && o.price   < Number(minPrice))   return false;
+      if (maxPrice   && o.price   > Number(maxPrice))   return false;
+      const q = search.toLowerCase();
+      if (q && !o.productName.toLowerCase().includes(q) && !o.sellerName.toLowerCase().includes(q)) return false;
+      return true;
+    })
+    .sort((a, b) => {
+      if (sortBy === "price_asc")       return a.price - b.price;
+      if (sortBy === "price_desc")      return b.price - a.price;
+      if (sortBy === "quality_desc")    return b.quality - a.quality;
+      if (sortBy === "quality_asc")     return a.quality - b.quality;
+      if (sortBy === "qty_desc")        return b.quantity - a.quantity;
+      if (sortBy === "priceVsBase_asc") return a.priceVsBase - b.priceVsBase;
+      return 0;
+    });
 
   return (
     <>
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <p className="text-gray-500 text-sm">{offers.length} активних пропозицій</p>
-        <div className="flex items-center gap-2">
-          <div className="relative">
-            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+      {/* ── Категорійні таби ── */}
+      <div className="flex flex-wrap gap-1.5">
+        {presentCats.map((cat) => {
+          const meta = CAT_META[cat] ?? { label: cat, emoji: "📦" };
+          const count = cat === "all" ? offers.length : offers.filter(o => (o.resourceType?.split("-")[0] ?? "") === cat).length;
+          return (
+            <button
+              key={cat}
+              onClick={() => setActiveCategory(cat)}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all",
+                activeCategory === cat
+                  ? "bg-emerald-600 text-white"
+                  : "bg-gray-900 text-gray-400 hover:text-white hover:bg-gray-800 border border-gray-800",
+              )}
+            >
+              <span>{meta.emoji}</span>
+              <span>{meta.label}</span>
+              <span className={cn("text-xs rounded px-1", activeCategory === cat ? "bg-emerald-700 text-emerald-100" : "bg-gray-800 text-gray-500")}>{count}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ── Пошук + фільтри + сортування ── */}
+      <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-3 space-y-3">
+        <div className="flex flex-wrap gap-2 items-center">
+          {/* Пошук */}
+          <div className="relative flex-1 min-w-40">
+            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
             <input
-              className="bg-gray-900 border border-gray-800 rounded-lg pl-8 pr-3 py-1.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-emerald-600 w-48"
-              placeholder="Пошук..."
+              className="w-full bg-gray-900 border border-gray-800 rounded-lg pl-8 pr-3 py-1.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-emerald-600"
+              placeholder="Назва товару або продавець..."
               value={search} onChange={(e) => setSearch(e.target.value)}
             />
+            {search && <button onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-600 hover:text-gray-400"><X size={13} /></button>}
           </div>
-          <button onClick={loadOffers} disabled={loading} className="p-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white transition-colors disabled:opacity-40">
-            <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
-          </button>
-          <Button size="sm" onClick={() => { setFormError(""); setModalOpen(true); }}>
-            <ShoppingCart size={14} /> Виставити
-          </Button>
+
+          {/* Сортування */}
+          <div className="relative">
+            <ArrowDownUp size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+            <select
+              value={sortBy} onChange={e => setSortBy(e.target.value)}
+              className="bg-gray-900 border border-gray-800 rounded-lg pl-7 pr-7 py-1.5 text-sm text-white appearance-none focus:outline-none focus:ring-1 focus:ring-emerald-600"
+            >
+              {SORT_OPTS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+            <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+          </div>
+
+          {/* Тип продавця */}
+          <div className="flex rounded-lg overflow-hidden border border-gray-800">
+            {(["all","player","npc"] as const).map((v) => (
+              <button key={v} onClick={() => setSellerType(v)}
+                className={cn("px-2.5 py-1.5 text-xs font-medium transition-colors",
+                  sellerType === v ? "bg-emerald-600 text-white" : "bg-gray-900 text-gray-500 hover:text-white"
+                )}>
+                {v === "all" ? "Всі" : v === "player" ? "👤 Гравці" : "🏛️ ДержПром"}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-1 ml-auto">
+            <button onClick={loadOffers} disabled={loading} className="p-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white transition-colors disabled:opacity-40">
+              <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+            </button>
+            <Button size="sm" onClick={() => { setFormError(""); setModalOpen(true); }}>
+              <ShoppingCart size={13} /> Виставити
+            </Button>
+          </div>
+        </div>
+
+        {/* Ціна і якість */}
+        <div className="flex flex-wrap gap-2 items-center text-xs text-gray-500">
+          <span>Ціна ₴:</span>
+          <input type="number" placeholder="від" value={minPrice} onChange={e => setMinPrice(e.target.value)}
+            className="w-20 bg-gray-900 border border-gray-800 rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-emerald-600" />
+          <span>—</span>
+          <input type="number" placeholder="до" value={maxPrice} onChange={e => setMaxPrice(e.target.value)}
+            className="w-24 bg-gray-900 border border-gray-800 rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-emerald-600" />
+          <span className="ml-3">Якість:</span>
+          <input type="number" placeholder="від" min={0} max={10} step={0.1} value={minQuality} onChange={e => setMinQuality(e.target.value)}
+            className="w-16 bg-gray-900 border border-gray-800 rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-emerald-600" />
+          <span>—</span>
+          <input type="number" placeholder="до" min={0} max={10} step={0.1} value={maxQuality} onChange={e => setMaxQuality(e.target.value)}
+            className="w-16 bg-gray-900 border border-gray-800 rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-emerald-600" />
+          {(minPrice || maxPrice || minQuality || maxQuality) && (
+            <button onClick={() => { setMinPrice(""); setMaxPrice(""); setMinQuality(""); setMaxQuality(""); }}
+              className="ml-1 text-red-400 hover:text-red-300 flex items-center gap-0.5">
+              <X size={11} /> Скинути
+            </button>
+          )}
+          <span className="ml-auto text-gray-600">{filtered.length} пропозицій</span>
         </div>
       </div>
 
       <Card>
-        <CardHeader><CardTitle>Активні пропозиції (SELL)</CardTitle></CardHeader>
+        <CardHeader><CardTitle>Пропозиції SELL</CardTitle></CardHeader>
         <CardContent className="pt-0 px-0">
           <Table>
             <TableHead>
@@ -569,7 +695,10 @@ function OffersTab() {
               ) : filtered.map((o) => (
                 <TableRow key={o.id}>
                   <TableCell>
-                    <div className="font-medium text-white">{o.productName}</div>
+                    <div className="font-medium text-white flex items-center gap-1.5">
+                      {CAT_META[o.resourceType?.split("-")[0] ?? ""]?.emoji ?? "📦"}
+                      {o.productName}
+                    </div>
                     <div className="text-xs text-gray-600">{o.unit}</div>
                   </TableCell>
                   <TableCell className="text-gray-400">{o.cityName}</TableCell>
