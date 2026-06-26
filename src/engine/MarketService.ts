@@ -552,6 +552,62 @@ export class MarketService {
     return totalTraded;
   }
 
+  /**
+   * Оновлює референтні ціни NPC на основі поточного балансу попиту/пропозиції.
+   * Викликається ПІСЛЯ matchNpcMarketOrders щоб відображати реальну ринкову ситуацію.
+   *
+   * Логіка:
+   *  - Надлишок пропозиції (supply > 1.5× demand) → ціна −1.5%
+   *  - Дефіцит (supply < 0.4× demand) → ціна +2%
+   *  - Інакше: випадковий дрейф ±0.5%
+   *  - Обмеження: не більше ±4% за тік; абсолютний поріг ≥1 UAH
+   */
+  async updateNpcMarketPrices(): Promise<void> {
+    const demands = await this.prisma.npcDemand.groupBy({
+      by:   ['productId'],
+      _sum: { baseUnitsPerDay: true },
+      _avg: { referencePrice: true },
+    });
+
+    for (const d of demands) {
+      const totalDemand = d._sum.baseUnitsPerDay ?? 0;
+      const currentRef  = Number(d._avg.referencePrice ?? 0);
+      if (totalDemand <= 0 || currentRef <= 0) continue;
+
+      // Кількість пропозиції на ринку за поточною NPC ціною
+      const supplyAgg = await this.prisma.marketOrder.aggregate({
+        where: {
+          productId:    d.productId,
+          type:         'SELL',
+          status:       { in: ['OPEN', 'PARTIALLY_FILLED'] },
+          pricePerUnit: { lte: currentRef },
+        },
+        _sum: { quantityTotal: true },
+      });
+      const supply    = Number(supplyAgg._sum.quantityTotal ?? 0);
+      const fillRatio = supply / totalDemand;
+
+      let drift: number;
+      if      (fillRatio > 1.5) drift = -0.015;                // надлишок → ціна падає
+      else if (fillRatio > 0.8) drift = -0.003;                // помірне забезпечення
+      else if (fillRatio < 0.2) drift = +0.025;                // гострий дефіцит
+      else if (fillRatio < 0.4) drift = +0.012;                // недозабезпечення
+      else                       drift = 0;                     // рівновага
+
+      // Невеликий випадковий шум ±0.5%
+      const noise     = (Math.random() - 0.5) * 0.01;
+      const pctChange = Math.max(-0.04, Math.min(0.04, drift + noise));
+      const newRef    = Math.max(1, currentRef * (1 + pctChange));
+
+      if (Math.abs(newRef - currentRef) < 0.001) continue;
+
+      await this.prisma.npcDemand.updateMany({
+        where: { productId: d.productId },
+        data:  { referencePrice: +newRef.toFixed(4) },
+      });
+    }
+  }
+
   /** Поповнює ордери і інвентар ДержПром якщо залишок < 20% від початкового. */
   async replenishDerzhprom(): Promise<void> {
     const player = await this.prisma.player.findFirst({

@@ -68,7 +68,7 @@ const PENALTY_MISSED_LOAN  = 0.02;
 const RECOVERY_RATE        = 0.01;
 
 // Macro events
-const MACRO_EVENT_PROBABILITY = 0.02;     // 2% per global tick
+const MACRO_EVENT_PROBABILITY = 0.06;     // 6% per global tick (~1 подія кожні 17 тіків)
 const POWER_OUTAGE_SURCHARGE  = new Decimal('20000');  // UAH/enterprise/tick
 const GRAIN_BOOM_MULTIPLIER   = 1.35;
 const GRAIN_BOOM_TICKS        = 5n;

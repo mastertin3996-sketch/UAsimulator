@@ -236,6 +236,10 @@ export class TickEngine {
       console.log(`[Tick ${tickNumber}] NPC market: bought ${npcMarketUnits.toFixed(0)} units.`);
     }
 
+    // ── 3a3. Dynamic NPC price update — реагує на supply/demand поточного тіку ──
+    await this.market.updateNpcMarketPrices()
+      .catch(e => console.error(`[Tick ${tickNumber}] NPC price update failed:`, e));
+
     // ── 3b–3i. Independent global services in parallel ───────────────────
     const [logisticsSummary, financeSummary, regulationSummary, energySummary, securitySummary, tradeSummary] =
       await Promise.all([
