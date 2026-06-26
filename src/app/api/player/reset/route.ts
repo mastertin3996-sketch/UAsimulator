@@ -28,6 +28,11 @@ export async function POST() {
     prisma.equipment.deleteMany({ where: { workshopId: { in: wsIds } } }),
     prisma.workshop.deleteMany({ where: { enterpriseId: { in: entIds } } }),
     prisma.enterprise.deleteMany({ where: { playerId } }),
+    // Звільнити всі орендовані / куплені ділянки
+    prisma.landPlot.updateMany({
+      where: { playerId },
+      data: { playerId: null, status: "AVAILABLE", leaseStartDate: null, usedAreaM2: 0 },
+    }),
     prisma.player.update({
       where: { id: playerId },
       data: {
