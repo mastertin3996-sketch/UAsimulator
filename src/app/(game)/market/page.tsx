@@ -102,12 +102,20 @@ function OrderBookPanel() {
 
   useEffect(() => {
     setProductsLoading(true);
+    const preselect = typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search).get("product")
+      : null;
     fetch("/api/products")
       .then((r) => r.json())
       .then((d) => {
-        setProducts(d.products ?? []);
-        const first = (d.products as Product[])?.find((p) => p.orderCount > 0);
-        if (first) setSelectedId(first.id);
+        const list: Product[] = d.products ?? [];
+        setProducts(list);
+        if (preselect && list.find(p => p.id === preselect)) {
+          setSelectedId(preselect);
+        } else {
+          const first = list.find((p) => p.orderCount > 0);
+          if (first) setSelectedId(first.id);
+        }
       })
       .finally(() => setProductsLoading(false));
   }, []);
