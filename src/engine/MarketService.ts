@@ -608,11 +608,10 @@ export class MarketService {
       data:  { status: 'CANCELLED' },
     });
 
-    // Продукти для держзамовлень (реальні товари, не сировина і не обладнання)
+    // Продукти для держзамовлень — тільки ті, що НЕ продає сам ДержПром
+    // (щоб уникнути self-trading блоку)
     const TARGET_SKUS = [
-      'FG-BREAD', 'FG-MILK', 'FG-PASTA', 'FG-SUNOIL',
-      'SF-FLOUR', 'SF-SUGAR', 'SF-STEEL', 'SF-PLANKS',
-      'CM-BRICK', 'CM-CEMENT', 'CM-REBAR',
+      'FG-BREAD', 'FG-PASTA', 'SF-SUGAR', 'SF-STEEL',
     ];
 
     // Беремо 4 випадкових продукти
@@ -633,7 +632,8 @@ export class MarketService {
     let created = 0;
 
     for (const product of products) {
-      const ref = priceMap.get(product.id) ?? 30;
+      const ref = priceMap.get(product.id) ?? 0;
+      if (ref === 0) continue; // пропускаємо продукти без ринкової ціни
       const buyPrice  = +(ref * 1.20).toFixed(2); // +20% до ринку
       const quantity  = Math.round(200 + Math.random() * 800);
 
