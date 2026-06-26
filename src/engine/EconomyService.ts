@@ -602,14 +602,26 @@ export class EconomyService {
           data: {
             playerId:      c.playerId,
             type:          'NPC_SALE',
-            amountUah:     revenue,                    // Decimal ✓
-            balanceBefore,                             // Decimal ✓
-            balanceAfter,                              // Decimal ✓
+            amountUah:     revenue,
+            balanceBefore,
+            balanceAfter,
             description:
               `B2C роздріб [${city.nameUa}]: ${actualUnits.toFixed(2)} od. ` +
               `"${demand.product.nameUa}" @ ₴${c.retailPrice.toFixed(2)} ` +
               `| нетто ₴${netRevenue.toFixed(2)}, ПДВ ₴${vatAmount.toFixed(2)}`,
             referenceId: cityId,
+          },
+        });
+
+        // ── Фінансовий лог (для графіка дохід/витрати) ──────────────────
+        await this.prisma.financialLog.create({
+          data: {
+            playerId:    c.playerId,
+            category:    'REVENUE_RETAIL',
+            amountUah:   revenue,
+            description: `Роздрібний продаж: "${demand.product.nameUa}" × ${actualUnits.toFixed(1)}`,
+            referenceId: c.storeId,
+            tickNumber:  BigInt(0),
           },
         });
 
