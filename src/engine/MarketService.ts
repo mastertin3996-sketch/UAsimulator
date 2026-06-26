@@ -16,16 +16,47 @@ export class MarketService {
     return this._derzhpromId;
   }
 
-  /** Переводить прострочені ринкові ордери у статус EXPIRED. */
+  /** Переводить прострочені ринкові ордери у статус EXPIRED.
+   *  Для SELL-ордерів — повертає незаповнений залишок з playerInventory в enterpriseInventory. */
   async expireStaleOrders(): Promise<number> {
-    const result = await this.prisma.marketOrder.updateMany({
-      where: {
-        status:    { in: ['OPEN', 'PARTIALLY_FILLED'] },
-        expiresAt: { lt: new Date() },
-      },
-      data: { status: 'EXPIRED' },
+    const stale = await this.prisma.marketOrder.findMany({
+      where:  { status: { in: ['OPEN', 'PARTIALLY_FILLED'] }, expiresAt: { lt: new Date() } },
+      select: { id: true, playerId: true, productId: true, type: true,
+                quantityTotal: true, quantityFilled: true },
     });
-    return result.count;
+    if (stale.length === 0) return 0;
+
+    await this.prisma.marketOrder.updateMany({
+      where: { id: { in: stale.map(o => o.id) } },
+      data:  { status: 'EXPIRED' },
+    });
+
+    // Return unsold goods from playerInventory → first enterprise that holds this product
+    for (const order of stale) {
+      if (order.type !== 'SELL') continue;
+      const remaining = order.quantityTotal - order.quantityFilled;
+      if (remaining < 0.001) continue;
+
+      await this.prisma.playerInventory.updateMany({
+        where: { playerId: order.playerId, productId: order.productId },
+        data:  { quantity: { decrement: remaining } },
+      });
+
+      const ent = await this.prisma.enterprise.findFirst({
+        where:   { playerId: order.playerId, isOperational: true },
+        select:  { id: true },
+        orderBy: { id: 'asc' },
+      });
+      if (!ent) continue;
+
+      await this.prisma.enterpriseInventory.upsert({
+        where:  { enterpriseId_productId: { enterpriseId: ent.id, productId: order.productId } },
+        update: { quantity: { increment: remaining } },
+        create: { enterpriseId: ent.id, productId: order.productId, quantity: remaining, avgQuality: 7 },
+      });
+    }
+
+    return stale.length;
   }
 
   /**

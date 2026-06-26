@@ -48,14 +48,32 @@ export async function DELETE(req: NextRequest) {
 
   const order = await prisma.marketOrder.findFirst({
     where: { id, playerId, status: { in: ["OPEN", "PARTIALLY_FILLED"] } },
-    select: { id: true },
+    select: { id: true, type: true, productId: true, quantityTotal: true, quantityFilled: true },
   });
   if (!order) return NextResponse.json({ error: "Ордер не знайдено або вже виконано" }, { status: 404 });
 
-  await prisma.marketOrder.update({
-    where: { id },
-    data:  { status: "CANCELLED" },
-  });
+  await prisma.marketOrder.update({ where: { id }, data: { status: "CANCELLED" } });
+
+  // Return unsold goods to first enterprise
+  if (order.type === "SELL") {
+    const remaining = order.quantityTotal - order.quantityFilled;
+    if (remaining > 0.001) {
+      await prisma.playerInventory.updateMany({
+        where: { playerId, productId: order.productId },
+        data:  { quantity: { decrement: remaining } },
+      });
+      const ent = await prisma.enterprise.findFirst({
+        where: { playerId, isOperational: true }, select: { id: true }, orderBy: { id: "asc" },
+      });
+      if (ent) {
+        await prisma.enterpriseInventory.upsert({
+          where:  { enterpriseId_productId: { enterpriseId: ent.id, productId: order.productId } },
+          update: { quantity: { increment: remaining } },
+          create: { enterpriseId: ent.id, productId: order.productId, quantity: remaining, avgQuality: 7 },
+        });
+      }
+    }
+  }
 
   return NextResponse.json({ ok: true });
 }
