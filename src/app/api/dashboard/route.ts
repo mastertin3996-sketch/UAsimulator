@@ -13,7 +13,7 @@ export async function GET() {
       where:  { id: playerId },
       select: {
         id: true, companyName: true, cashBalance: true, balanceUsd: true,
-        netWorth: true, creditRating: true, reputationScore: true,
+        netWorth: true, creditRating: true, reputationScore: true, creditScore: true,
         insolvencyTickCount: true, isOperationsFrozen: true, isBankrupt: true,
         companyValuationUah: true, isAccreditedSupplier: true,
       },
@@ -292,6 +292,7 @@ export async function GET() {
       netWorth:            Number(player.netWorth),
       creditRating:        player.creditRating,
       reputationScore:     player.reputationScore,
+      creditScore:         player.creditScore ?? 500,
       companyValuationUah: Number(player.companyValuationUah),
       isOperationsFrozen:       player.isOperationsFrozen,
       isBankrupt:               player.isBankrupt,

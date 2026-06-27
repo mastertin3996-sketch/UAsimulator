@@ -35,6 +35,7 @@ interface DashData {
   player: {
     companyName: string; cashBalance: number; balanceUsd: number; netWorth: number;
     creditRating: number; reputationScore: number; companyValuationUah: number;
+    creditScore: number;
     isOperationsFrozen: boolean; isBankrupt: boolean; isAccreditedSupplier: boolean;
   };
   enterprises: { id: string; name: string; type: string; city: string; isActive: boolean; isFrozen: boolean; employees: number; workshops: number }[];
@@ -246,6 +247,16 @@ export default function DashboardClient() {
           <div className="flex items-center gap-2 mt-2 flex-wrap">
             <span className="flex items-center gap-1 text-xs bg-gray-800 text-gray-300 px-2 py-0.5 rounded-full">
               <Star size={10} className="text-yellow-400" /> Рейтинг {player.creditRating.toFixed(1)}
+            </span>
+            <span className={cn("text-xs px-2 py-0.5 rounded-full",
+              player.creditScore >= 800 ? "bg-emerald-950 text-emerald-400 border border-emerald-800"
+              : player.creditScore >= 600 ? "bg-blue-950 text-blue-400"
+              : player.creditScore >= 400 ? "bg-gray-800 text-gray-400"
+              : player.creditScore >= 200 ? "bg-orange-950 text-orange-400"
+              : "bg-red-950 text-red-400"
+            )}>
+              Score {player.creditScore}/1000
+              {player.creditScore >= 800 && " ✓"}
             </span>
             <span className={cn("text-xs px-2 py-0.5 rounded-full flex items-center gap-1",
               liveTick ? "bg-emerald-950 text-emerald-400" : "bg-gray-800 text-gray-400")}>

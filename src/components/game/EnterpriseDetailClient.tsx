@@ -47,7 +47,7 @@ function productEmoji(sku: string): string {
 
 interface EquipCatalogItem { id: string; name: string; sku: string; basePrice: number; unit: string; footprintM2: number; canBuy: boolean }
 
-type Tab = "management" | "workshops" | "hr" | "warehouse" | "production" | "supply" | "showcase" | "fields" | "staff" | "expand" | "machinery" | "livestock";
+type Tab = "management" | "workshops" | "hr" | "warehouse" | "production" | "supply" | "showcase" | "fields" | "staff" | "expand" | "machinery" | "livestock" | "freight" | "b2b";
 
 interface Props { enterpriseId: string; initialTab?: Tab; title?: string }
 
@@ -2361,7 +2361,9 @@ export default function EnterpriseDetailClient({ enterpriseId, initialTab }: Pro
       ? [...BASE_TABS.slice(0, 4), { key: "showcase", label: "🏪 Вітрина" }, ...BASE_TABS.slice(4)]
       : enterprise.type === "AGRO_FARM"
       ? [...BASE_TABS, { key: "fields", label: "🌾 Поля" }, { key: "machinery", label: "🚜 Техніка" }, { key: "livestock", label: "🐄 Тваринництво" }]
-      : BASE_TABS;
+      : enterprise.type === "LOGISTICS_HUB"
+      ? [...BASE_TABS, { key: "freight", label: "🚛 Вантаж" }, { key: "b2b", label: "🔗 B2B" }]
+      : [...BASE_TABS, { key: "b2b", label: "🔗 B2B" }];
 
   return (
     <div className="space-y-5">
@@ -2485,6 +2487,172 @@ export default function EnterpriseDetailClient({ enterpriseId, initialTab }: Pro
       {tab === "fields"     && <FieldsTab enterprise={enterprise} agroInfo={agroInfo} />}
       {tab === "machinery"  && <MachineryTab enterpriseId={enterpriseId} />}
       {tab === "livestock"  && <LivestockTab enterpriseId={enterpriseId} />}
+      {tab === "freight"    && <FreightTab enterpriseId={enterpriseId} />}
+      {tab === "b2b"        && <B2bTab enterpriseId={enterpriseId} />}
+    </div>
+  );
+}
+
+// ─── FreightTab ───────────────────────────────────────────────────────────────
+function FreightTab({ enterpriseId }: { enterpriseId: string }) {
+  void enterpriseId;
+  const [info, setInfo] = useState<{
+    hasHub: boolean;
+    openOrders: { id: string; productSku: string; quantityUnits: number; fromCity: string; toCity: string; totalValueUah: number; status: string }[];
+    myOrders:   { id: string; productSku: string; fromCity: string; toCity: string; totalValueUah: number; status: string }[];
+  } | null>(null);
+  const [accepting, setAccepting] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/logistics/freight")
+      .then(r => r.ok ? r.json() : null).then(setInfo).catch(() => {});
+  }, []);
+
+  const accept = async (orderId: string) => {
+    setAccepting(orderId); setMsg(null);
+    const r = await fetch("/api/logistics/freight", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ orderId }),
+    });
+    const d = await r.json();
+    setMsg(r.ok ? `✓ ${d.message}` : `✗ ${d.error}`);
+    setAccepting(null);
+    if (r.ok) fetch("/api/logistics/freight").then(res => res.ok ? res.json() : null).then(setInfo).catch(() => {});
+  };
+
+  if (!info) return <p className="text-xs text-gray-500 p-2">Завантаження...</p>;
+  return (
+    <div className="space-y-4 p-1">
+      {!info.hasHub && <div className="text-xs text-amber-400 border border-amber-900/40 rounded-lg p-3">Потрібен активний LOGISTICS_HUB для прийняття замовлень</div>}
+      {msg && <p className={`text-xs ${msg.startsWith("✓") ? "text-emerald-400" : "text-red-400"}`}>{msg}</p>}
+      <div className="rounded-lg border border-blue-900/40 bg-blue-950/10 p-3 space-y-2">
+        <p className="text-xs font-semibold text-blue-400">Відкриті замовлення ({info.openOrders.length})</p>
+        {info.openOrders.length === 0 ? <p className="text-xs text-gray-600">Немає доступних замовлень</p> : (
+          <div className="space-y-1.5">
+            {info.openOrders.map(o => (
+              <div key={o.id} className="flex items-center justify-between text-xs border border-gray-800 rounded p-2 gap-2">
+                <div className="min-w-0">
+                  <span className="font-mono text-emerald-300">{o.productSku}</span>
+                  <span className="text-gray-400 ml-2">{o.quantityUnits} од.</span>
+                  <span className="text-gray-600 ml-2">{o.fromCity} → {o.toCity}</span>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-emerald-400 font-mono">₴{o.totalValueUah.toLocaleString()}</span>
+                  <button onClick={() => accept(o.id)} disabled={!info.hasHub || accepting === o.id}
+                    className="px-2 py-0.5 bg-blue-700 hover:bg-blue-600 disabled:opacity-50 text-white text-[10px] rounded">
+                    {accepting === o.id ? "..." : "Взяти"}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      {info.myOrders.length > 0 && (
+        <div className="rounded-lg border border-gray-800 bg-gray-900 p-3 space-y-1.5">
+          <p className="text-xs font-semibold text-gray-400">Мої замовлення</p>
+          {info.myOrders.map(o => (
+            <div key={o.id} className="flex items-center justify-between text-xs text-gray-500">
+              <span>{o.productSku} {o.fromCity} → {o.toCity}</span>
+              <span className={o.status === "COMPLETED" ? "text-emerald-400" : "text-amber-400"}>
+                {o.status === "COMPLETED" ? `✓ ₴${o.totalValueUah.toLocaleString()}` : "У процесі..."}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── B2bTab ───────────────────────────────────────────────────────────────────
+function B2bTab({ enterpriseId }: { enterpriseId: string }) {
+  const [agreements, setAgreements] = useState<{
+    id: string; isActive: boolean; quantityPerTick: number;
+    totalTransferred: number; product: { sku: string; nameUa: string };
+    sourceEnterprise: { id: string; name: string }; targetEnterprise: { id: string; name: string };
+  }[]>([]);
+  const [allEnterprises, setAllEnterprises] = useState<{ id: string; name: string; type: string }[]>([]);
+  const [invProducts, setInvProducts] = useState<{ sku: string; nameUa: string }[]>([]);
+  const [form, setForm] = useState({ targetId: "", productSku: "", qty: "" });
+  const [msg, setMsg] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const reload = () => {
+    fetch("/api/b2b-transfer").then(r => r.ok ? r.json() : null).then(d => setAgreements(d?.agreements ?? [])).catch(() => {});
+  };
+  useEffect(() => {
+    reload();
+    fetch("/api/enterprises").then(r => r.ok ? r.json() : null).then(d => setAllEnterprises(d?.enterprises ?? [])).catch(() => {});
+    fetch("/api/products?take=100").then(r => r.ok ? r.json() : null).then(d => setInvProducts(d?.products ?? [])).catch(() => {});
+  }, []);
+
+  const create = async () => {
+    if (!form.targetId || !form.productSku || !form.qty) return;
+    setLoading(true); setMsg(null);
+    const r = await fetch("/api/b2b-transfer", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sourceEnterpriseId: enterpriseId, targetEnterpriseId: form.targetId, productSku: form.productSku, quantityPerTick: parseFloat(form.qty), pricePerUnit: 0 }),
+    });
+    const d = await r.json();
+    setMsg(r.ok ? `✓ ${d.message}` : `✗ ${d.error}`);
+    if (r.ok) { reload(); setForm({ targetId: "", productSku: "", qty: "" }); }
+    setLoading(false);
+  };
+  const deactivate = async (id: string) => {
+    const r = await fetch(`/api/b2b-transfer?id=${id}`, { method: "DELETE" });
+    const d = await r.json();
+    setMsg(r.ok ? `✓ ${d.message}` : `✗ ${d.error}`);
+    if (r.ok) reload();
+  };
+
+  const myAgreements = agreements.filter(a => a.sourceEnterprise.id === enterpriseId || a.targetEnterprise.id === enterpriseId);
+  const others = allEnterprises.filter(e => e.id !== enterpriseId);
+
+  return (
+    <div className="space-y-4 p-1">
+      <div className="rounded-lg border border-purple-900/40 bg-purple-950/10 p-3 space-y-2">
+        <p className="text-xs font-semibold text-purple-400">Новий автотрансфер B2B</p>
+        <div className="grid grid-cols-2 gap-2">
+          <select value={form.targetId} onChange={e => setForm(p => ({ ...p, targetId: e.target.value }))}
+            className="col-span-2 bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500">
+            <option value="">Ціль (підприємство)</option>
+            {others.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+          </select>
+          <select value={form.productSku} onChange={e => setForm(p => ({ ...p, productSku: e.target.value }))}
+            className="bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500">
+            <option value="">Товар</option>
+            {invProducts.map(p => <option key={p.sku} value={p.sku}>{p.nameUa}</option>)}
+          </select>
+          <input type="number" placeholder="Кількість/день" value={form.qty} onChange={e => setForm(p => ({ ...p, qty: e.target.value }))}
+            className="bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-purple-500" />
+        </div>
+        <button onClick={create} disabled={loading || !form.targetId || !form.productSku || !form.qty}
+          className="w-full py-1.5 bg-purple-700 hover:bg-purple-600 disabled:opacity-50 text-white text-xs rounded">
+          {loading ? "..." : "Створити автотрансфер"}
+        </button>
+        {msg && <p className={`text-xs ${msg.startsWith("✓") ? "text-emerald-400" : "text-red-400"}`}>{msg}</p>}
+      </div>
+      {myAgreements.length > 0 && (
+        <div className="space-y-1.5">
+          {myAgreements.map(a => (
+            <div key={a.id} className="flex items-center justify-between text-xs border border-gray-800 rounded p-2">
+              <div>
+                <span className="font-mono text-purple-300">{a.product.sku}</span>
+                <span className="text-gray-400 ml-2">x{a.quantityPerTick}/день</span>
+                <span className="text-gray-600 ml-2">{a.sourceEnterprise.name} → {a.targetEnterprise.name}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-gray-600 text-[10px]">{a.totalTransferred.toFixed(0)} перенесено</span>
+                {a.isActive && a.sourceEnterprise.id === enterpriseId
+                  ? <button onClick={() => deactivate(a.id)} className="text-red-500 hover:text-red-400 text-[10px]">Зупинити</button>
+                  : <span className="text-gray-600 text-[10px]">{a.isActive ? "активна" : "зупинена"}</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

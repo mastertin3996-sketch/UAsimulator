@@ -43,8 +43,12 @@ import { TenderService }             from './TenderService';
 import { RatingService }             from './RatingService';
 import { SyndicateVoteService }      from './SyndicateVoteService';
 import { WarehouseRentalService }    from './WarehouseRentalService';
-import { NpcCompetitorService }      from './NpcCompetitorService';
-import { AgroService }               from './AgroService';
+import { NpcCompetitorService }          from './NpcCompetitorService';
+import { AgroService }                   from './AgroService';
+import { CreditScoreService }            from './CreditScoreService';
+import { LogisticsFreightService }       from './LogisticsFreightService';
+import { B2bTransferService }            from './B2bTransferService';
+import { RegulatoryInspectionService }   from './RegulatoryInspectionService';
 import { TICKS_PER_MONTH, TICKS_PER_SNAPSHOT } from '../constants/economic';
 
 interface TickSummary {
@@ -84,6 +88,10 @@ export class TickEngine {
   private readonly warehouseRents:   WarehouseRentalService;
   private readonly npcCompetitors:   NpcCompetitorService;
   private readonly agro:             AgroService;
+  private readonly creditScore:      CreditScoreService;
+  private readonly freightSvc:       LogisticsFreightService;
+  private readonly b2bTransfer:      B2bTransferService;
+  private readonly inspections:      RegulatoryInspectionService;
   private readonly db:               PrismaClient;
 
   constructor(prismaClient: PrismaClient = defaultPrisma) {
@@ -114,6 +122,10 @@ export class TickEngine {
     this.warehouseRents  = new WarehouseRentalService(prismaClient);
     this.npcCompetitors  = new NpcCompetitorService(prismaClient);
     this.agro            = new AgroService(prismaClient);
+    this.creditScore     = new CreditScoreService(prismaClient);
+    this.freightSvc      = new LogisticsFreightService(prismaClient);
+    this.b2bTransfer     = new B2bTransferService(prismaClient);
+    this.inspections     = new RegulatoryInspectionService(prismaClient);
   }
 
   /**
@@ -293,6 +305,18 @@ export class TickEngine {
       await this.agro.chargeExtraFieldRents(tickNumber)
         .catch(e => console.error(`[Tick ${tickNumber}] Extra field rent failed:`, e));
     }
+
+    // ── 3a1j. Phase 28: B2B трансфер, логіст. замовлення, інспекції, кредитний рейтинг ──
+    await this.b2bTransfer.processTransfers(tickNumber)
+      .catch(e => console.error(`[Tick ${tickNumber}] B2B transfer failed:`, e));
+    await this.freightSvc.processCompletedOrders(tickNumber)
+      .catch(e => console.error(`[Tick ${tickNumber}] Freight orders failed:`, e));
+    if (Number(tickNumber) % 5 === 0) {
+      await this.freightSvc.generateNpcOrders(tickNumber)
+        .catch(e => console.error(`[Tick ${tickNumber}] Freight NPC orders failed:`, e));
+    }
+    await this.inspections.processInspections(tickNumber)
+      .catch(e => console.error(`[Tick ${tickNumber}] Regulatory inspections failed:`, e));
 
     // ── 3a1b. Держзамовлення — нові BUY-ордери з премією кожні 8 тіків ──
     // Виконується ДО matchOrders щоб нові ордери одразу потрапляли в матчинг
@@ -570,6 +594,10 @@ export class TickEngine {
 
     // ── g. Перевірка прострочених кредитів (щотіково) ───────────────────
     await this.loans.checkOverdueLoans(playerId, tickNumber);
+
+    // ── g2. Credit score passive growth ─────────────────────────────────
+    await this.creditScore.tickPassiveGrowth(playerId)
+      .catch(e => console.error(`[Tick ${tickNumber}] CreditScore failed for ${playerId}:`, e));
 
     // ── i. R&D — generate research points for RD_LABORATORY enterprises ──
     const rdResult = await this.rd.processResearchTick(playerId, tickNumber);

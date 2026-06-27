@@ -138,6 +138,9 @@ enum TransactionType {
   STOCK_SELL               // Продаж акцій на вторинному ринку (кредит продавця)
   DIVIDEND_PAYMENT         // Засновник виплачує дивіденди з власного балансу
   GM_ADJUSTMENT            // Ручне коригування балансу адміністратором гри
+  INTERNAL_TRANSFER        // Внутрішній B2B трансфер між підприємствами одного гравця
+  LOGISTICS_FREIGHT        // Вантажне перевезення (LOGISTICS_HUB)
+  REGULATORY_INSPECTION_FEE // Штраф регуляторної інспекції (якість, пожбезпека, праця)
 }
 
 enum DepositCurrency {
@@ -312,6 +315,7 @@ model Player {
   netWorth        Decimal  @default(500000) @db.Decimal(18, 2)
   creditRating    Float    @default(7.0)   // 0–10
   reputationScore Float    @default(5.0)   // 0–10
+  creditScore     Int      @default(500)   // 0–1000: зростає від своєчасних платежів, падає від штрафів
   createdAt       DateTime @default(now())
   lastActiveAt    DateTime @default(now())
   // ── Banking & Overdraft (Step 19) ─────────────────────────────────────────
@@ -391,6 +395,9 @@ model Player {
   farmMachinery           FarmMachinery[]
   livestockHerds          LivestockHerd[]
   grainForwardContracts   GrainForwardContract[]
+  freightOrdersCarried    LogisticsFreightOrder[] @relation("FreightCarrier")
+  b2bAgreements           B2bTransferAgreement[]
+  regulatoryInspections   RegulatoryInspection[]
 
   @@index([username])
 }
@@ -556,6 +563,8 @@ model Enterprise {
   // Акумулятор: максимальна ємність та поточний заряд (кВт·год)
   batteryCapacityKwh  Decimal  @default(0) @db.Decimal(10, 2)
   currentBatteryKwh   Decimal  @default(0) @db.Decimal(10, 2)
+  // Енергетична біржа: всього продано кВт·год за все існування підприємства
+  energySoldKwhTotal  Float    @default(0)
 
   player               Player                @relation(fields: [playerId], references: [id])
   landPlot             LandPlot              @relation(fields: [landPlotId], references: [id])
@@ -578,6 +587,9 @@ model Enterprise {
   farmMachinery         FarmMachinery[]
   livestockHerds        LivestockHerd[]
   grainForwardContracts GrainForwardContract[]
+  b2bSourceAgreements   B2bTransferAgreement[] @relation("B2bSource")
+  b2bTargetAgreements   B2bTransferAgreement[] @relation("B2bTarget")
+  regulatoryInspections RegulatoryInspection[]
 
   @@index([playerId])
   @@index([landPlotId])
@@ -736,6 +748,7 @@ model Product {
   supplyRoutes          SupplyRoute[]
   tenders               Tender[]
   grainForwardContracts GrainForwardContract[]
+  b2bAgreements         B2bTransferAgreement[]
 
   @@index([category])
   @@index([sku])
@@ -2113,4 +2126,79 @@ model GrainForwardContract {
   @@index([playerId])
   @@index([enterpriseId])
   @@index([deliveryTick])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PHASE 28 FEATURES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Логістичний ринок: NPC розміщує замовлення, LOGISTICS_HUB власник виконує
+model LogisticsFreightOrder {
+  id               String   @id @default(cuid())
+  // Ким розміщено (null = NPC/система)
+  requesterId      String?
+  // Хто взяв замовлення
+  carrierId        String?
+  productSku       String
+  quantityUnits    Float
+  fromCityId       String
+  toCityId         String
+  tariffPerUnit    Decimal  @db.Decimal(14, 4)
+  totalValueUah    Decimal  @db.Decimal(18, 2)
+  status           String   @default("OPEN")   // OPEN | ACCEPTED | COMPLETED | EXPIRED
+  postedAtTick     BigInt
+  expiresAtTick    BigInt
+  acceptedAtTick   BigInt?
+  completedAtTick  BigInt?
+  createdAt        DateTime @default(now())
+
+  carrier  Player? @relation("FreightCarrier",  fields: [carrierId],  references: [id])
+
+  @@index([status, expiresAtTick])
+  @@index([carrierId])
+}
+
+// B2B трансфер: автоматична передача товару між двома власними підприємствами
+model B2bTransferAgreement {
+  id               String   @id @default(cuid())
+  playerId         String
+  sourceEnterpriseId  String
+  targetEnterpriseId  String
+  productId        String
+  quantityPerTick  Float
+  pricePerUnit     Decimal  @db.Decimal(14, 4)
+  isActive         Boolean  @default(true)
+  createdAtTick    BigInt
+  lastExecutedTick BigInt?
+  totalTransferred Float    @default(0)
+  createdAt        DateTime @default(now())
+
+  player           Player     @relation(fields: [playerId],            references: [id])
+  sourceEnterprise Enterprise @relation("B2bSource", fields: [sourceEnterpriseId], references: [id])
+  targetEnterprise Enterprise @relation("B2bTarget", fields: [targetEnterpriseId], references: [id])
+  product          Product    @relation(fields: [productId],           references: [id])
+
+  @@index([playerId, isActive])
+  @@index([sourceEnterpriseId])
+}
+
+// Регуляторна інспекція (загальна, не лише податкова)
+model RegulatoryInspection {
+  id              String   @id @default(cuid())
+  playerId        String
+  enterpriseId    String?
+  inspectionType  String   // TAX | QUALITY | LABOR | FIRE_SAFETY
+  result          String   // PASSED | VIOLATION | SEVERE_VIOLATION
+  fineUah         Decimal  @default(0) @db.Decimal(14, 2)
+  freezeTicks     Int      @default(0)
+  findings        String   @default("") // JSON or text description
+  conductedAtTick BigInt
+  isPaid          Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  player     Player      @relation(fields: [playerId],    references: [id])
+  enterprise Enterprise? @relation(fields: [enterpriseId], references: [id])
+
+  @@index([playerId, isPaid])
+  @@index([conductedAtTick])
 }

@@ -454,14 +454,52 @@ export class EnergyMarketService {
         summary.totalGenerationKwh    += result.generationKwh;
         summary.totalGridSupplementKwh += result.gridSupplementKwh;
 
-        const newBatKwh = new Decimal(ent.currentBatteryKwh.toString())
+        const batCap    = new Decimal(ent.batteryCapacityKwh.toString());
+        const batBefore = new Decimal(ent.currentBatteryKwh.toString());
+        let   newBatKwh = batBefore
           .plus(result.batteryDeltaKwh)
-          .clampedTo(new Decimal(0), new Decimal(ent.batteryCapacityKwh.toString()));
+          .clampedTo(new Decimal(0), batCap);
 
         // Сонячна економія = що б заплатили за GRID × (generation - gridSupplement) / consumption
         const cityTariff = new Decimal(ent.landPlot.city.energyTariffUah.toString());
         const savedKwh   = Math.max(0, result.generationKwh - result.gridSupplementKwh);
         summary.totalSolarSavingsUah = summary.totalSolarSavingsUah.plus(cityTariff.times(savedKwh));
+
+        // ── Енергетична біржа: продаємо надлишок коли батарея повна ────────
+        const FEED_IN_RATE = 0.6; // 60% від міського тарифу — feed-in rate
+        if (result.batteryDeltaKwh > 0 && newBatKwh.gte(batCap)) {
+          const surplusKwh = result.batteryDeltaKwh - batCap.minus(batBefore).toNumber();
+          if (surplusKwh > 0.01 && isCityGridOn) {
+            const feedInRevenue = cityTariff.times(FEED_IN_RATE).times(surplusKwh);
+            const playerBal = await this.db.player.findUnique({
+              where: { id: ent.playerId }, select: { cashBalance: true },
+            });
+            if (playerBal) {
+              const balBefore = new Decimal(playerBal.cashBalance.toString());
+              const balAfter  = balBefore.plus(feedInRevenue);
+              await this.db.$transaction([
+                this.db.player.update({
+                  where: { id: ent.playerId },
+                  data:  { cashBalance: { increment: feedInRevenue } },
+                }),
+                this.db.enterprise.update({
+                  where: { id: ent.id },
+                  data:  { energySoldKwhTotal: { increment: surplusKwh } },
+                }),
+                this.db.financialTransaction.create({
+                  data: {
+                    playerId:    ent.playerId,
+                    type:        'NPC_SALE',
+                    amountUah:   feedInRevenue,
+                    balanceBefore: balBefore,
+                    balanceAfter:  balAfter,
+                    description: `Продаж надлишку електроенергії в мережу: ${surplusKwh.toFixed(2)} кВт·год`,
+                  },
+                }),
+              ]);
+            }
+          }
+        }
 
         await this.db.enterprise.update({
           where: { id: ent.id },

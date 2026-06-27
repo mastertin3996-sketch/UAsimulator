@@ -12,6 +12,7 @@
 
 import { PrismaClient } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
+import { CreditScoreService } from './CreditScoreService';
 
 // ─── Константи ───────────────────────────────────────────────────────────────
 
@@ -41,7 +42,10 @@ const PAYMENT_TOLERANCE = new Decimal('0.01'); // UAH — менше цього 
 // ─────────────────────────────────────────────────────────────────────────────
 
 export class LoanService {
-  constructor(private readonly prisma: PrismaClient) {}
+  private readonly creditSvc: CreditScoreService;
+  constructor(private readonly prisma: PrismaClient) {
+    this.creditSvc = new CreditScoreService(prisma);
+  }
 
   // ── Публічні методи ────────────────────────────────────────────────────────
 
@@ -391,6 +395,8 @@ export class LoanService {
         },
       }),
     ]);
+    // Credit score: +5 for on-time payment
+    if (wasOnTime) await this.creditSvc.onLoanPayment(loan.playerId).catch(() => {});
   }
 
   private async triggerDefault(loanId: string, playerId: string): Promise<void> {
@@ -399,6 +405,7 @@ export class LoanService {
       data:  { status: 'DEFAULTED' },
     });
     await this.adjustCreditRating(playerId, RATING_DELTA.DEFAULT);
+    await this.creditSvc.onLoanDefault(playerId).catch(() => {});
     await this.prisma.notification.create({ data: {
       playerId,
       type:    'LOAN_DEFAULT',
