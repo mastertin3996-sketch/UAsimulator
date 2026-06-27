@@ -209,6 +209,7 @@ enum LicenseType {
   MANUFACTURING_LICENSE  // TEXTILE_FACTORY
   RETAIL_PERMIT          // RETAIL_STORE
   AGRO_INSURANCE         // Страхування AGRO_FARM від посухи та шкідників
+  EXCISE_LICENSE         // Виробництво алкоголю (FOOD_PROCESSING)
 }
 
 enum LicenseStatus {
@@ -365,6 +366,9 @@ model Player {
   ratingAwards            RatingAward[]
   warehouseRentalOffers   WarehouseRentalOffer[]   @relation("WarehouseOfferOwner")
   warehouseRentalSubs     WarehouseRentalSubscription[] @relation("WarehouseRentalTenant")
+  intelligenceRequests    IntelligenceReport[] @relation("IntelligenceRequester")
+  intelligenceTargets     IntelligenceReport[] @relation("IntelligenceTarget")
+  landListings            LandPlotListing[]
 
   @@index([username])
 }
@@ -445,6 +449,7 @@ model LandPlot {
   city        City         @relation(fields: [cityId], references: [id])
   player      Player?      @relation(fields: [playerId], references: [id])
   enterprises Enterprise[]
+  listing     LandPlotListing?
 
   @@index([cityId])
   @@index([playerId])
@@ -581,6 +586,9 @@ model Workshop {
   isActive            Boolean @default(false)
   // Базове енергоспоживання виробничого простору (кВт·год/тік, незалежно від обладнання)
   basePowerKwhPerTick Float   @default(2)
+
+  // Якщо задано — цех активується не раніше цього тіку (розширення підприємства)
+  activatesAtTick BigInt?
 
   enterprise       Enterprise        @relation(fields: [enterpriseId], references: [id])
   equipment        Equipment[]
@@ -1946,4 +1954,44 @@ model WarehouseRentalSubscription {
 
   @@unique([offerId, tenantId])
   @@index([tenantId, isActive])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INTELLIGENCE REPORTS (Конкурентна розвідка)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model IntelligenceReport {
+  id           String   @id @default(cuid())
+  requesterId  String
+  targetId     String
+  costUah      Decimal  @db.Decimal(12, 2)
+  success      Boolean  @default(true)
+  detected     Boolean  @default(false)
+  resultJson   Json?
+  createdAt    DateTime @default(now())
+
+  requester Player @relation("IntelligenceRequester", fields: [requesterId], references: [id])
+  target    Player @relation("IntelligenceTarget",    fields: [targetId],    references: [id])
+
+  @@index([requesterId])
+  @@index([targetId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// LAND PLOT LISTINGS (Вторинний ринок землі)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model LandPlotListing {
+  id             String   @id @default(cuid())
+  landPlotId     String   @unique
+  sellerId       String
+  askingPriceUah Decimal  @db.Decimal(14, 2)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+
+  landPlot LandPlot @relation(fields: [landPlotId], references: [id])
+  seller   Player   @relation(fields: [sellerId],   references: [id])
+
+  @@index([sellerId])
+  @@index([isActive])
 }

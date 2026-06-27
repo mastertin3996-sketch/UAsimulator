@@ -9,6 +9,7 @@ const LICENSE_FEE: Record<LicenseType, number> = {
   MANUFACTURING_LICENSE: 45_000,
   RETAIL_PERMIT:          8_000,
   AGRO_INSURANCE:         5_000,
+  EXCISE_LICENSE:        80_000,
 };
 
 const LICENSE_DURATION_TICKS = 30;
@@ -18,6 +19,7 @@ const LICENSE_NAME: Record<LicenseType, string> = {
   MANUFACTURING_LICENSE: "Ліцензія виробника",
   RETAIL_PERMIT:         "Торговий дозвіл",
   AGRO_INSURANCE:        "Агрострахування",
+  EXCISE_LICENSE:        "Акцизна ліцензія",
 };
 
 const ENTERPRISE_LICENSE: Record<string, LicenseType> = {
@@ -29,7 +31,8 @@ const ENTERPRISE_LICENSE: Record<string, LicenseType> = {
 
 // Additional optional licenses available per enterprise type
 const OPTIONAL_LICENSE: Record<string, LicenseType[]> = {
-  AGRO_FARM: ["AGRO_INSURANCE"],
+  AGRO_FARM:       ["AGRO_INSURANCE"],
+  FOOD_PROCESSING: ["EXCISE_LICENSE"],
 };
 
 export async function GET() {

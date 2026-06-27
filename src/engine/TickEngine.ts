@@ -222,6 +222,28 @@ export class TickEngine {
       data:  { promotionActive: false, promotionEndTick: null },
     }).catch(e => console.error(`[Tick ${tickNumber}] Promo expiry failed:`, e));
 
+    // ── 3a1e0. Активація нових цехів (розширення підприємств) ────────────────
+    const newWorkshops = await this.db.workshop.findMany({
+      where: { isActive: false, activatesAtTick: { lte: tickNumber } },
+      select: { id: true, enterprise: { select: { playerId: true, name: true } }, name: true },
+    });
+    if (newWorkshops.length > 0) {
+      await this.db.workshop.updateMany({
+        where: { id: { in: newWorkshops.map(w => w.id) } },
+        data:  { isActive: true },
+      });
+      for (const w of newWorkshops) {
+        await this.db.notification.create({
+          data: {
+            playerId: w.enterprise.playerId,
+            type:     'CONSTRUCTION_COMPLETE',
+            title:    'Розширення завершено',
+            body:     `Новий цех "${w.name}" у "${w.enterprise.name}" введено в експлуатацію.`,
+          },
+        }).catch(() => {});
+      }
+    }
+
     // ── 3a1e. Синдикат — expiry голосувань ───────────────────────────────────
     await this.syndicateVotes.processExpiredVotes(tickNumber)
       .catch(e => console.error(`[Tick ${tickNumber}] Syndicate votes failed:`, e));

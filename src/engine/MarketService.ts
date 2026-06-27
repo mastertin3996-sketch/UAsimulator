@@ -548,6 +548,25 @@ export class MarketService {
             }),
           ]);
 
+          // EXCISE TAX on alcohol sales
+          const EXCISE_RATE: Record<string, number> = { 'FG-BEER': 12, 'FG-SPIRITS': 95 };
+          const excisePerUnit = EXCISE_RATE[sku];
+          if (excisePerUnit) {
+            const hasLicense = await this.prisma.license.findFirst({
+              where: { enterpriseId: shop.id, type: 'EXCISE_LICENSE', status: 'ACTIVE' },
+            });
+            if (hasLicense) {
+              const excise = new Decimal(excisePerUnit).times(actualSold);
+              await this.prisma.$transaction([
+                this.prisma.player.update({ where: { id: shop.playerId }, data: { cashBalance: { decrement: excise } } }),
+                this.prisma.financialLog.create({
+                  data: { playerId: shop.playerId, category: 'EXPENSE_TAX', amountUah: excise.negated(),
+                    description: `Акциз ${sku}: ${actualSold.toFixed(1)} × ₴${excisePerUnit}`, tickNumber },
+                }),
+              ]);
+            }
+          }
+
           inv.quantity = (Number(inv.quantity) - actualSold) as any;
           totalSold    += actualSold;
           totalRevenue += revenue.toNumber();
@@ -581,6 +600,8 @@ export class MarketService {
     'FG-SAUSAGE':           [1.0, 1.1, 1.2, 1.3],  // осінь/зима — пікніки та свята
     'FG-CLOTHING':          [0.7, 0.8, 1.2, 1.8],  // зимовий пік — пальта, куртки
     'FG-KNITWEAR':          [0.6, 0.7, 1.3, 1.9],  // зимовий пік — светри, шарфи
+    'FG-BEER':              [0.8, 2.0, 1.0, 0.7],  // літній пік — спека, відпочинок
+    'FG-SPIRITS':           [0.9, 0.7, 1.0, 1.5],  // зимовий пік — свята
   };
 
   async matchNpcMarketOrders(tickNumber?: bigint): Promise<number> {

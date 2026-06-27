@@ -201,6 +201,11 @@ async function main() {
     { sku: 'EQ-TRACTOR',  name:'Agricultural Tractor',nameUa:'Сільгосптрактор',  category: 'EQUIPMENT_ITEM',unit: 'unit',  isEquipmentItem: true },
     { sku: 'EQ-SAWMILL',  name:'Sawmill',            nameUa: 'Лісопильний верстат',category:'EQUIPMENT_ITEM',unit:'unit',  isEquipmentItem: true },
     { sku: 'EQ-DAIRYLINE',name:'Dairy Processing Line',nameUa:'Молочна лінія',  category: 'EQUIPMENT_ITEM',unit: 'unit',  isEquipmentItem: true },
+    // ── ПИВОВАРНЯ / АЛКОГОЛЬ ─────────────────────────────────────────────────
+    { sku: 'RM-BARLEY',  name: 'Malting Barley',       nameUa: 'Ячмінь пивоварний',    category: 'RAW_MATERIAL',  unit: 'kg',    baseWeightKg: 1 },
+    { sku: 'SF-MALT',    name: 'Malt',                 nameUa: 'Солод',                category: 'SEMI_FINISHED', unit: 'kg',    baseWeightKg: 1 },
+    { sku: 'FG-BEER',    name: 'Beer (litre)',          nameUa: 'Пиво',                 category: 'FINISHED_GOOD', unit: 'litre', baseWeightKg: 1.01 },
+    { sku: 'FG-SPIRITS', name: 'Spirits (0.5L)',        nameUa: 'Горілка (0.5 л)',      category: 'FINISHED_GOOD', unit: 'unit',  baseWeightKg: 0.5 },
     // ── TEXTILE 2.0 — легка промисловість ────────────────────────────────────
     { sku: 'RM-COTTON',  name: 'Raw Cotton',           nameUa: 'Бавовна-сирець',       category: 'RAW_MATERIAL',  unit: 'kg',   baseWeightKg: 1 },
     { sku: 'SF-FABRIC',  name: 'Woven Fabric',          nameUa: 'Тканина вита',         category: 'SEMI_FINISHED', unit: 'kg',   baseWeightKg: 1 },
@@ -381,6 +386,25 @@ async function main() {
       inputs:  [{ sku: 'SF-PLANKS',  qty: 50 }, { sku: 'SF-STEEL', qty: 5 }],
       outputs: [{ sku: 'FG-FURN',    qty: 1.0 }],
     },
+    // ── ПИВОВАРНЯ / АЛКОГОЛЬ ─────────────────────────────────────────────────
+    {
+      name: 'Malting',                  enterpriseType: 'FOOD_PROCESSING',
+      ticksToComplete: 2,               laborHoursPerUnit: 0.06, baseQuality: 7.5, powerKwhPerUnit: 0.15,
+      inputs:  [{ sku: 'RM-BARLEY', qty: 1.25 }],
+      outputs: [{ sku: 'SF-MALT',   qty: 1.0  }],
+    },
+    {
+      name: 'Beer Brewing',             enterpriseType: 'FOOD_PROCESSING',
+      ticksToComplete: 3,               laborHoursPerUnit: 0.14, baseQuality: 7.8, powerKwhPerUnit: 0.30,
+      inputs:  [{ sku: 'SF-MALT', qty: 0.20 }, { sku: 'RM-CORN', qty: 0.05 }],
+      outputs: [{ sku: 'FG-BEER', qty: 1.0  }],
+    },
+    {
+      name: 'Spirits Distillation',     enterpriseType: 'FOOD_PROCESSING',
+      ticksToComplete: 4,               laborHoursPerUnit: 0.20, baseQuality: 8.0, powerKwhPerUnit: 0.60,
+      inputs:  [{ sku: 'SF-MALT', qty: 0.35 }, { sku: 'SF-SUGAR', qty: 0.05 }],
+      outputs: [{ sku: 'FG-SPIRITS', qty: 1.0 }],
+    },
     // ── TEXTILE 2.0 — легка промисловість ────────────────────────────────────
     {
       name: 'Cotton Spinning',          enterpriseType: 'TEXTILE_FACTORY',
@@ -469,6 +493,8 @@ async function main() {
     'FG-SAUSAGE':         { baseUnits: 110,  priceUah:   210, elasticity: -1.2, qualityWeight: 0.70 }, // ковбаса
     'FG-CLOTHING':        { baseUnits:  30,  priceUah:   850, elasticity: -1.4, qualityWeight: 0.75 }, // одяг — зимовий пік
     'FG-KNITWEAR':        { baseUnits:  20,  priceUah:   680, elasticity: -1.3, qualityWeight: 0.70 }, // трикотаж — зимовий пік
+    'FG-BEER':            { baseUnits: 400,  priceUah:    55, elasticity: -1.1, qualityWeight: 0.55 }, // пиво — літній пік
+    'FG-SPIRITS':         { baseUnits:  80,  priceUah:   220, elasticity: -1.0, qualityWeight: 0.50 }, // горілка — зимовий пік
   };
 
   // Попит з боку будівельної галузі (B2B-орієнтований, але частина йде через роздріб)

@@ -36,6 +36,7 @@ const LICENSE_FEE: Record<LicenseType, Decimal> = {
   MANUFACTURING_LICENSE: new Decimal('45000'),
   RETAIL_PERMIT:         new Decimal('8000'),
   AGRO_INSURANCE:        new Decimal('5000'),
+  EXCISE_LICENSE:        new Decimal('80000'),
 };
 
 const LICENSE_DURATION_TICKS = 30n;
