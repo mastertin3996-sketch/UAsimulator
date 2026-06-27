@@ -1,0 +1,29 @@
+name: Hourly Game Tick
+
+on:
+  schedule:
+    # Every hour at minute 0 (UTC)
+    - cron: '0 * * * *'
+  # Allow manual trigger from GitHub Actions UI
+  workflow_dispatch:
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Advance game day
+        run: |
+          response=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            https://uaeconomy-api.vercel.app/api/cron/tick)
+          echo "HTTP status: $response"
+          if [ "$response" != "200" ]; then
+            echo "Tick failed with status $response"
+            exit 1
+          fi
+
+      - name: Log result
+        if: always()
+        run: echo "Tick completed at $(date -u)"
