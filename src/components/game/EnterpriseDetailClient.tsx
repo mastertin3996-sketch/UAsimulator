@@ -1532,8 +1532,8 @@ function SupplyTab({ enterpriseId }: { enterpriseId: string }) {
 }
 
 // ─── CreateFieldPlot (inline form when no workshops exist) ────────────────────
-function CreateFieldPlot({ enterpriseId, enterpriseType, onCreated }: {
-  enterpriseId: string; enterpriseType: string; onCreated: () => void;
+function CreateFieldPlot({ enterpriseId, enterpriseType, freeLandM2, onCreated }: {
+  enterpriseId: string; enterpriseType: string; freeLandM2?: number; onCreated: () => void;
 }) {
   const [recipes, setRecipes]   = useState<{ id: string; name: string; outputs: { product: { sku: string; nameUa: string } }[] }[]>([]);
   const [recipeId, setRecipeId] = useState("");
@@ -1573,8 +1573,10 @@ function CreateFieldPlot({ enterpriseId, enterpriseType, onCreated }: {
       <div className="flex items-start gap-3">
         <span className="text-2xl leading-none">🌱</span>
         <div>
-          <p className="text-sm font-semibold text-green-400">Немає жодної ділянки для посіву</p>
-          <p className="text-xs text-gray-500 mt-0.5">Щоб вирощувати культури — створіть ділянку. Вона займе площу вашого поля.</p>
+          <p className="text-sm font-semibold text-green-400">
+            {freeLandM2 != null && freeLandM2 > 0 ? `Додати ділянку (вільно ${freeLandM2.toLocaleString()} м²)` : "Немає жодної ділянки для посіву"}
+          </p>
+          <p className="text-xs text-gray-500 mt-0.5">Ділянка займе частину поля і буде вирощувати обрану культуру щотіку.</p>
         </div>
       </div>
 
@@ -1595,7 +1597,9 @@ function CreateFieldPlot({ enterpriseId, enterpriseType, onCreated }: {
             </div>
             <div>
               <label className="text-[10px] text-gray-500 mb-1 block">Площа ділянки (м²)</label>
-              <input type="number" min="100" step="100" value={areaM2} onChange={e => setAreaM2(e.target.value)}
+              <input type="number" min="100" step="100"
+                max={freeLandM2 != null ? freeLandM2 : undefined}
+                value={areaM2} onChange={e => setAreaM2(e.target.value)}
                 className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-2 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-green-500" />
             </div>
             <div className="flex flex-col justify-end pb-0.5 gap-0.5">
@@ -1674,6 +1678,7 @@ function FieldsTab({ enterprise, agroInfo, onRefresh }: { enterprise: Enterprise
 
   const AGRO_SKUS = ["RM-WHEAT", "RM-SUNFL", "RM-CORN", "RM-SUGBEET", "SF-MILK", "FG-EGGS"];
   const [recipeModal, setRecipeModal] = useState<Workshop | null>(null);
+  const [showAddPlot, setShowAddPlot] = useState(false);
 
   const hasSilo = enterprise.workshops.some(w =>
     w.equipment.some(eq => eq.name.includes("Силос") || eq.name.includes("Grain Silo"))
@@ -1802,11 +1807,47 @@ function FieldsTab({ enterprise, agroInfo, onRefresh }: { enterprise: Enterprise
       )}
 
       {/* Ділянки — що засівати (ПЕРШОЧЕРГОВО) */}
+      {(() => {
+        const totalLandM2 = fieldInfo ? fieldInfo.baseLandAreaM2 + fieldInfo.extraFieldAreaM2 : null;
+        const usedM2 = enterprise.workshops.reduce((s, w) => s + w.footprintM2, 0);
+        const freeLandM2 = totalLandM2 != null ? totalLandM2 - usedM2 : null;
+        const canAddPlot = freeLandM2 != null && freeLandM2 >= 100;
+        return (
       <div className="space-y-2">
-        <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Ділянки — що засівати</p>
-        {enterprise.workshops.length === 0 && (
-          <CreateFieldPlot enterpriseId={enterprise.id} enterpriseType={enterprise.type} onCreated={onRefresh} />
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Ділянки — що засівати</p>
+            {totalLandM2 != null && (
+              <p className="text-[10px] text-gray-600 mt-0.5">
+                Використано <span className="text-white">{usedM2.toLocaleString()} м²</span>
+                {" з "}
+                <span className="text-white">{totalLandM2.toLocaleString()} м²</span>
+                {freeLandM2 != null && freeLandM2 > 0 && (
+                  <span className="text-emerald-500"> · вільно {freeLandM2.toLocaleString()} м²</span>
+                )}
+              </p>
+            )}
+          </div>
+          {canAddPlot && enterprise.workshops.length > 0 && (
+            <button onClick={() => setShowAddPlot(v => !v)}
+              className={cn("text-xs px-2.5 py-1 rounded border transition-colors",
+                showAddPlot
+                  ? "border-gray-600 bg-gray-800 text-gray-300"
+                  : "border-green-700 bg-green-900/40 text-green-400 hover:bg-green-800/50")}>
+              {showAddPlot ? "✕ Скасувати" : "+ Нова ділянка"}
+            </button>
+          )}
+        </div>
+
+        {(enterprise.workshops.length === 0 || showAddPlot) && (
+          <CreateFieldPlot
+            enterpriseId={enterprise.id}
+            enterpriseType={enterprise.type}
+            freeLandM2={freeLandM2 ?? undefined}
+            onCreated={() => { setShowAddPlot(false); onRefresh(); }}
+          />
         )}
+
         <div className="grid gap-2 sm:grid-cols-2">
           {enterprise.workshops.map((ws) => {
             const order    = ws.productionOrders[0] ?? null;
@@ -1877,6 +1918,8 @@ function FieldsTab({ enterprise, agroInfo, onRefresh }: { enterprise: Enterprise
           })}
         </div>
       </div>
+        );
+      })()}
 
       {/* Площа поля + оренда */}
       {fieldInfo && (
