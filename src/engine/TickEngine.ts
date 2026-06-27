@@ -44,6 +44,7 @@ import { RatingService }             from './RatingService';
 import { SyndicateVoteService }      from './SyndicateVoteService';
 import { WarehouseRentalService }    from './WarehouseRentalService';
 import { NpcCompetitorService }      from './NpcCompetitorService';
+import { AgroService }               from './AgroService';
 import { TICKS_PER_MONTH, TICKS_PER_SNAPSHOT } from '../constants/economic';
 
 interface TickSummary {
@@ -82,6 +83,7 @@ export class TickEngine {
   private readonly syndicateVotes:   SyndicateVoteService;
   private readonly warehouseRents:   WarehouseRentalService;
   private readonly npcCompetitors:   NpcCompetitorService;
+  private readonly agro:             AgroService;
   private readonly db:               PrismaClient;
 
   constructor(prismaClient: PrismaClient = defaultPrisma) {
@@ -111,6 +113,7 @@ export class TickEngine {
     this.syndicateVotes  = new SyndicateVoteService(prismaClient);
     this.warehouseRents  = new WarehouseRentalService(prismaClient);
     this.npcCompetitors  = new NpcCompetitorService(prismaClient);
+    this.agro            = new AgroService(prismaClient);
   }
 
   /**
@@ -275,6 +278,19 @@ export class TickEngine {
       .catch(e => console.error(`[Tick ${tickNumber}] Livestock failed:`, e));
     await this.processMachineryWear(tickNumber)
       .catch(e => console.error(`[Tick ${tickNumber}] Machinery wear failed:`, e));
+
+    // ── 3a1i. AGRO: локальна погода, ф'ючерси, оренда полів ─────────────────
+    await this.agro.processLocalWeather(tickNumber)
+      .catch(e => console.error(`[Tick ${tickNumber}] Agro weather failed:`, e));
+    await this.agro.processForwardContracts(tickNumber)
+      .catch(e => console.error(`[Tick ${tickNumber}] Forward contracts failed:`, e));
+    if (Number(tickNumber) % 30 === 0) {
+      const subsidyCount = await this.agro.payAgroSubsidies(tickNumber)
+        .catch(e => { console.error(`[Tick ${tickNumber}] Agro subsidies failed:`, e); return 0; });
+      if (subsidyCount > 0) console.log(`[Tick ${tickNumber}] Агро-субсидії: ${subsidyCount} фермерів.`);
+      await this.agro.chargeExtraFieldRents(tickNumber)
+        .catch(e => console.error(`[Tick ${tickNumber}] Extra field rent failed:`, e));
+    }
 
     // ── 3a1b. Держзамовлення — нові BUY-ордери з премією кожні 8 тіків ──
     // Виконується ДО matchOrders щоб нові ордери одразу потрапляли в матчинг
@@ -1060,7 +1076,12 @@ export class TickEngine {
   // ── Livestock processing ──────────────────────────────────────────────────
   private async processLivestock(tickNumber: bigint): Promise<void> {
     const herds = await this.db.livestockHerd.findMany({
-      include: { enterprise: { select: { id: true, playerId: true, isOperational: true } } },
+      include: {
+        enterprise: {
+          select: { id: true, playerId: true, isOperational: true },
+          include: { employees: { select: { profession: true } } },
+        },
+      },
     });
 
     const FEED_SKU   = 'RM-CORN';
@@ -1091,9 +1112,14 @@ export class TickEngine {
           where: { enterpriseId: eid, productId: feedProduct.id },
           data:  { quantity: { decrement: feedNeeded } },
         });
+        // VETERINARIAN: +5% health recovery per vet (max 2)
+        const vets = (herd.enterprise as unknown as { employees?: { profession: string }[] }).employees
+          ?.filter(e => e.profession === 'VETERINARIAN').length ?? 0;
+        const vetBonus = Math.min(vets, 2) * 0.05;
+
         // Restore health if needed
         if (herd.health < 1.0) {
-          await this.db.livestockHerd.update({ where: { id: herd.id }, data: { health: Math.min(1.0, herd.health + 0.05), feedSkippedTicks: 0, ageInTicks: herd.ageInTicks + 1 } });
+          await this.db.livestockHerd.update({ where: { id: herd.id }, data: { health: Math.min(1.0, herd.health + 0.05 + vetBonus), feedSkippedTicks: 0, ageInTicks: herd.ageInTicks + 1 } });
         } else {
           await this.db.livestockHerd.update({ where: { id: herd.id }, data: { ageInTicks: herd.ageInTicks + 1, feedSkippedTicks: 0 } });
         }

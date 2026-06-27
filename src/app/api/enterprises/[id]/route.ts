@@ -22,6 +22,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
       basePowerKwhPerTick: true,
       energySourceType: true, solarCapacityKw: true, batteryCapacityKwh: true, currentBatteryKwh: true,
       constructedAt: true,
+      extraFieldAreaM2: true, localWeatherMod: true, localWeatherDesc: true,
       landPlot: {
         select: {
           id: true, cadastralNumber: true, totalAreaM2: true, usedAreaM2: true,

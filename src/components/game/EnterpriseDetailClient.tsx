@@ -104,6 +104,10 @@ interface EnterpriseData {
   energySourceType: string; solarCapacityKw: number;
   batteryCapacityKwh: number; currentBatteryKwh: number;
   constructedAt: string | null;
+  // AGRO_FARM fields
+  extraFieldAreaM2: number;
+  localWeatherMod: number | null;
+  localWeatherDesc: string | null;
   landPlot: {
     monthlyLeaseCostUah: number; purchasePriceUah: number;
     energyTariffUah: number; status: string;
@@ -132,6 +136,7 @@ const PROF_UA: Record<string, string> = {
   RESEARCHER: "Дослідник", DATA_SCIENTIST: "Data scientist",
   // Магазин
   CASHIER: "Касир", SALES_ASSISTANT: "Продавець-консультант", MERCHANDISER: "Мерчандайзер",
+  VETERINARIAN: "Ветеринар",
 };
 
 const PROF_SALARY: Record<string, number> = {
@@ -1546,15 +1551,179 @@ function FieldsTab({ enterprise, agroInfo }: { enterprise: EnterpriseData; agroI
   const season   = agroInfo?.seasonIndex ?? 0;
   const lastCrop = agroInfo?.lastCropSku ?? null;
 
+  const [fieldInfo, setFieldInfo] = useState<{
+    baseLandAreaM2: number; extraFieldAreaM2: number; totalFieldAreaM2: number;
+    monthlyRentUah: number; soilQuality: number; setupCostPerM2: number; rentPerM2PerMonth: number;
+  } | null>(null);
+  const [expandArea, setExpandArea] = useState("");
+  const [expanding, setExpanding] = useState(false);
+  const [expandMsg, setExpandMsg] = useState<string | null>(null);
+  const [contracts, setContracts] = useState<{
+    id: string; productSku: string; productNameUa: string; productUnit: string;
+    quantityUnits: number; pricePerUnit: number; totalValue: number;
+    deliveryTick: number; createdAtTick: number; status: string;
+  }[]>([]);
+  const [newContract, setNewContract] = useState({ productSku: "", qty: "", price: "", days: "30" });
+  const [contractMsg, setContractMsg] = useState<string | null>(null);
+  const [submittingContract, setSubmittingContract] = useState(false);
+
+  const AGRO_SKUS = ["RM-WHEAT", "RM-SUNFL", "RM-CORN", "RM-SUGBEET", "SF-MILK", "FG-EGGS"];
+
+  useEffect(() => {
+    fetch(`/api/agro/expand-field?enterpriseId=${enterprise.id}`)
+      .then(r => r.ok ? r.json() : null).then(setFieldInfo).catch(() => {});
+    fetch(`/api/agro/forward-contracts`)
+      .then(r => r.ok ? r.json() : [])
+      .then((all: { enterpriseName?: string; id: string; productSku: string; productNameUa: string; productUnit: string; quantityUnits: number; pricePerUnit: number; totalValue: number; deliveryTick: number; createdAtTick: number; status: string }[]) =>
+        setContracts(all.filter((c) => c.status === "ACTIVE"))
+      ).catch(() => {});
+  }, [enterprise.id]);
+
+  const handleExpand = async () => {
+    const area = parseFloat(expandArea);
+    if (!area || area <= 0) return;
+    setExpanding(true);
+    setExpandMsg(null);
+    try {
+      const r = await fetch("/api/agro/expand-field", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enterpriseId: enterprise.id, extraAreaM2: area }),
+      });
+      const data = await r.json();
+      if (r.ok) {
+        setExpandMsg(`✓ ${data.message}`);
+        setExpandArea("");
+        fetch(`/api/agro/expand-field?enterpriseId=${enterprise.id}`)
+          .then(r => r.ok ? r.json() : null).then(setFieldInfo).catch(() => {});
+      } else setExpandMsg(`✗ ${data.error}`);
+    } finally { setExpanding(false); }
+  };
+
+  const handleCreateContract = async () => {
+    if (!newContract.productSku || !newContract.qty || !newContract.price) return;
+    setSubmittingContract(true);
+    setContractMsg(null);
+    try {
+      const r = await fetch("/api/agro/forward-contracts", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          enterpriseId: enterprise.id,
+          productSku:   newContract.productSku,
+          quantityUnits: parseFloat(newContract.qty),
+          pricePerUnit:  parseFloat(newContract.price),
+          deliveryInTicks: parseInt(newContract.days),
+        }),
+      });
+      const data = await r.json();
+      if (r.ok) {
+        setContractMsg(`✓ ${data.message}`);
+        setNewContract({ productSku: "", qty: "", price: "", days: "30" });
+        fetch(`/api/agro/forward-contracts`)
+          .then(r => r.ok ? r.json() : [])
+          .then((all: { id: string; productSku: string; productNameUa: string; productUnit: string; quantityUnits: number; pricePerUnit: number; totalValue: number; deliveryTick: number; createdAtTick: number; status: string }[]) =>
+            setContracts(all.filter((c) => c.status === "ACTIVE"))
+          ).catch(() => {});
+      } else setContractMsg(`✗ ${data.error}`);
+    } finally { setSubmittingContract(false); }
+  };
+
+  const handleCancelContract = async (id: string) => {
+    if (!confirm("Скасувати ф'ючерс? Буде нараховано штраф 5%.")) return;
+    const r = await fetch(`/api/agro/forward-contracts/${id}`, { method: "DELETE" });
+    const data = await r.json();
+    setContractMsg(r.ok ? `✓ ${data.message}` : `✗ ${data.error}`);
+    setContracts(prev => prev.filter(c => c.id !== id));
+  };
+
   return (
-    <div className="space-y-3 p-1">
+    <div className="space-y-4 p-1">
       {agroInfo && (
         <div className="text-xs text-gray-500">
           Якість ґрунту <span className="font-mono text-white">{agroInfo.soilQuality.toFixed(1)}/10</span>
           {" · "}Сезон: <span className="text-white">{agroInfo.currentSeason}</span>
           {" · "}Остання культура: <span className="font-mono text-white">{agroInfo.lastCropSku ?? "—"}</span>
+          {enterprise.localWeatherMod != null && enterprise.localWeatherMod < 1.0 && (
+            <span className="ml-2 text-amber-400">⛈ {enterprise.localWeatherDesc ?? "Погодна подія"} ({Math.round(enterprise.localWeatherMod * 100)}%)</span>
+          )}
         </div>
       )}
+
+      {/* Розширення поля */}
+      {fieldInfo && (
+        <div className="rounded-lg border border-green-900/40 bg-green-950/10 p-3 space-y-2">
+          <p className="text-xs font-semibold text-green-400">Площа поля</p>
+          <div className="grid grid-cols-3 gap-2 text-xs">
+            <div><span className="text-gray-500">Базова</span><p className="text-white font-mono">{fieldInfo.baseLandAreaM2.toLocaleString()} м²</p></div>
+            <div><span className="text-gray-500">Орендована</span><p className="text-emerald-400 font-mono">+{fieldInfo.extraFieldAreaM2.toLocaleString()} м²</p></div>
+            <div><span className="text-gray-500">Оренда/міс</span><p className="text-orange-400 font-mono">₴{fieldInfo.monthlyRentUah.toLocaleString()}</p></div>
+          </div>
+          <div className="flex gap-2 items-end">
+            <div className="flex-1">
+              <label className="block text-[10px] text-gray-500 mb-1">Додати поле (м²) · ₴{fieldInfo.setupCostPerM2}/м² разово + ₴{fieldInfo.rentPerM2PerMonth}/м²/міс</label>
+              <input type="number" min="100" step="100" value={expandArea} onChange={e => setExpandArea(e.target.value)}
+                placeholder="напр. 500"
+                className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-green-500" />
+            </div>
+            <button onClick={handleExpand} disabled={expanding || !expandArea}
+              className="px-3 py-1.5 bg-green-700 hover:bg-green-600 disabled:opacity-50 text-white text-xs rounded">
+              {expanding ? "..." : "Орендувати"}
+            </button>
+          </div>
+          {expandMsg && <p className={`text-xs ${expandMsg.startsWith("✓") ? "text-emerald-400" : "text-red-400"}`}>{expandMsg}</p>}
+        </div>
+      )}
+      {/* Ф'ючерсні контракти */}
+      <div className="rounded-lg border border-amber-900/40 bg-amber-950/10 p-3 space-y-3">
+        <p className="text-xs font-semibold text-amber-400">Ф'ючерси (фіксована ціна продажу)</p>
+
+        {/* Активні контракти */}
+        {contracts.length > 0 ? (
+          <div className="space-y-1.5">
+            {contracts.map(c => (
+              <div key={c.id} className="flex items-center justify-between text-xs border border-gray-800 rounded p-2">
+                <div>
+                  <span className="font-mono text-emerald-300">{c.productSku}</span>
+                  <span className="text-gray-400 ml-2">{c.quantityUnits} {c.productUnit} × ₴{c.pricePerUnit}</span>
+                  <span className="text-gray-600 ml-2">= ₴{c.totalValue.toLocaleString()}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-600">до дня {c.deliveryTick}</span>
+                  <button onClick={() => handleCancelContract(c.id)} className="text-red-500 hover:text-red-400 text-[10px]">✕</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-gray-600">Немає активних ф'ючерсів</p>
+        )}
+
+        {/* Новий ф'ючерс */}
+        <div className="grid grid-cols-2 gap-2">
+          <select value={newContract.productSku} onChange={e => setNewContract(p => ({ ...p, productSku: e.target.value }))}
+            className="bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500">
+            <option value="">Оберіть культуру</option>
+            {AGRO_SKUS.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <input type="number" placeholder="Кількість" value={newContract.qty} onChange={e => setNewContract(p => ({ ...p, qty: e.target.value }))}
+            className="bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-amber-500" />
+          <input type="number" placeholder="Ціна ₴/од" value={newContract.price} onChange={e => setNewContract(p => ({ ...p, price: e.target.value }))}
+            className="bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-amber-500" />
+          <select value={newContract.days} onChange={e => setNewContract(p => ({ ...p, days: e.target.value }))}
+            className="bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500">
+            <option value="10">+10 днів</option>
+            <option value="20">+20 днів</option>
+            <option value="30">+30 днів</option>
+            <option value="60">+60 днів</option>
+          </select>
+        </div>
+        <button onClick={handleCreateContract} disabled={submittingContract || !newContract.productSku || !newContract.qty || !newContract.price}
+          className="w-full py-1.5 bg-amber-700 hover:bg-amber-600 disabled:opacity-50 text-white text-xs rounded">
+          {submittingContract ? "..." : "Укласти ф'ючерс"}
+        </button>
+        {contractMsg && <p className={`text-xs ${contractMsg.startsWith("✓") ? "text-emerald-400" : "text-red-400"}`}>{contractMsg}</p>}
+      </div>
+
+      {/* Ділянки */}
       <div className="grid gap-2 sm:grid-cols-2">
         {enterprise.workshops.map((ws) => {
           const order   = ws.productionOrders[0] ?? null;

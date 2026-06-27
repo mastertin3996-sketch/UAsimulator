@@ -189,7 +189,14 @@ export class ProductionService {
             const tickInYear   = Number(tickNumber ?? 0n) % 120;
             const plantingBonus = (FIELD_CROPS.has(cropSku) && tickInYear < 5) ? 1.20 : 1.0;
 
-            baseCapacity = ws.footprintM2 * soilMult * seasonMult * rotationMult * droughtMult * irrigationBonus * agronomistMult * plantingBonus;
+            // Extra field area bonus (орендоване поле)
+            const extraArea     = ent.extraFieldAreaM2 ?? 0;
+            const fieldAreaMult = extraArea > 0 ? 1 + (extraArea / (ws.footprintM2 + 1)) * 0.5 : 1.0;
+
+            // Local weather modifier (заморозки/град)
+            const localWeatherMod = ent.localWeatherMod ?? 1.0;
+
+            baseCapacity = ws.footprintM2 * soilMult * seasonMult * rotationMult * droughtMult * irrigationBonus * agronomistMult * plantingBonus * fieldAreaMult * localWeatherMod;
           } else {
             baseCapacity = ws.maxCapacity;
           }

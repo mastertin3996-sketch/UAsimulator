@@ -33,6 +33,7 @@ enum Profession {
   CASHIER          // RETAIL_STORE: касир
   SALES_ASSISTANT  // RETAIL_STORE: продавець-консультант
   MERCHANDISER     // RETAIL_STORE: мерчандайзер
+  VETERINARIAN     // AGRO_FARM: покращує здоров'я худоби (+5% health/tick)
 }
 
 enum EnterpriseType {
@@ -388,6 +389,7 @@ model Player {
   landListings            LandPlotListing[]
   farmMachinery           FarmMachinery[]
   livestockHerds          LivestockHerd[]
+  grainForwardContracts   GrainForwardContract[]
 
   @@index([username])
 }
@@ -536,6 +538,16 @@ model Enterprise {
   isLegallyFrozen      Boolean  @default(false)
   legalFreezeReason    String?
   legalFreezeUntilTick BigInt?
+  // ── AGRO_FARM: розширення полів та локальна погода ───────────────────────
+  // Додаткова орендована площа поля (м²) поверх основного landPlot
+  extraFieldAreaM2      Float   @default(0)
+  // Місячна орендна плата за extraFieldAreaM2 (UAH/місяць)
+  extraFieldRentUah     Decimal @default(0) @db.Decimal(12, 2)
+  // Локальний погодний модифікатор (1.0 = норма; <1.0 = заморозки/град)
+  localWeatherMod       Float   @default(1.0)
+  // Тік до якого діє локальна погодна подія
+  localWeatherEndsAtTick BigInt?
+  localWeatherDesc      String?
   // ── Energy source (Step 16) ────────────────────────────────────────────────
   energySourceType    EnergySourceType @default(GRID)
   // СЕС: встановлена потужність (кВт)
@@ -564,6 +576,7 @@ model Enterprise {
   warehouseRentalOffers WarehouseRentalOffer[]
   farmMachinery         FarmMachinery[]
   livestockHerds        LivestockHerd[]
+  grainForwardContracts GrainForwardContract[]
 
   @@index([playerId])
   @@index([landPlotId])
@@ -709,18 +722,19 @@ model Product {
   baseVolumeLitre Float           @default(0)
   isEquipmentItem Boolean         @default(false)
 
-  equipmentInstances  Equipment[]
-  recipeOutputs       RecipeOutput[]
-  recipeInputs        RecipeInput[]
-  marketOrders        MarketOrder[]
-  playerInventory     PlayerInventory[]
-  enterpriseInventory EnterpriseInventory[]
-  npcDemand           NpcDemand[]
-  retailListings      RetailListing[]
-  pendingDeliveries   PendingDelivery[]
-  replenishRules      ReplenishRule[]
-  supplyRoutes        SupplyRoute[]
-  tenders             Tender[]
+  equipmentInstances    Equipment[]
+  recipeOutputs         RecipeOutput[]
+  recipeInputs          RecipeInput[]
+  marketOrders          MarketOrder[]
+  playerInventory       PlayerInventory[]
+  enterpriseInventory   EnterpriseInventory[]
+  npcDemand             NpcDemand[]
+  retailListings        RetailListing[]
+  pendingDeliveries     PendingDelivery[]
+  replenishRules        ReplenishRule[]
+  supplyRoutes          SupplyRoute[]
+  tenders               Tender[]
+  grainForwardContracts GrainForwardContract[]
 
   @@index([category])
   @@index([sku])
@@ -2062,4 +2076,37 @@ model LivestockHerd {
 
   @@index([enterpriseId])
   @@index([playerId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// AGRO FORWARD CONTRACTS (ф'ючерси на зерно)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+enum ForwardContractStatus {
+  ACTIVE
+  FULFILLED
+  DEFAULTED
+  CANCELLED
+}
+
+model GrainForwardContract {
+  id             String                @id @default(cuid())
+  playerId       String
+  enterpriseId   String
+  productId      String
+  quantityUnits  Float
+  pricePerUnit   Decimal               @db.Decimal(14, 4)
+  createdAtTick  BigInt
+  deliveryTick   BigInt
+  status         ForwardContractStatus @default(ACTIVE)
+  penaltyPaid    Decimal               @default(0) @db.Decimal(14, 2)
+  createdAt      DateTime              @default(now())
+
+  player     Player     @relation(fields: [playerId],     references: [id])
+  enterprise Enterprise @relation(fields: [enterpriseId], references: [id])
+  product    Product    @relation(fields: [productId],    references: [id])
+
+  @@index([playerId])
+  @@index([enterpriseId])
+  @@index([deliveryTick])
 }
