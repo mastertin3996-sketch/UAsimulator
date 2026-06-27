@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import { QUALITY_WEIGHTS } from '../constants/economic';
 import { EquipmentService } from './EquipmentService';
 import { HRService } from './HRService';
+import { CapacityService } from './CapacityService';
 import type { ProductionResult } from '../types';
 import { clamp, weightedAvgQuality } from '../types';
 import type { ResearchDevelopmentService } from './ResearchDevelopmentService';
@@ -67,6 +68,13 @@ export class ProductionService {
       where: { sku: 'SF-COMPOST' }, select: { id: true },
     });
 
+    // Pre-fetch EQ-* product IDs for CapacityService required-equipment checks
+    const eqProducts = await this.prisma.product.findMany({
+      where:  { sku: { startsWith: 'EQ-' } },
+      select: { id: true, sku: true },
+    });
+    const productIdToSku = new Map<string, string>(eqProducts.map(p => [p.id, p.sku]));
+
     const enterprises = await this.prisma.enterprise.findMany({
       where:   { playerId, isOperational: true },
       include: {
@@ -102,6 +110,9 @@ export class ProductionService {
       const avgMood    = this.hrSvc.avgActiveMood(ent.employees); // 0.0–1.0
       const moodFactor = avgMood * 10; // конвертуємо до 0–10 для формули якості
 
+      // Active (non-striking) staff count — shared across all workshops of this enterprise
+      const activeStaffCount = ent.employees.filter(e => !e.isOnStrike).length;
+
       for (const ws of ent.workshops) {
         if (ws.productionOrders.length === 0) {
           utilisationByWorkshop.set(ws.id, 0);
@@ -111,8 +122,27 @@ export class ProductionService {
         const equipFactor  = this.equipmentSvc.workshopEquipmentFactor(ws.equipment);
         const equipQuality = this.equipmentSvc.workshopQualityFactor(ws.equipment); // 0–10
 
-        // Overall efficiency drives both output volume and utilisation rate
-        const efficiency   = clamp(labourEff * equipFactor, 0, 1);
+        // ── Capacity check: staff count, floor area, required equipment ──────
+        const operationalEquipSkus = ws.equipment
+          .filter(eq => !eq.isBroken && eq.wearAndTear < 1.0)
+          .map(eq => productIdToSku.get(eq.catalogProductId) ?? '')
+          .filter(Boolean);
+
+        const capacity = CapacityService.compute({
+          enterpriseType:           ent.type,
+          activeStaffCount,
+          workshopAreaM2:           ws.footprintM2,
+          installedEquipmentCount:  ws.equipment.filter(eq => !eq.isBroken).length,
+          operationalEquipmentSkus: operationalEquipSkus,
+        });
+
+        if (!capacity.canProduce) {
+          utilisationByWorkshop.set(ws.id, 0);
+          continue;
+        }
+
+        // Overall efficiency: existing quality/wear factor × new capacity multiplier
+        const efficiency = clamp(labourEff * equipFactor * capacity.multiplier, 0, 1);
         utilisationByWorkshop.set(ws.id, efficiency);
 
         for (const order of ws.productionOrders) {
