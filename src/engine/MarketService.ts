@@ -602,6 +602,16 @@ export class MarketService {
     'FG-KNITWEAR':          [0.6, 0.7, 1.3, 1.9],  // зимовий пік — светри, шарфи
     'FG-BEER':              [0.8, 2.0, 1.0, 0.7],  // літній пік — спека, відпочинок
     'FG-SPIRITS':           [0.9, 0.7, 1.0, 1.5],  // зимовий пік — свята
+    // Зернові: низький попит влітку/восени (жнива = надлишок), пік взимку/навесні
+    'RM-WHEAT':             [1.20, 0.65, 0.70, 1.45],
+    'RM-CORN':              [1.15, 0.60, 0.65, 1.40],
+    'RM-WHEAT-ORG':         [1.20, 0.65, 0.70, 1.45],
+    'RM-CORN-ORG':          [1.15, 0.60, 0.65, 1.40],
+    // Тваринництво: м'ясний пік — осінь/зима (свята + холод)
+    'FG-BEEF':              [1.0, 0.9, 1.2, 1.4],
+    'FG-PORK':              [1.0, 0.9, 1.3, 1.5],
+    'FG-CHICKEN':           [1.0, 1.0, 1.1, 1.2],
+    'FG-EGGS':              [1.1, 0.8, 1.0, 1.3],  // Великдень (весна) та Новий рік
   };
 
   async matchNpcMarketOrders(tickNumber?: bigint): Promise<number> {
@@ -637,9 +647,12 @@ export class MarketService {
       if (totalDemand <= 0 || refPrice.lte(0)) continue;
 
       // Quality-tiered pricing for grain: high-quality grain can sell above referencePrice
-      const GRAIN_SKUS = new Set(['RM-WHEAT', 'RM-SUNFL', 'RM-SUGBEET', 'RM-CORN']);
-      const isGrain    = GRAIN_SKUS.has(sku);
-      const maxPrice   = isGrain ? refPrice.times(1.3) : refPrice;
+      const GRAIN_SKUS   = new Set(['RM-WHEAT', 'RM-SUNFL', 'RM-SUGBEET', 'RM-CORN']);
+      const ORGANIC_SKUS = new Set(['RM-WHEAT-ORG', 'RM-CORN-ORG']);
+      const isGrain      = GRAIN_SKUS.has(sku);
+      const isOrganic    = ORGANIC_SKUS.has(sku);
+      // Organic products trade at up to 1.8× reference price (NPC premium)
+      const maxPrice     = isOrganic ? refPrice.times(1.8) : isGrain ? refPrice.times(1.3) : refPrice;
 
       // Find cheapest SELL orders at or below quality-adjusted ceiling
       const sells = await this.prisma.marketOrder.findMany({

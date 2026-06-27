@@ -210,6 +210,20 @@ enum LicenseType {
   RETAIL_PERMIT          // RETAIL_STORE
   AGRO_INSURANCE         // Страхування AGRO_FARM від посухи та шкідників
   EXCISE_LICENSE         // Виробництво алкоголю (FOOD_PROCESSING)
+  ORGANIC_CERT           // Органічна сертифікація: преміум ×1.8, без хімікатів
+}
+
+enum MachineryType {
+  TRACTOR
+  COMBINE_HARVESTER
+  SEEDER
+  SPRAYER
+}
+
+enum LivestockSpecies {
+  CATTLE
+  PIGS
+  POULTRY
 }
 
 enum LicenseStatus {
@@ -225,6 +239,9 @@ enum MacroEventType {
   DROUGHT                // Посуха: AGRO_FARM −60% врожайності у місті
   PEST_ATTACK            // Нашестя шкідників: знищує 25–40% врожаю (захист — RM-PESTICIDE)
   CURRENCY_SHOCK         // Девальвація: NPC ціни ×1.20, попит −10%, 10 тіків
+  LATE_FROST             // Пізні заморозки: знищує 30–50% весняних посівів
+  HAIL                   // Град: −20–40% врожаю одноразово
+  FLOOD                  // Повінь: −0.5–1.0 soilQuality на 2 сезони
 }
 
 enum MacroEventStatus {
@@ -369,6 +386,8 @@ model Player {
   intelligenceRequests    IntelligenceReport[] @relation("IntelligenceRequester")
   intelligenceTargets     IntelligenceReport[] @relation("IntelligenceTarget")
   landListings            LandPlotListing[]
+  farmMachinery           FarmMachinery[]
+  livestockHerds          LivestockHerd[]
 
   @@index([username])
 }
@@ -543,6 +562,8 @@ model Enterprise {
   supplyRoutesAsSource SupplyRoute[]        @relation("SupplyRouteSource")
   supplyRoutesAsTarget SupplyRoute[]        @relation("SupplyRouteTarget")
   warehouseRentalOffers WarehouseRentalOffer[]
+  farmMachinery         FarmMachinery[]
+  livestockHerds        LivestockHerd[]
 
   @@index([playerId])
   @@index([landPlotId])
@@ -1994,4 +2015,51 @@ model LandPlotListing {
 
   @@index([sellerId])
   @@index([isActive])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// FARM MACHINERY (Сільгосптехніка)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model FarmMachinery {
+  id               String        @id @default(cuid())
+  enterpriseId     String
+  playerId         String
+  machineryType    MachineryType
+  name             String
+  purchasePriceUah Decimal       @db.Decimal(14, 2)
+  durability       Float         @default(1.0)   // 0.0–1.0; 0 = зламана
+  isRented         Boolean       @default(false)  // орендована на сезон
+  rentCostPerTick  Decimal?      @db.Decimal(14, 2)
+  isOperational    Boolean       @default(true)
+  purchasedAt      DateTime      @default(now())
+  lastRepairAt     DateTime?
+
+  enterprise Enterprise @relation(fields: [enterpriseId], references: [id])
+  player     Player     @relation(fields: [playerId],     references: [id])
+
+  @@index([enterpriseId])
+  @@index([playerId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// LIVESTOCK HERDS (Тваринництво)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model LivestockHerd {
+  id               String          @id @default(cuid())
+  enterpriseId     String
+  playerId         String
+  species          LivestockSpecies
+  headCount        Int
+  health           Float           @default(1.0)  // 0.0–1.0
+  ageInTicks       Int             @default(0)
+  feedSkippedTicks Int             @default(0)    // лічильник тіків без корму
+  createdAt        DateTime        @default(now())
+
+  enterprise Enterprise @relation(fields: [enterpriseId], references: [id])
+  player     Player     @relation(fields: [playerId],     references: [id])
+
+  @@index([enterpriseId])
+  @@index([playerId])
 }

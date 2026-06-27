@@ -213,6 +213,18 @@ async function main() {
     { sku: 'RM-WOOL',    name: 'Raw Wool',              nameUa: 'Вовна необроблена',    category: 'RAW_MATERIAL',  unit: 'kg',   baseWeightKg: 1 },
     { sku: 'SF-YARN',    name: 'Woolen Yarn',           nameUa: 'Вовняна пряжа',        category: 'SEMI_FINISHED', unit: 'kg',   baseWeightKg: 1 },
     { sku: 'FG-KNITWEAR',name: 'Knitwear (set)',        nameUa: 'Трикотаж (комплект)',  category: 'FINISHED_GOOD', unit: 'unit', baseWeightKg: 0.6 },
+    // ── ОРГАНІЧНЕ ЗЕМЛЕРОБСТВО ────────────────────────────────────────────────
+    { sku: 'RM-WHEAT-ORG', name: 'Organic Wheat',      nameUa: 'Органічна пшениця',   category: 'RAW_MATERIAL',  unit: 'tonne', baseWeightKg: 1000 },
+    { sku: 'RM-CORN-ORG',  name: 'Organic Corn',       nameUa: 'Органічна кукурудза', category: 'RAW_MATERIAL',  unit: 'tonne', baseWeightKg: 1000 },
+    // ── ТВАРИННИЦТВО ─────────────────────────────────────────────────────────
+    { sku: 'SF-MILK',      name: 'Raw Milk (litre)',   nameUa: 'Молоко сире',         category: 'SEMI_FINISHED', unit: 'litre', baseWeightKg: 1.03 },
+    { sku: 'FG-EGGS',      name: 'Eggs (dozen)',       nameUa: 'Яйця (десяток)',      category: 'FINISHED_GOOD', unit: 'dozen', baseWeightKg: 0.6 },
+    { sku: 'RM-CATTLE',    name: 'Live Cattle (head)', nameUa: 'ВРХ (голова)',        category: 'RAW_MATERIAL',  unit: 'head',  baseWeightKg: 450 },
+    { sku: 'RM-PIGS',      name: 'Live Pigs (head)',   nameUa: 'Свині (голова)',      category: 'RAW_MATERIAL',  unit: 'head',  baseWeightKg: 110 },
+    { sku: 'RM-POULTRY',   name: 'Live Poultry (head)',nameUa: 'Птиця (голова)',      category: 'RAW_MATERIAL',  unit: 'head',  baseWeightKg: 2.5 },
+    { sku: 'FG-BEEF',      name: 'Beef (kg)',          nameUa: 'Яловичина',           category: 'FINISHED_GOOD', unit: 'kg',    baseWeightKg: 1 },
+    { sku: 'FG-PORK',      name: 'Pork (kg)',          nameUa: 'Свинина',             category: 'FINISHED_GOOD', unit: 'kg',    baseWeightKg: 1 },
+    { sku: 'FG-CHICKEN',   name: 'Chicken meat (kg)',  nameUa: 'Куряче м\'ясо',       category: 'FINISHED_GOOD', unit: 'kg',    baseWeightKg: 1 },
   ] as const;
 
   const products: Record<string, { id: string }> = {};
@@ -430,6 +442,31 @@ async function main() {
       inputs:  [{ sku: 'SF-YARN', qty: 0.80 }],
       outputs: [{ sku: 'FG-KNITWEAR', qty: 1.0 }],
     },
+    // ── ТВАРИННИЦТВО — переробка (FOOD_PROCESSING) ───────────────────────────
+    {
+      name: 'Beef Processing',          enterpriseType: 'FOOD_PROCESSING',
+      ticksToComplete: 2,               laborHoursPerUnit: 0.50, baseQuality: 7.5, powerKwhPerUnit: 0.40,
+      inputs:  [{ sku: 'RM-CATTLE', qty: 1 }],
+      outputs: [{ sku: 'FG-BEEF',   qty: 200 }],
+    },
+    {
+      name: 'Pork Processing',          enterpriseType: 'FOOD_PROCESSING',
+      ticksToComplete: 1,               laborHoursPerUnit: 0.30, baseQuality: 7.5, powerKwhPerUnit: 0.25,
+      inputs:  [{ sku: 'RM-PIGS',   qty: 1 }],
+      outputs: [{ sku: 'FG-PORK',   qty: 80 }],
+    },
+    {
+      name: 'Poultry Processing',       enterpriseType: 'FOOD_PROCESSING',
+      ticksToComplete: 1,               laborHoursPerUnit: 0.10, baseQuality: 7.2, powerKwhPerUnit: 0.15,
+      inputs:  [{ sku: 'RM-POULTRY', qty: 10 }],
+      outputs: [{ sku: 'FG-CHICKEN', qty: 20 }],
+    },
+    {
+      name: 'Milk Pasteurization',      enterpriseType: 'FOOD_PROCESSING',
+      ticksToComplete: 1,               laborHoursPerUnit: 0.05, baseQuality: 8.0, powerKwhPerUnit: 0.20,
+      inputs:  [{ sku: 'SF-MILK',    qty: 1.05 }],
+      outputs: [{ sku: 'FG-MILK',    qty: 1.0  }],
+    },
   ] as const;
 
   for (const spec of recipeSpecs) {
@@ -495,6 +532,14 @@ async function main() {
     'FG-KNITWEAR':        { baseUnits:  20,  priceUah:   680, elasticity: -1.3, qualityWeight: 0.70 }, // трикотаж — зимовий пік
     'FG-BEER':            { baseUnits: 400,  priceUah:    55, elasticity: -1.1, qualityWeight: 0.55 }, // пиво — літній пік
     'FG-SPIRITS':         { baseUnits:  80,  priceUah:   220, elasticity: -1.0, qualityWeight: 0.50 }, // горілка — зимовий пік
+    // ── ТВАРИННИЦТВО ─────────────────────────────────────────────────────────
+    'FG-BEEF':            { baseUnits: 120,  priceUah:   290, elasticity: -1.2, qualityWeight: 0.70 }, // яловичина
+    'FG-PORK':            { baseUnits: 200,  priceUah:   195, elasticity: -1.1, qualityWeight: 0.65 }, // свинина
+    'FG-CHICKEN':         { baseUnits: 280,  priceUah:   125, elasticity: -1.0, qualityWeight: 0.60 }, // куряче м'ясо
+    'FG-EGGS':            { baseUnits: 500,  priceUah:    58, elasticity: -0.9, qualityWeight: 0.45 }, // яйця
+    // ── ОРГАНІЧНІ ────────────────────────────────────────────────────────────
+    'RM-WHEAT-ORG':       { baseUnits:  15,  priceUah: 9_500, elasticity: -1.3, qualityWeight: 0.80 }, // органічна пшениця (B2B)
+    'RM-CORN-ORG':        { baseUnits:  12,  priceUah: 7_200, elasticity: -1.3, qualityWeight: 0.80 }, // органічна кукурудза (B2B)
   };
 
   // Попит з боку будівельної галузі (B2B-орієнтований, але частина йде через роздріб)

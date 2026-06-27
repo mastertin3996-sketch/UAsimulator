@@ -259,6 +259,12 @@ export class TickEngine {
       if (awarded > 0) console.log(`[Tick ${tickNumber}] Рейтинги: ${awarded} нагород видано.`);
     }
 
+    // ── 3a1h. Тваринництво — продукція і знос техніки ────────────────────────
+    await this.processLivestock(tickNumber)
+      .catch(e => console.error(`[Tick ${tickNumber}] Livestock failed:`, e));
+    await this.processMachineryWear(tickNumber)
+      .catch(e => console.error(`[Tick ${tickNumber}] Machinery wear failed:`, e));
+
     // ── 3a1b. Держзамовлення — нові BUY-ордери з премією кожні 8 тіків ──
     // Виконується ДО matchOrders щоб нові ордери одразу потрапляли в матчинг
     if (Number(tickNumber) % 8 === 0) {
@@ -1037,6 +1043,103 @@ export class TickEngine {
           expiresAt,
         },
       });
+    }
+  }
+
+  // ── Livestock processing ──────────────────────────────────────────────────
+  private async processLivestock(tickNumber: bigint): Promise<void> {
+    const herds = await this.db.livestockHerd.findMany({
+      include: { enterprise: { select: { id: true, playerId: true, isOperational: true } } },
+    });
+
+    const FEED_SKU   = 'RM-CORN';
+    const feedProduct = await this.db.product.findUnique({ where: { sku: FEED_SKU }, select: { id: true } });
+    if (!feedProduct) return;
+
+    const OUTPUT: Record<string, { sku: string; qtyPerHead: number }> = {
+      CATTLE:  { sku: 'SF-MILK',  qtyPerHead: 10  },
+      POULTRY: { sku: 'FG-EGGS',  qtyPerHead: 0.5 },
+    };
+    const FEED_QTY: Record<string, number> = { CATTLE: 0.05, PIGS: 0.03, POULTRY: 0.01 };
+
+    for (const herd of herds) {
+      if (!herd.enterprise.isOperational) continue;
+      const eid = herd.enterprise.id;
+
+      // Check feed availability
+      const feedInv = await this.db.enterpriseInventory.findUnique({
+        where:  { enterpriseId_productId: { enterpriseId: eid, productId: feedProduct.id } },
+        select: { quantity: true },
+      });
+      const feedNeeded = (FEED_QTY[herd.species] ?? 0.03) * herd.headCount;
+      const hasFeed    = feedInv && Number(feedInv.quantity) >= feedNeeded;
+
+      if (hasFeed) {
+        // Consume feed
+        await this.db.enterpriseInventory.updateMany({
+          where: { enterpriseId: eid, productId: feedProduct.id },
+          data:  { quantity: { decrement: feedNeeded } },
+        });
+        // Restore health if needed
+        if (herd.health < 1.0) {
+          await this.db.livestockHerd.update({ where: { id: herd.id }, data: { health: Math.min(1.0, herd.health + 0.05), feedSkippedTicks: 0, ageInTicks: herd.ageInTicks + 1 } });
+        } else {
+          await this.db.livestockHerd.update({ where: { id: herd.id }, data: { ageInTicks: herd.ageInTicks + 1, feedSkippedTicks: 0 } });
+        }
+
+        // Produce output (CATTLE → milk, POULTRY → eggs)
+        const out = OUTPUT[herd.species];
+        if (out && herd.health >= 0.5) {
+          const outProduct = await this.db.product.findUnique({ where: { sku: out.sku }, select: { id: true } });
+          if (outProduct) {
+            const qty = out.qtyPerHead * herd.headCount * herd.health;
+            await this.db.enterpriseInventory.upsert({
+              where:  { enterpriseId_productId: { enterpriseId: eid, productId: outProduct.id } },
+              update: { quantity: { increment: qty } },
+              create: { enterpriseId: eid, productId: outProduct.id, quantity: qty },
+            });
+          }
+        }
+      } else {
+        // No feed: health decreases
+        const skipped = herd.feedSkippedTicks + 1;
+        const newHealth = Math.max(0.1, herd.health - 0.05 * skipped);
+        await this.db.livestockHerd.update({ where: { id: herd.id }, data: { health: newHealth, feedSkippedTicks: skipped } });
+
+        if (skipped === 3) {
+          await this.db.notification.create({ data: {
+            playerId: herd.enterprise.playerId, type: 'MACRO_EVENT',
+            title:    '⚠ Тварини голодують',
+            body:     `Стадо (${herd.species}) 3 тіки без корму. Здоров'я: ${Math.round(newHealth * 100)}%. Поповніть RM-CORN.`,
+          } }).catch(() => {});
+        }
+      }
+    }
+  }
+
+  // ── Machinery wear ─────────────────────────────────────────────────────────
+  private async processMachineryWear(_tickNumber: bigint): Promise<void> {
+    const allMachinery = await this.db.farmMachinery.findMany({
+      where: { isOperational: true },
+    });
+
+    for (const m of allMachinery) {
+      const wear = m.isRented ? 0.008 : 0.005; // орендована зношується швидше
+      const newDurability = Math.max(0, m.durability - wear);
+      const broke = newDurability <= 0;
+
+      await this.db.farmMachinery.update({
+        where: { id: m.id },
+        data:  { durability: newDurability, isOperational: !broke },
+      });
+
+      if (broke) {
+        await this.db.notification.create({ data: {
+          playerId: m.playerId, type: 'MACRO_EVENT',
+          title:    `🔧 ${m.name} зламалась`,
+          body:     `${m.name} повністю зношена і потребує ремонту. Без неї врожайність знижена.`,
+        } }).catch(() => {});
+      }
     }
   }
 }

@@ -46,7 +46,7 @@ function productEmoji(sku: string): string {
 
 interface EquipCatalogItem { id: string; name: string; sku: string; basePrice: number; unit: string; footprintM2: number; canBuy: boolean }
 
-type Tab = "management" | "workshops" | "hr" | "warehouse" | "production" | "supply" | "showcase" | "fields" | "staff" | "expand";
+type Tab = "management" | "workshops" | "hr" | "warehouse" | "production" | "supply" | "showcase" | "fields" | "staff" | "expand" | "machinery" | "livestock";
 
 interface Props { enterpriseId: string; initialTab?: Tab; title?: string }
 
@@ -1777,6 +1777,192 @@ function StaffTab({ enterpriseId }: { enterpriseId: string }) {
   );
 }
 
+// ── MachineryTab ─────────────────────────────────────────────────────────────
+function MachineryTab({ enterpriseId }: { enterpriseId: string }) {
+  const [data,    setData]    = useState<{ machinery: any[]; catalog: any[] } | null>(null);
+  const [acting,  setActing]  = useState<string | null>(null);
+  const [msg,     setMsg]     = useState("");
+  const [loading, setLoading] = useState(true);
+
+  const load = () => {
+    setLoading(true);
+    fetch(`/api/enterprises/${enterpriseId}/machinery`)
+      .then(r => r.json()).then(setData).catch(() => {}).finally(() => setLoading(false));
+  };
+  useEffect(() => { load(); }, [enterpriseId]);
+
+  const act = async (action: string, payload: object) => {
+    setActing(action);
+    const res  = await fetch(`/api/enterprises/${enterpriseId}/machinery`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, ...payload }),
+    });
+    const d = await res.json();
+    setMsg(res.ok ? `✓ ${d.message}` : `✗ ${d.error}`);
+    if (res.ok) load();
+    setActing(null);
+  };
+
+  const durColor = (d: number) => d > 0.6 ? "text-emerald-400" : d > 0.3 ? "text-amber-400" : "text-red-400";
+
+  if (loading) return <p className="text-gray-500 text-sm">Завантаження...</p>;
+
+  return (
+    <div className="space-y-4">
+      {msg && <p className={`text-xs ${msg.startsWith("✓") ? "text-emerald-400" : "text-red-400"}`}>{msg}</p>}
+
+      {/* Existing machinery */}
+      {data?.machinery && data.machinery.length > 0 && (
+        <div className="space-y-2">
+          {data.machinery.map((m: any) => (
+            <div key={m.id} className="rounded-lg border border-gray-800 bg-gray-900 p-3 flex items-center gap-4">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-white">{m.name}
+                  {m.isRented && <span className="ml-2 text-[10px] bg-amber-900/50 text-amber-400 px-1.5 py-0.5 rounded">ОРЕНДА</span>}
+                  {!m.isOperational && <span className="ml-2 text-[10px] bg-red-900/50 text-red-400 px-1.5 py-0.5 rounded">ЗЛАМАНА</span>}
+                </p>
+                <div className="flex items-center gap-2 mt-1">
+                  <div className="flex-1 h-1.5 rounded-full bg-gray-700">
+                    <div className={`h-full rounded-full ${durColor(m.durability)}`} style={{ width: `${m.durability * 100}%`, backgroundColor: "currentColor" }} />
+                  </div>
+                  <span className={`text-xs ${durColor(m.durability)}`}>{Math.round(m.durability * 100)}%</span>
+                </div>
+              </div>
+              {(m.durability < 0.5 || !m.isOperational) && (
+                <button onClick={() => act("repair", { machineryId: m.id })} disabled={acting === "repair"}
+                  className="shrink-0 text-xs rounded-lg bg-amber-700 hover:bg-amber-600 text-white px-3 py-1.5 transition-colors">
+                  🔧 Ремонт
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Catalog */}
+      <div className="rounded-xl border border-gray-800 bg-gray-900 p-4 space-y-3">
+        <p className="text-sm font-semibold text-white">Придбати / Орендувати техніку</p>
+        <div className="space-y-2">
+          {data?.catalog?.map((item: any) => (
+            <div key={item.type} className="flex items-center gap-3 rounded-lg bg-gray-800 px-3 py-2">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-white">{item.nameUa}</p>
+                <p className="text-xs text-gray-500">Купити: ₴{item.price.toLocaleString("uk-UA")} · Оренда: ₴{item.rentPerTick.toLocaleString("uk-UA")}/тік · +{Math.round(item.yieldBonus * 100)}% врожаю</p>
+              </div>
+              <div className="flex gap-1.5 shrink-0">
+                <button onClick={() => act(item.type, { machineryType: item.type })} disabled={!!acting}
+                  className="text-xs rounded bg-emerald-700 hover:bg-emerald-600 text-white px-2 py-1 transition-colors">Купити</button>
+                <button onClick={() => act(item.type + "_rent", { machineryType: item.type, isRent: true })} disabled={!!acting}
+                  className="text-xs rounded bg-amber-700 hover:bg-amber-600 text-white px-2 py-1 transition-colors">Оренда</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── LivestockTab ──────────────────────────────────────────────────────────────
+function LivestockTab({ enterpriseId }: { enterpriseId: string }) {
+  const [data,    setData]    = useState<{ herds: any[]; catalog: any[] } | null>(null);
+  const [counts,  setCounts]  = useState<Record<string, string>>({});
+  const [acting,  setActing]  = useState<string | null>(null);
+  const [msgs,    setMsgs]    = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(true);
+
+  const load = () => {
+    setLoading(true);
+    fetch(`/api/enterprises/${enterpriseId}/livestock`)
+      .then(r => r.json()).then(setData).catch(() => {}).finally(() => setLoading(false));
+  };
+  useEffect(() => { load(); }, [enterpriseId]);
+
+  const buy = async (species: string) => {
+    const n = parseInt(counts[species] || "10");
+    if (!n || n < 1) return;
+    setActing(species);
+    const res  = await fetch(`/api/enterprises/${enterpriseId}/livestock`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body:   JSON.stringify({ species, headCount: n }),
+    });
+    const d = await res.json();
+    setMsgs(prev => ({ ...prev, [species]: res.ok ? `✓ ${d.message}` : `✗ ${d.error}` }));
+    if (res.ok) load();
+    setActing(null);
+  };
+
+  const slaughter = async (herdId: string) => {
+    if (!confirm("Відправити стадо на забій?")) return;
+    setActing(herdId);
+    const res  = await fetch(`/api/enterprises/${enterpriseId}/livestock`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body:   JSON.stringify({ action: "slaughter", herdId }),
+    });
+    const d = await res.json();
+    if (res.ok) load(); else alert(`✗ ${d.error}`);
+    setActing(null);
+  };
+
+  const healthColor = (h: number) => h > 0.7 ? "text-emerald-400" : h > 0.4 ? "text-amber-400" : "text-red-400";
+  const SPECIES_UA: Record<string, string> = { CATTLE: "🐄 ВРХ", PIGS: "🐷 Свині", POULTRY: "🐔 Птиця" };
+
+  if (loading) return <p className="text-gray-500 text-sm">Завантаження...</p>;
+
+  return (
+    <div className="space-y-4">
+      {/* Active herds */}
+      {data?.herds && data.herds.length > 0 && (
+        <div className="space-y-2">
+          {data.herds.map((h: any) => (
+            <div key={h.id} className="rounded-lg border border-gray-800 bg-gray-900 p-3 space-y-2">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-white">{SPECIES_UA[h.species] ?? h.species} — {h.headCount} голів</p>
+                  <p className={`text-xs ${healthColor(h.health)}`}>Здоров'я: {Math.round(h.health * 100)}% · Вік: {h.ageInTicks} тік(ів)
+                    {h.feedSkippedTicks > 0 && <span className="ml-2 text-red-400">⚠ {h.feedSkippedTicks} тіки без корму</span>}
+                  </p>
+                </div>
+                <button onClick={() => slaughter(h.id)} disabled={acting === h.id}
+                  className="shrink-0 text-xs rounded bg-red-900/50 hover:bg-red-900/70 border border-red-700/30 text-red-400 px-2 py-1 transition-colors">
+                  {acting === h.id ? "..." : "На забій"}
+                </button>
+              </div>
+              <p className="text-xs text-gray-500">{h.config?.outputDesc}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Buy catalog */}
+      <div className="rounded-xl border border-gray-800 bg-gray-900 p-4 space-y-3">
+        <p className="text-sm font-semibold text-white">Закупити худобу</p>
+        <p className="text-xs text-gray-500">Корм: RM-CORN зі складу. Потрібен AGRO_PERMIT.</p>
+        {data?.catalog?.map((item: any) => (
+          <div key={item.species} className="space-y-1">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm text-white">{SPECIES_UA[item.species] ?? item.species}</p>
+                <p className="text-xs text-gray-500">₴{item.pricePerHead.toLocaleString("uk-UA")}/голову · {item.outputDesc}</p>
+              </div>
+              <div className="flex gap-1.5 items-center shrink-0">
+                <input type="number" min={1} value={counts[item.species] ?? "10"}
+                  onChange={e => setCounts(prev => ({ ...prev, [item.species]: e.target.value }))}
+                  className="w-16 rounded bg-gray-800 border border-gray-700 px-2 py-1 text-xs text-white text-center" />
+                <button onClick={() => buy(item.species)} disabled={acting === item.species}
+                  className="text-xs rounded bg-emerald-700 hover:bg-emerald-600 text-white px-3 py-1.5 transition-colors">
+                  {acting === item.species ? "..." : "Купити"}
+                </button>
+              </div>
+            </div>
+            {msgs[item.species] && <p className={`text-xs ${msgs[item.species].startsWith("✓") ? "text-emerald-400" : "text-red-400"}`}>{msgs[item.species]}</p>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const BASE_TABS: { key: Tab; label: string }[] = [
   { key: "management", label: "Загальне" },
   { key: "workshops",  label: "Цехи" },
@@ -1842,7 +2028,7 @@ export default function EnterpriseDetailClient({ enterpriseId, initialTab }: Pro
     enterprise.type === "RETAIL_STORE"
       ? [...BASE_TABS.slice(0, 4), { key: "showcase", label: "🏪 Вітрина" }, ...BASE_TABS.slice(4)]
       : enterprise.type === "AGRO_FARM"
-      ? [...BASE_TABS, { key: "fields", label: "🌾 Поля" }]
+      ? [...BASE_TABS, { key: "fields", label: "🌾 Поля" }, { key: "machinery", label: "🚜 Техніка" }, { key: "livestock", label: "🐄 Тваринництво" }]
       : BASE_TABS;
 
   return (
@@ -1965,6 +2151,8 @@ export default function EnterpriseDetailClient({ enterpriseId, initialTab }: Pro
       {tab === "supply"     && <SupplyTab enterpriseId={enterpriseId} />}
       {tab === "production" && <LogsTab logs={logs} />}
       {tab === "fields"     && <FieldsTab enterprise={enterprise} agroInfo={agroInfo} />}
+      {tab === "machinery"  && <MachineryTab enterpriseId={enterpriseId} />}
+      {tab === "livestock"  && <LivestockTab enterpriseId={enterpriseId} />}
     </div>
   );
 }

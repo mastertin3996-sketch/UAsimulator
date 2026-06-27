@@ -37,6 +37,7 @@ const LICENSE_FEE: Record<LicenseType, Decimal> = {
   RETAIL_PERMIT:         new Decimal('8000'),
   AGRO_INSURANCE:        new Decimal('5000'),
   EXCISE_LICENSE:        new Decimal('80000'),
+  ORGANIC_CERT:          new Decimal('40000'),
 };
 
 const LICENSE_DURATION_TICKS = 30n;
@@ -486,12 +487,15 @@ export class StateRegulationService {
 
     const r = Math.random();
     const type: MacroEventType =
-      r < 0.28 ? 'POWER_OUTAGE' :
-      r < 0.52 ? 'LOGISTICS_BOTTLENECK' :
-      r < 0.70 ? 'GRAIN_MARKET_BOOM' :
-      r < 0.83 ? 'DROUGHT' :
-      r < 0.92 ? 'PEST_ATTACK' :
-                 'CURRENCY_SHOCK';
+      r < 0.24 ? 'POWER_OUTAGE' :
+      r < 0.44 ? 'LOGISTICS_BOTTLENECK' :
+      r < 0.60 ? 'GRAIN_MARKET_BOOM' :
+      r < 0.72 ? 'DROUGHT' :
+      r < 0.82 ? 'PEST_ATTACK' :
+      r < 0.90 ? 'CURRENCY_SHOCK' :
+      r < 0.95 ? 'LATE_FROST' :
+      r < 0.98 ? 'HAIL' :
+                 'FLOOD';
 
     switch (type) {
       case 'POWER_OUTAGE':          return this.createPowerOutageEvent(currentTick);
@@ -500,6 +504,9 @@ export class StateRegulationService {
       case 'DROUGHT':               return this.createDroughtEvent(currentTick);
       case 'PEST_ATTACK':           return this.createPestAttackEvent(currentTick);
       case 'CURRENCY_SHOCK':        return this.createCurrencyShockEvent(currentTick);
+      case 'LATE_FROST':            return this.createLateFrostEvent(currentTick);
+      case 'HAIL':                  return this.createHailEvent(currentTick);
+      case 'FLOOD':                 return this.createFloodEvent(currentTick);
     }
   }
 
@@ -712,6 +719,119 @@ export class StateRegulationService {
       data: { type: 'CURRENCY_SHOCK', startTick: currentTick, endTick: currentTick + SHOCK_TICKS, description },
     });
     return { fired: true, eventId: event.id, type: 'CURRENCY_SHOCK', description };
+  }
+
+  private async createLateFrostEvent(currentTick: bigint): Promise<MacroEventResult> {
+    const farm = await this.db.enterprise.findFirst({
+      where:   { type: 'AGRO_FARM', isOperational: true },
+      include: { landPlot: { select: { cityId: true, id: true } } },
+      orderBy: { constructedAt: 'asc' },
+    });
+    if (!farm) return { fired: false };
+
+    const lossPct = 0.30 + Math.random() * 0.20; // 30–50%
+    const description = `Пізні заморозки у ${farm.landPlot.cityId}: знищено ${Math.round(lossPct * 100)}% весняних посівів AGRO_FARM.`;
+
+    // Reduce soil quality of affected land plot
+    await this.db.landPlot.update({
+      where: { id: farm.landPlot.id },
+      data:  { soilQuality: { decrement: lossPct * 1.5 } },
+    });
+
+    await this.db.notification.create({
+      data: { playerId: farm.playerId, type: 'MACRO_EVENT', title: '❄ Пізні заморозки', body: description },
+    }).catch(() => {});
+
+    // AGRO_INSURANCE pays 60% of estimated loss (base ₴30k per farm)
+    const insurancePayout = await this.tryPayInsurance(farm.playerId, farm.landPlot.cityId, Math.round(30_000 * lossPct), currentTick, 'пізні заморозки');
+
+    const event = await this.db.macroEvent.create({
+      data: { type: 'LATE_FROST', affectedCityId: farm.landPlot.cityId, startTick: currentTick, endTick: currentTick + 1n, description },
+    });
+    return { fired: true, eventId: event.id, type: 'LATE_FROST', description: description + (insurancePayout ? ` Страхова виплата: ₴${insurancePayout.toLocaleString('uk-UA')}.` : '') };
+  }
+
+  private async createHailEvent(currentTick: bigint): Promise<MacroEventResult> {
+    const farm = await this.db.enterprise.findFirst({
+      where:   { type: 'AGRO_FARM', isOperational: true },
+      include: { landPlot: { select: { cityId: true } } },
+      orderBy: { constructedAt: 'asc' },
+    });
+    if (!farm) return { fired: false };
+
+    const lossPct   = 0.20 + Math.random() * 0.20; // 20–40%
+    const description = `Град у місті: знищено ${Math.round(lossPct * 100)}% поточного врожаю AGRO_FARM.`;
+
+    // Destroy % of grain inventory
+    const grainSkus = await this.db.product.findMany({
+      where: { sku: { in: ['RM-WHEAT', 'RM-CORN', 'RM-SUNFL', 'RM-WHEAT-ORG', 'RM-CORN-ORG'] } },
+      select: { id: true },
+    });
+    for (const p of grainSkus) {
+      await this.db.enterpriseInventory.updateMany({
+        where: { enterpriseId: farm.id, productId: p.id },
+        data:  { quantity: { multiply: 1 - lossPct } as any },
+      }).catch(() => {});
+    }
+
+    await this.db.notification.create({
+      data: { playerId: farm.playerId, type: 'MACRO_EVENT', title: '⛈ Град', body: description },
+    }).catch(() => {});
+
+    const insurancePayout = await this.tryPayInsurance(farm.playerId, farm.landPlot.cityId, Math.round(25_000 * lossPct), currentTick, 'град');
+
+    const event = await this.db.macroEvent.create({
+      data: { type: 'HAIL', affectedCityId: farm.landPlot.cityId, startTick: currentTick, endTick: currentTick + 1n, description },
+    });
+    return { fired: true, eventId: event.id, type: 'HAIL', description: description + (insurancePayout ? ` Страхова виплата: ₴${insurancePayout.toLocaleString('uk-UA')}.` : '') };
+  }
+
+  private async createFloodEvent(currentTick: bigint): Promise<MacroEventResult> {
+    const farm = await this.db.enterprise.findFirst({
+      where:   { type: 'AGRO_FARM', isOperational: true },
+      include: { landPlot: { select: { cityId: true, id: true } } },
+      orderBy: { constructedAt: 'asc' },
+    });
+    if (!farm) return { fired: false };
+
+    const soilDamage  = 0.5 + Math.random() * 0.5; // 0.5–1.0 балів ґрунту
+    const description = `Повінь: ґрунт AGRO_FARM пошкоджено (−${soilDamage.toFixed(1)} балів якості), відновлення 2 сезони.`;
+
+    await this.db.landPlot.update({
+      where: { id: farm.landPlot.id },
+      data:  { soilQuality: { decrement: soilDamage } },
+    });
+
+    await this.db.notification.create({
+      data: { playerId: farm.playerId, type: 'MACRO_EVENT', title: '🌊 Повінь', body: description },
+    }).catch(() => {});
+
+    const insurancePayout = await this.tryPayInsurance(farm.playerId, farm.landPlot.cityId, Math.round(40_000 * soilDamage), currentTick, 'повінь');
+
+    const event = await this.db.macroEvent.create({
+      data: { type: 'FLOOD', affectedCityId: farm.landPlot.cityId, startTick: currentTick, endTick: currentTick + 2n, description },
+    });
+    return { fired: true, eventId: event.id, type: 'FLOOD', description: description + (insurancePayout ? ` Страхова виплата: ₴${insurancePayout.toLocaleString('uk-UA')}.` : '') };
+  }
+
+  private async tryPayInsurance(
+    playerId: string, cityId: string, baseLoss: number, tick: bigint, reason: string,
+  ): Promise<number | null> {
+    const insurance = await this.db.license.findFirst({
+      where: { playerId, type: 'AGRO_INSURANCE', status: 'ACTIVE' },
+    });
+    if (!insurance) return null;
+
+    const payout = Math.round(baseLoss * 0.60);
+    await this.db.player.update({ where: { id: playerId }, data: { cashBalance: { increment: payout } } });
+    await this.db.financialLog.create({
+      data: {
+        playerId, category: 'REVENUE_MA', amountUah: payout,
+        description: `Страхова виплата AGRO_INSURANCE (${reason}): ₴${payout.toLocaleString('uk-UA')}`,
+        tickNumber: tick,
+      },
+    }).catch(() => {});
+    return payout;
   }
 
   // ── Private: apply active event effects each tick ─────────────────────────
