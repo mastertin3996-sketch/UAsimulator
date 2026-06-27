@@ -1531,6 +1531,94 @@ function SupplyTab({ enterpriseId }: { enterpriseId: string }) {
   );
 }
 
+// ─── CreateFieldPlot (inline form when no workshops exist) ────────────────────
+function CreateFieldPlot({ enterpriseId, enterpriseType, onCreated }: {
+  enterpriseId: string; enterpriseType: string; onCreated: () => void;
+}) {
+  const [recipes, setRecipes]   = useState<{ id: string; name: string; outputs: { product: { sku: string; nameUa: string } }[] }[]>([]);
+  const [recipeId, setRecipeId] = useState("");
+  const [areaM2, setAreaM2]     = useState("500");
+  const [loading, setLoading]   = useState(false);
+  const [msg, setMsg]           = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch(`/api/recipes?type=${enterpriseType}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        const list = d?.recipes ?? [];
+        setRecipes(list);
+        if (list.length > 0) setRecipeId(list[0].id);
+      }).catch(() => {});
+  }, [enterpriseType]);
+
+  const cost  = Math.round(parseFloat(areaM2 || "0") * 2500);
+  const ticks = Math.max(2, Math.ceil(parseFloat(areaM2 || "0") / 50));
+  const selectedRecipe = recipes.find(r => r.id === recipeId);
+
+  const handleCreate = async () => {
+    if (!recipeId || !areaM2) return;
+    setLoading(true); setMsg(null);
+    const r = await fetch(`/api/enterprises/${enterpriseId}/expand`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ recipeId, areaM2: parseFloat(areaM2) }),
+    });
+    const d = await r.json();
+    if (r.ok) { setMsg(`✓ ${d.message}`); onCreated(); }
+    else setMsg(`✗ ${d.error}`);
+    setLoading(false);
+  };
+
+  return (
+    <div className="rounded-lg border border-dashed border-green-800/60 bg-green-950/10 p-4 space-y-3">
+      <div className="flex items-start gap-3">
+        <span className="text-2xl leading-none">🌱</span>
+        <div>
+          <p className="text-sm font-semibold text-green-400">Немає жодної ділянки для посіву</p>
+          <p className="text-xs text-gray-500 mt-0.5">Щоб вирощувати культури — створіть ділянку. Вона займе площу вашого поля.</p>
+        </div>
+      </div>
+
+      {recipes.length === 0 ? (
+        <p className="text-xs text-gray-600">Завантаження рецептів...</p>
+      ) : (
+        <div className="space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            <div className="col-span-2">
+              <label className="text-[10px] text-gray-500 mb-1 block">Що вирощувати</label>
+              <select value={recipeId} onChange={e => setRecipeId(e.target.value)}
+                className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-2 text-xs text-white focus:outline-none focus:border-green-500">
+                {recipes.map(r => {
+                  const out = r.outputs[0];
+                  return <option key={r.id} value={r.id}>{out ? `${SKU_EMOJI[out.product.sku] ?? "🌿"} ${out.product.nameUa}` : r.name}</option>;
+                })}
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] text-gray-500 mb-1 block">Площа ділянки (м²)</label>
+              <input type="number" min="100" step="100" value={areaM2} onChange={e => setAreaM2(e.target.value)}
+                className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-2 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-green-500" />
+            </div>
+            <div className="flex flex-col justify-end pb-0.5 gap-0.5">
+              <p className="text-[10px] text-gray-500">Вартість: <span className="text-white font-mono">₴{cost.toLocaleString()}</span></p>
+              <p className="text-[10px] text-gray-500">Будівництво: <span className="text-white">{ticks} тік{ticks === 1 ? "" : "и"}</span></p>
+            </div>
+          </div>
+          {selectedRecipe && (
+            <p className="text-[10px] text-emerald-500">
+              {SKU_EMOJI[selectedRecipe.outputs[0]?.product.sku ?? ""] ?? "🌿"} Після будівництва ділянка автоматично засіватиметься {selectedRecipe.outputs[0]?.product.nameUa ?? ""}
+            </p>
+          )}
+          <button onClick={handleCreate} disabled={loading || !recipeId || !areaM2}
+            className="w-full py-2 bg-green-700 hover:bg-green-600 disabled:opacity-50 text-white text-xs rounded font-medium">
+            {loading ? "Створення..." : `🌱 Створити ділянку ${areaM2 ? `(${parseFloat(areaM2).toLocaleString()} м²)` : ""}`}
+          </button>
+          {msg && <p className={`text-xs ${msg.startsWith("✓") ? "text-emerald-400" : "text-red-400"}`}>{msg}</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Fields Tab (AGRO_FARM) ────────────────────────────────────────────────────
 
 const AGRO_SEASON_MULTS_UI: Record<string, [number, number, number, number]> = {
@@ -1884,8 +1972,11 @@ function FieldsTab({ enterprise, agroInfo, onRefresh }: { enterprise: Enterprise
       )}
 
       {/* Ділянки */}
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Ділянки — що засівати</p>
+        {enterprise.workshops.length === 0 && (
+          <CreateFieldPlot enterpriseId={enterprise.id} enterpriseType={enterprise.type} onCreated={onRefresh} />
+        )}
         <div className="grid gap-2 sm:grid-cols-2">
           {enterprise.workshops.map((ws) => {
             const order    = ws.productionOrders[0] ?? null;
