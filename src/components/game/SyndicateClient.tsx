@@ -36,13 +36,38 @@ export default function SyndicateClient() {
   const [createPub,  setCreatePub]    = useState(true);
   const [creating,   setCreating]     = useState(false);
 
+  // Votes
+  interface Vote { id: string; type: string; description: string; status: string; yesVotes: number; noVotes: number; amount: number; expiresAtTick: number; hasVoted: boolean }
+  const [votes,       setVotes]       = useState<Vote[]>([]);
+  const [treasury,    setTreasury]    = useState(0);
+  const [campaignEnd, setCampaignEnd] = useState<number | null>(null);
+  const [currentTick, setCurrentTick] = useState(0);
+  const [showVoteForm, setShowVoteForm] = useState(false);
+  const [voteType,    setVoteType]    = useState<"AD_CAMPAIGN"|"INSURANCE_FUND">("AD_CAMPAIGN");
+  const [voteAmount,  setVoteAmount]  = useState("");
+  const [votingId,    setVotingId]    = useState<string|null>(null);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await fetch("/api/syndicate");
-      const d = await r.json();
-      setSyndicates(d.syndicates ?? []);
-      setMySyndicate(d.mySyndicate ?? null);
+      const [sr, vr, tr] = await Promise.all([
+        fetch("/api/syndicate"),
+        fetch("/api/syndicate/vote"),
+        fetch("/api/game-tick"),
+      ]);
+      const sd = await sr.json();
+      setSyndicates(sd.syndicates ?? []);
+      setMySyndicate(sd.mySyndicate ?? null);
+      if (vr.ok) {
+        const vd = await vr.json();
+        setVotes(vd.votes ?? []);
+        setTreasury(vd.treasury ?? 0);
+        setCampaignEnd(vd.campaignEndsAtTick ?? null);
+      }
+      if (tr.ok) {
+        const td = await tr.json();
+        setCurrentTick(td.tickNumber ?? 0);
+      }
     } catch { setError("Помилка завантаження"); }
     finally { setLoading(false); }
   }, []);
@@ -161,6 +186,89 @@ export default function SyndicateClient() {
                 </div>
               );
             })}
+          </div>
+
+          {/* ── Votes panel ── */}
+          <div className="border-t border-blue-900/50 px-4 py-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold text-blue-300 uppercase tracking-wide">Голосування</p>
+              <button onClick={() => setShowVoteForm(v => !v)}
+                className="text-xs text-blue-400 hover:text-blue-300 transition-colors">
+                + Запропонувати
+              </button>
+            </div>
+
+            {campaignEnd !== null && campaignEnd > currentTick && (
+              <div className="rounded-lg bg-purple-950/40 border border-purple-700/30 px-3 py-2 text-xs text-purple-300">
+                📢 Рекламна кампанія активна до тіку {campaignEnd} (+20% NPC попит)
+              </div>
+            )}
+
+            {showVoteForm && (
+              <div className="rounded-lg bg-gray-800/60 border border-gray-700 p-3 space-y-2">
+                <select value={voteType} onChange={e => setVoteType(e.target.value as "AD_CAMPAIGN"|"INSURANCE_FUND")}
+                  className="w-full rounded bg-gray-900 border border-gray-700 px-2 py-1.5 text-xs text-white">
+                  <option value="AD_CAMPAIGN">Рекламна кампанія (+20% NPC попит, 10 тіків)</option>
+                  <option value="INSURANCE_FUND">Страховий резерв (захист при банкрутстві)</option>
+                </select>
+                <div className="flex gap-2">
+                  <input type="number" min={1000} value={voteAmount} onChange={e => setVoteAmount(e.target.value)}
+                    placeholder={`Сума (є ₴${formatNumber(Math.round(treasury))})`}
+                    className="flex-1 rounded bg-gray-900 border border-gray-700 px-2 py-1.5 text-xs text-white" />
+                  <button onClick={async () => {
+                    if (!voteAmount) return;
+                    const res = await fetch("/api/syndicate/vote", {
+                      method: "POST", headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ type: voteType, amount: parseFloat(voteAmount) }),
+                    });
+                    const d = await res.json();
+                    if (res.ok) { setShowVoteForm(false); setVoteAmount(""); load(); }
+                    else alert(`✗ ${d.error}`);
+                  }} className="px-3 py-1.5 rounded bg-blue-700 hover:bg-blue-600 text-white text-xs font-medium transition-colors">
+                    Запропонувати
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {votes.filter(v => v.status === "OPEN").length === 0 && !showVoteForm && (
+              <p className="text-xs text-gray-600">Немає відкритих голосувань</p>
+            )}
+
+            {votes.filter(v => v.status === "OPEN").map(v => (
+              <div key={v.id} className="rounded-lg border border-gray-700 bg-gray-800/40 p-3 space-y-2">
+                <p className="text-xs text-white leading-snug">{v.description}</p>
+                <div className="flex items-center gap-3 text-xs text-gray-400">
+                  <span className="text-emerald-400">✓ {v.yesVotes} ЗА</span>
+                  <span className="text-red-400">✗ {v.noVotes} ПРОТИ</span>
+                  <span className="ml-auto text-gray-600">до тіку {v.expiresAtTick}</span>
+                </div>
+                {!v.hasVoted ? (
+                  <div className="flex gap-2">
+                    {(["YES","NO"] as const).map(choice => (
+                      <button key={choice} disabled={votingId === v.id}
+                        onClick={async () => {
+                          setVotingId(v.id);
+                          const res = await fetch(`/api/syndicate/vote/${v.id}`, {
+                            method: "POST", headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ choice }),
+                          });
+                          const d = await res.json();
+                          if (!res.ok) alert(`✗ ${d.error}`);
+                          load(); setVotingId(null);
+                        }}
+                        className={cn("flex-1 py-1 rounded text-xs font-medium transition-colors disabled:opacity-50",
+                          choice === "YES" ? "bg-emerald-800 hover:bg-emerald-700 text-emerald-300" : "bg-red-900/50 hover:bg-red-900 text-red-300"
+                        )}>
+                        {votingId === v.id ? "..." : choice === "YES" ? "ЗА" : "ПРОТИ"}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[10px] text-gray-600">Ви вже проголосували</p>
+                )}
+              </div>
+            ))}
           </div>
         </div>
       )}

@@ -361,6 +361,10 @@ model Player {
   syndicateMembership     SyndicateMember?
   notifications           Notification[]
   wonTenders              Tender[]            @relation("PlayerTenders")
+  proposedVotes           SyndicateVote[]     @relation("ProposedVotes")
+  ratingAwards            RatingAward[]
+  warehouseRentalOffers   WarehouseRentalOffer[]   @relation("WarehouseOfferOwner")
+  warehouseRentalSubs     WarehouseRentalSubscription[] @relation("WarehouseRentalTenant")
 
   @@index([username])
 }
@@ -533,6 +537,7 @@ model Enterprise {
   replenishRules       ReplenishRule[]
   supplyRoutesAsSource SupplyRoute[]        @relation("SupplyRouteSource")
   supplyRoutesAsTarget SupplyRoute[]        @relation("SupplyRouteTarget")
+  warehouseRentalOffers WarehouseRentalOffer[]
 
   @@index([playerId])
   @@index([landPlotId])
@@ -1364,8 +1369,11 @@ model Syndicate {
   treasury    Decimal  @default(0) @db.Decimal(18, 2)
   createdAt   DateTime @default(now())
 
+  campaignEndsAtTick  BigInt?
+
   leader  Player            @relation("SyndicateLeader", fields: [leaderId], references: [id])
   members SyndicateMember[]
+  votes   SyndicateVote[]
 
   @@index([isPublic])
 }
@@ -1839,4 +1847,103 @@ model Tender {
   winner  Player? @relation("PlayerTenders", fields: [winnerId], references: [id])
 
   @@index([status, expiresAtTick])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SYNDICATE VOTES (Синдикат 2.0 — спільний фонд і голосування)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+enum SyndicateVoteType {
+  AD_CAMPAIGN
+  INSURANCE_FUND
+}
+
+enum SyndicateVoteStatus {
+  OPEN
+  PASSED
+  REJECTED
+  EXECUTED
+}
+
+model SyndicateVote {
+  id             String              @id @default(cuid())
+  syndicateId    String
+  proposedById   String
+  type           SyndicateVoteType
+  amount         Decimal             @db.Decimal(18, 2)
+  description    String
+  status         SyndicateVoteStatus @default(OPEN)
+  yesVotes       Int                 @default(0)
+  noVotes        Int                 @default(0)
+  votedPlayerIds String[]
+  expiresAtTick  BigInt
+  createdAtTick  BigInt
+  createdAt      DateTime            @default(now())
+
+  syndicate  Syndicate @relation(fields: [syndicateId], references: [id])
+  proposedBy Player    @relation("ProposedVotes", fields: [proposedById], references: [id])
+
+  @@index([syndicateId, status])
+  @@index([expiresAtTick])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// RATING AWARDS (Публічні рейтинги — щомісячні нагороди)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+enum RatingCategory {
+  GRAIN_PRODUCER
+  RETAIL_KING
+  TENDER_CHAMPION
+}
+
+model RatingAward {
+  id        String         @id @default(cuid())
+  playerId  String
+  category  RatingCategory
+  rank      Int
+  tick      BigInt
+  createdAt DateTime       @default(now())
+
+  player Player @relation(fields: [playerId], references: [id])
+
+  @@index([playerId, category])
+  @@index([tick])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// WAREHOUSE RENTAL (B2B оренда складських потужностей)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model WarehouseRentalOffer {
+  id           String   @id @default(cuid())
+  enterpriseId String
+  ownerId      String
+  pricePerTick Decimal  @db.Decimal(12, 2)
+  capacityKg   Float
+  description  String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  enterprise    Enterprise                   @relation(fields: [enterpriseId], references: [id])
+  owner         Player                       @relation("WarehouseOfferOwner", fields: [ownerId], references: [id])
+  subscriptions WarehouseRentalSubscription[]
+
+  @@index([ownerId])
+  @@index([isActive])
+}
+
+model WarehouseRentalSubscription {
+  id        String   @id @default(cuid())
+  offerId   String
+  tenantId  String
+  startTick BigInt
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  offer  WarehouseRentalOffer @relation(fields: [offerId], references: [id])
+  tenant Player               @relation("WarehouseRentalTenant", fields: [tenantId], references: [id])
+
+  @@unique([offerId, tenantId])
+  @@index([tenantId, isActive])
 }

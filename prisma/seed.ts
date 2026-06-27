@@ -201,6 +201,13 @@ async function main() {
     { sku: 'EQ-TRACTOR',  name:'Agricultural Tractor',nameUa:'Сільгосптрактор',  category: 'EQUIPMENT_ITEM',unit: 'unit',  isEquipmentItem: true },
     { sku: 'EQ-SAWMILL',  name:'Sawmill',            nameUa: 'Лісопильний верстат',category:'EQUIPMENT_ITEM',unit:'unit',  isEquipmentItem: true },
     { sku: 'EQ-DAIRYLINE',name:'Dairy Processing Line',nameUa:'Молочна лінія',  category: 'EQUIPMENT_ITEM',unit: 'unit',  isEquipmentItem: true },
+    // ── TEXTILE 2.0 — легка промисловість ────────────────────────────────────
+    { sku: 'RM-COTTON',  name: 'Raw Cotton',           nameUa: 'Бавовна-сирець',       category: 'RAW_MATERIAL',  unit: 'kg',   baseWeightKg: 1 },
+    { sku: 'SF-FABRIC',  name: 'Woven Fabric',          nameUa: 'Тканина вита',         category: 'SEMI_FINISHED', unit: 'kg',   baseWeightKg: 1 },
+    { sku: 'FG-CLOTHING',name: 'Clothing (set)',         nameUa: 'Одяг (комплект)',      category: 'FINISHED_GOOD', unit: 'unit', baseWeightKg: 0.8 },
+    { sku: 'RM-WOOL',    name: 'Raw Wool',              nameUa: 'Вовна необроблена',    category: 'RAW_MATERIAL',  unit: 'kg',   baseWeightKg: 1 },
+    { sku: 'SF-YARN',    name: 'Woolen Yarn',           nameUa: 'Вовняна пряжа',        category: 'SEMI_FINISHED', unit: 'kg',   baseWeightKg: 1 },
+    { sku: 'FG-KNITWEAR',name: 'Knitwear (set)',        nameUa: 'Трикотаж (комплект)',  category: 'FINISHED_GOOD', unit: 'unit', baseWeightKg: 0.6 },
   ] as const;
 
   const products: Record<string, { id: string }> = {};
@@ -374,6 +381,31 @@ async function main() {
       inputs:  [{ sku: 'SF-PLANKS',  qty: 50 }, { sku: 'SF-STEEL', qty: 5 }],
       outputs: [{ sku: 'FG-FURN',    qty: 1.0 }],
     },
+    // ── TEXTILE 2.0 — легка промисловість ────────────────────────────────────
+    {
+      name: 'Cotton Spinning',          enterpriseType: 'TEXTILE_FACTORY',
+      ticksToComplete: 1,               laborHoursPerUnit: 0.12, baseQuality: 7.5, powerKwhPerUnit: 0.28,
+      inputs:  [{ sku: 'RM-COTTON', qty: 1.30 }],
+      outputs: [{ sku: 'SF-FABRIC', qty: 1.0 }],
+    },
+    {
+      name: 'Clothing Manufacturing',   enterpriseType: 'TEXTILE_FACTORY',
+      ticksToComplete: 2,               laborHoursPerUnit: 0.90, baseQuality: 7.8, powerKwhPerUnit: 0.18,
+      inputs:  [{ sku: 'SF-FABRIC', qty: 1.20 }],
+      outputs: [{ sku: 'FG-CLOTHING', qty: 1.0 }],
+    },
+    {
+      name: 'Wool Combing',             enterpriseType: 'TEXTILE_FACTORY',
+      ticksToComplete: 1,               laborHoursPerUnit: 0.10, baseQuality: 7.2, powerKwhPerUnit: 0.20,
+      inputs:  [{ sku: 'RM-WOOL', qty: 1.40 }],
+      outputs: [{ sku: 'SF-YARN', qty: 1.0 }],
+    },
+    {
+      name: 'Knitwear Production',      enterpriseType: 'TEXTILE_FACTORY',
+      ticksToComplete: 2,               laborHoursPerUnit: 1.10, baseQuality: 8.0, powerKwhPerUnit: 0.22,
+      inputs:  [{ sku: 'SF-YARN', qty: 0.80 }],
+      outputs: [{ sku: 'FG-KNITWEAR', qty: 1.0 }],
+    },
   ] as const;
 
   for (const spec of recipeSpecs) {
@@ -435,6 +467,8 @@ async function main() {
     'FG-CHEESE':          { baseUnits:  90,  priceUah:   185, elasticity: -1.1, qualityWeight: 0.65 }, // твердий сир
     'FG-BUTTER':          { baseUnits:  70,  priceUah:   220, elasticity: -1.0, qualityWeight: 0.60 }, // масло
     'FG-SAUSAGE':         { baseUnits: 110,  priceUah:   210, elasticity: -1.2, qualityWeight: 0.70 }, // ковбаса
+    'FG-CLOTHING':        { baseUnits:  30,  priceUah:   850, elasticity: -1.4, qualityWeight: 0.75 }, // одяг — зимовий пік
+    'FG-KNITWEAR':        { baseUnits:  20,  priceUah:   680, elasticity: -1.3, qualityWeight: 0.70 }, // трикотаж — зимовий пік
   };
 
   // Попит з боку будівельної галузі (B2B-орієнтований, але частина йде через роздріб)

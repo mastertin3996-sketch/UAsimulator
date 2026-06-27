@@ -40,6 +40,9 @@ import { CompanyValuationService }    from './CompanyValuationService';
 import { BankingLiquidityService }   from './BankingLiquidityService';
 import { StockExchangeService }      from './StockExchangeService';
 import { TenderService }             from './TenderService';
+import { RatingService }             from './RatingService';
+import { SyndicateVoteService }      from './SyndicateVoteService';
+import { WarehouseRentalService }    from './WarehouseRentalService';
 import { TICKS_PER_MONTH, TICKS_PER_SNAPSHOT } from '../constants/economic';
 
 interface TickSummary {
@@ -74,6 +77,9 @@ export class TickEngine {
   private readonly banking:        BankingLiquidityService;
   private readonly stockExchange:  StockExchangeService;
   private readonly tenders:        TenderService;
+  private readonly ratings:        RatingService;
+  private readonly syndicateVotes: SyndicateVoteService;
+  private readonly warehouseRents: WarehouseRentalService;
   private readonly db:             PrismaClient;
 
   constructor(prismaClient: PrismaClient = defaultPrisma) {
@@ -97,8 +103,11 @@ export class TickEngine {
     this.corpSecurity  = new CorporateSecurityService(prismaClient);
     this.valuation     = new CompanyValuationService(prismaClient);
     this.banking       = new BankingLiquidityService(prismaClient);
-    this.stockExchange = new StockExchangeService(prismaClient);
-    this.tenders       = new TenderService(prismaClient);
+    this.stockExchange  = new StockExchangeService(prismaClient);
+    this.tenders        = new TenderService(prismaClient);
+    this.ratings        = new RatingService(prismaClient);
+    this.syndicateVotes = new SyndicateVoteService(prismaClient);
+    this.warehouseRents = new WarehouseRentalService(prismaClient);
   }
 
   /**
@@ -212,6 +221,21 @@ export class TickEngine {
       where: { promotionActive: true, promotionEndTick: { lte: tickNumber } },
       data:  { promotionActive: false, promotionEndTick: null },
     }).catch(e => console.error(`[Tick ${tickNumber}] Promo expiry failed:`, e));
+
+    // ── 3a1e. Синдикат — expiry голосувань ───────────────────────────────────
+    await this.syndicateVotes.processExpiredVotes(tickNumber)
+      .catch(e => console.error(`[Tick ${tickNumber}] Syndicate votes failed:`, e));
+
+    // ── 3a1f. Оренда складів — щотічна оплата ───────────────────────────────
+    await this.warehouseRents.processRentals(tickNumber)
+      .catch(e => console.error(`[Tick ${tickNumber}] Warehouse rentals failed:`, e));
+
+    // ── 3a1g. Рейтинги — кожні 30 тіків ─────────────────────────────────────
+    if (Number(tickNumber) % 30 === 0) {
+      const awarded = await this.ratings.processAwards(tickNumber)
+        .catch(e => { console.error(`[Tick ${tickNumber}] Ratings failed:`, e); return 0; });
+      if (awarded > 0) console.log(`[Tick ${tickNumber}] Рейтинги: ${awarded} нагород видано.`);
+    }
 
     // ── 3a1b. Держзамовлення — нові BUY-ордери з премією кожні 8 тіків ──
     // Виконується ДО matchOrders щоб нові ордери одразу потрапляли в матчинг

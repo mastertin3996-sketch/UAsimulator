@@ -456,6 +456,15 @@ export class MarketService {
     const shockPriceMult  = currencyShock ? 1.20 : 1.0;
     const shockDemandMult = currencyShock ? 0.90 : 1.0;
 
+    // SYNDICATE AD_CAMPAIGN: active campaigns give +20% NPC market share score to member players
+    const activeCampaigns = await this.prisma.syndicate.findMany({
+      where:  { campaignEndsAtTick: { gte: tickNumber } },
+      select: { members: { select: { playerId: true } } },
+    });
+    const campaignPlayerIds = new Set<string>(
+      activeCampaigns.flatMap(s => s.members.map(m => m.playerId)),
+    );
+
     const allShops = await this.prisma.enterprise.findMany({
       where:   { type: 'RETAIL_STORE', isOperational: true },
       include: {
@@ -502,8 +511,9 @@ export class MarketService {
             const price        = promoActive ? basePrice * 0.85 : basePrice;
             const qFactor      = Number(demand.qualityWeight) * (inv.avgQuality / 10) + (1 - Number(demand.qualityWeight));
             const pFactor      = refPrice > 0 ? Math.pow(refPrice / Math.max(price, 0.01), Math.abs(Number(demand.priceElasticity))) : 1;
-            const promoBoost   = promoActive ? 1.5 : 1.0;
-            return { shop, inv, price, score: qFactor * pFactor * promoBoost };
+            const promoBoost    = promoActive ? 1.5 : 1.0;
+            const campaignBoost = campaignPlayerIds.has(shop.playerId) ? 1.20 : 1.0;
+            return { shop, inv, price, score: qFactor * pFactor * promoBoost * campaignBoost };
           })
           .filter((c): c is NonNullable<typeof c> => c !== null);
 
@@ -569,6 +579,8 @@ export class MarketService {
     'FG-CHEESE':            [1.0, 0.9, 1.1, 1.4],  // зима — новорічні столи
     'FG-BUTTER':            [0.9, 0.9, 1.1, 1.3],  // зима — традиційна випічка
     'FG-SAUSAGE':           [1.0, 1.1, 1.2, 1.3],  // осінь/зима — пікніки та свята
+    'FG-CLOTHING':          [0.7, 0.8, 1.2, 1.8],  // зимовий пік — пальта, куртки
+    'FG-KNITWEAR':          [0.6, 0.7, 1.3, 1.9],  // зимовий пік — светри, шарфи
   };
 
   async matchNpcMarketOrders(tickNumber?: bigint): Promise<number> {

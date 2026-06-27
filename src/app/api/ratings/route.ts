@@ -99,6 +99,26 @@ export async function GET() {
     return { category, topCompanies: sorted };
   });
 
+  // Recent rating awards (last 60 ticks)
+  const lastTickNum = lastTick?.tickNumber ?? 0n;
+  const recentAwards = await prisma.ratingAward.findMany({
+    where:   { tick: { gte: lastTickNum - 60n } },
+    include: { player: { select: { username: true, companyName: true } } },
+    orderBy: [{ tick: "desc" }, { rank: "asc" }],
+    take:    30,
+  });
+
+  const awards = recentAwards.map(a => ({
+    id:          a.id,
+    category:    a.category,
+    rank:        a.rank,
+    tick:        Number(a.tick),
+    playerId:    a.playerId,
+    username:    a.player.username,
+    companyName: a.player.companyName,
+    isMe:        a.playerId === playerId,
+  }));
+
   return NextResponse.json({
     myCompanyId:    playerId,
     companies:      byRating,
@@ -107,6 +127,7 @@ export async function GET() {
     myRanks,
     nearby,
     sectorLeaders,
+    awards,
     totalCompanies: players.length,
     lastTickNumber: lastTick ? Number(lastTick.tickNumber) : null,
   });
