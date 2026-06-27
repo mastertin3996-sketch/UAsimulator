@@ -669,6 +669,29 @@ async function main() {
   }
   console.log(`Seeded ${plotCount} land plots.`);
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // NPC COMPETITOR PLAYERS
+  const npcBots = [
+    { username: 'npc_agro',   email: 'npc_agro@npc.game',   company: 'АгроЮніон ТОВ' },
+    { username: 'npc_food',   email: 'npc_food@npc.game',   company: 'УкрПродукт АТ' },
+    { username: 'npc_retail', email: 'npc_retail@npc.game', company: 'ТехноТрейд ПП' },
+  ];
+  for (const bot of npcBots) {
+    await prisma.player.upsert({
+      where:  { username: bot.username },
+      create: {
+        email:        bot.email,
+        username:     bot.username,
+        passwordHash: 'npc-no-login',
+        companyName:  bot.company,
+        isNpcSeller:  true,
+        cashBalance:  10_000_000,
+      },
+      update: {},
+    });
+  }
+  console.log(`Seeded ${npcBots.length} NPC competitor accounts.`);
+
   console.log('✓ Seed complete.');
 }
 

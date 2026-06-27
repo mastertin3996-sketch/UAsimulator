@@ -22,7 +22,7 @@ function NWTooltip({ active, payload, label }: { active?: boolean; payload?: { n
   if (!active || !payload?.length) return null;
   return (
     <div className="bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 shadow-xl text-xs">
-      <p className="text-gray-500 mb-1.5">Тік #{label}</p>
+      <p className="text-gray-500 mb-1.5">День #{label}</p>
       {payload.map((p) => (
         <div key={p.name} className="flex items-center justify-between gap-4">
           <span style={{ color: p.color }}>{p.name}</span>
@@ -37,7 +37,7 @@ function PnLTooltip({ active, payload, label }: { active?: boolean; payload?: { 
   if (!active || !payload?.length) return null;
   return (
     <div className="bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 shadow-xl text-xs">
-      <p className="text-gray-500 mb-1.5">Тік #{label}</p>
+      <p className="text-gray-500 mb-1.5">День #{label}</p>
       {payload.map((p) => (
         <div key={p.name} className="flex items-center justify-between gap-4">
           <span style={{ color: p.color }}>{p.name}</span>
@@ -54,7 +54,7 @@ export function NetWorthChart({ data }: { data: SnapshotPoint[] }) {
   if (!data.length) {
     return (
       <div className="flex items-center justify-center h-36 text-gray-600 text-xs">
-        Дані з'являться після першого snapshot (кожні 24 тіки)
+        Дані з'являться після першого snapshot (кожні 24 дні)
       </div>
     );
   }

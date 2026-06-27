@@ -26,7 +26,7 @@ function CustomTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
   return (
     <div className="bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 shadow-xl text-sm">
-      <p className="text-gray-400 mb-2 font-medium">Тік #{label}</p>
+      <p className="text-gray-400 mb-2 font-medium">День #{label}</p>
       {payload.map((p: any) => (
         <div key={p.dataKey} className="flex items-center justify-between gap-6">
           <span style={{ color: p.color }} className="font-medium">{p.name}</span>
@@ -45,7 +45,7 @@ export function RevenueChart({ data, compact = false }: { data: TickData[]; comp
         <CardHeader><CardTitle>Дохід / Витрати</CardTitle></CardHeader>
         <CardContent>
           <div className="flex items-center justify-center h-52 text-gray-600 text-sm">
-            Дані з'являться після першого ігрового тіку
+            Дані з'являться після першого ігрового дня
           </div>
         </CardContent>
       </Card>
@@ -56,7 +56,7 @@ export function RevenueChart({ data, compact = false }: { data: TickData[]; comp
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
-          <CardTitle>Дохід / Витрати (останні 30 тіків)</CardTitle>
+          <CardTitle>Дохід / Витрати (останні 30 днів)</CardTitle>
         </div>
       </CardHeader>
       <CardContent className="pt-0">
@@ -126,7 +126,7 @@ export function ProfitChart({ data }: { data: TickData[] }) {
 
   return (
     <Card>
-      <CardHeader><CardTitle>Прибуток по тіках</CardTitle></CardHeader>
+      <CardHeader><CardTitle>Прибуток по днях</CardTitle></CardHeader>
       <CardContent className="pt-0">
         <ResponsiveContainer width="100%" height={200}>
           <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>

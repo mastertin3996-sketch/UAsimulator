@@ -11,6 +11,7 @@ import {
 import { StatCard } from "@/components/game/StatCard";
 import { RevenueChart } from "@/components/game/charts/FinanceChart";
 import { NetWorthChart, PnLChart } from "@/components/game/charts/NetWorthChart";
+import { QualityStars } from "@/components/game/QualityBar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn, formatUAH, formatUSD, formatNumber } from "@/lib/utils";
 
@@ -47,6 +48,11 @@ interface DashData {
   compliance: { score: number; consecutiveViolations: number; lastAuditTick: number | null; riskLevel: "low" | "medium" | "high"; violations: string[] } | null;
   activeResearch: { name: string; current: number; required: number; pct: number } | null;
   macroEvents: { type: string; description: string; ticksLeft: number }[];
+  lastTax: {
+    vatUah: number; citUah: number; esvUah: number;
+    pdfoUah: number; militaryUah: number; totalUah: number;
+    isPaid: boolean; periodStart: string; periodEnd: string;
+  } | null;
 }
 
 function WarningsBanner({ warnings }: { warnings: Warning[] }) {
@@ -104,7 +110,7 @@ function NextTickButton({ onDone }: { onDone: () => void }) {
       const res  = await fetch("/api/admin/tick", { method: "POST" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Помилка");
-      setInfo(`Тік ${data.tickNumber} — ${data.durationMs}мс`);
+      setInfo(`День ${data.tickNumber} — ${data.durationMs}мс`);
       setState("done");
       setTimeout(() => { setState("idle"); onDone(); }, 2500);
     } catch (e: unknown) {
@@ -168,11 +174,14 @@ const TXN_LABELS: Record<string, { label: string; color: string }> = {
   GM_ADJUSTMENT:    { label: "GM коригув.",   color: "text-violet-400" },
 };
 
+type CompetitorStat = { username: string; company: string; activeOrders: number; totalStock: number; avgPrice: number };
+
 export default function DashboardClient() {
   const [data, setData]         = useState<DashData | null>(null);
   const [loading, setLoading]   = useState(true);
   const [liveTick, setLiveTick] = useState<number | null>(null);
   const [chartTab, setChartTab] = useState<"networth" | "pnl" | "revenue">("networth");
+  const [competitors, setCompetitors] = useState<CompetitorStat[]>([]);
   const esRef = useRef<EventSource | null>(null);
 
   const loadData = useCallback(() => {
@@ -181,6 +190,10 @@ export default function DashboardClient() {
       .then((r) => r.json())
       .then(setData)
       .finally(() => setLoading(false));
+    fetch("/api/competitors")
+      .then((r) => r.ok ? r.json() : [])
+      .then(setCompetitors)
+      .catch(() => {});
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
@@ -221,7 +234,7 @@ export default function DashboardClient() {
     return <div className="flex items-center justify-center min-h-[60vh] gap-2 text-gray-500"><AlertCircle size={18} /> Помилка завантаження</div>;
   }
 
-  const { player, enterprises, chartData, snapshotChart, currentTick, warnings, recentTxns, stats, pnl, compliance, activeResearch, macroEvents } = data;
+  const { player, enterprises, chartData, snapshotChart, currentTick, warnings, recentTxns, stats, pnl, compliance, activeResearch, macroEvents, lastTax } = data;
   const displayTick = liveTick ?? currentTick;
 
   return (
@@ -237,7 +250,7 @@ export default function DashboardClient() {
             <span className={cn("text-xs px-2 py-0.5 rounded-full flex items-center gap-1",
               liveTick ? "bg-emerald-950 text-emerald-400" : "bg-gray-800 text-gray-400")}>
               {liveTick && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />}
-              Тік #{displayTick}
+              День #{displayTick}
             </span>
             {player.isOperationsFrozen && <span className="text-xs bg-red-950 text-red-400 border border-red-800 px-2 py-0.5 rounded-full">Операції заморожені</span>}
             {player.isBankrupt && <span className="text-xs bg-red-950 text-red-400 border border-red-800 px-2 py-0.5 rounded-full">БАНКРУТСТВО</span>}
@@ -279,9 +292,13 @@ export default function DashboardClient() {
         <div className="rounded-xl border border-gray-800 bg-gray-900 p-3 flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-emerald-950 flex items-center justify-center shrink-0"><Factory size={15} className="text-emerald-400" /></div>
           <div>
-            <p className="text-xs text-gray-500">Вироблено (тік)</p>
+            <p className="text-xs text-gray-500">Вироблено (день)</p>
             <p className="text-lg font-bold text-white">{formatNumber(Math.round(stats.totalUnitsThisTick))}</p>
-            <p className="text-[10px] text-gray-600">{stats.totalUnitsThisTick > 0 ? `якість ${(stats.avgQualityThisTick * 100).toFixed(0)}%` : "ще не виробляли"}</p>
+            <div className="text-[10px] text-gray-600">
+              {stats.totalUnitsThisTick > 0
+                ? <QualityStars value={stats.avgQualityThisTick} />
+                : "ще не виробляли"}
+            </div>
           </div>
         </div>
         <div className="rounded-xl border border-gray-800 bg-gray-900 p-3 flex items-center gap-3">
@@ -289,7 +306,7 @@ export default function DashboardClient() {
           <div>
             <p className="text-xs text-gray-500">До місячних виплат</p>
             <p className="text-lg font-bold text-white">{stats.ticksUntilMonth}</p>
-            <p className="text-[10px] text-gray-600">тіків (зарплата, оренда)</p>
+            <p className="text-[10px] text-gray-600">днів (зарплата, оренда)</p>
           </div>
         </div>
       </div>
@@ -312,7 +329,7 @@ export default function DashboardClient() {
                   <p className={`text-xs font-semibold ${cfg.color}`}>Макро-подія активна</p>
                   <p className="text-xs text-gray-300 truncate">{e.description}</p>
                 </div>
-                <span className="text-[10px] text-gray-500 shrink-0 font-mono">{e.ticksLeft} тік</span>
+                <span className="text-[10px] text-gray-500 shrink-0 font-mono">{e.ticksLeft} д.</span>
               </div>
             );
           })}
@@ -381,7 +398,7 @@ export default function DashboardClient() {
               {chartTab === "pnl"      && <PnLChart data={snapshotChart} />}
               {chartTab === "revenue"  && (
                 chartData.length === 0
-                  ? <div className="flex items-center justify-center h-36 text-gray-600 text-xs">Дані після першого тіку</div>
+                  ? <div className="flex items-center justify-center h-36 text-gray-600 text-xs">Дані після першого дня</div>
                   : <RevenueChart data={chartData.map((d) => ({ tick: 0, ...d }))} compact />
               )}
             </CardContent>
@@ -428,7 +445,7 @@ export default function DashboardClient() {
                 {compliance.consecutiveViolations > 0 && (
                   <div className="space-y-1">
                     <p className="text-xs text-red-400">
-                      {compliance.consecutiveViolations} тіків з порушеннями поспіль
+                      {compliance.consecutiveViolations} днів з порушеннями поспіль
                     </p>
                     {compliance.violations.length > 0 && (
                       <ul className="space-y-0.5">
@@ -442,7 +459,7 @@ export default function DashboardClient() {
                   </div>
                 )}
                 {compliance.lastAuditTick && (
-                  <p className="text-xs text-gray-600">Остання перевірка: тік {compliance.lastAuditTick}</p>
+                  <p className="text-xs text-gray-600">Остання перевірка: день {compliance.lastAuditTick}</p>
                 )}
                 {compliance.riskLevel !== "low" && (
                   <Link href="/licenses" className="block text-xs text-amber-400 hover:text-amber-300">
@@ -454,6 +471,60 @@ export default function DashboardClient() {
           })()}
         </div>
       </div>
+
+      {/* ── Tax breakdown ────────────────────────────────────────── */}
+      {lastTax && (
+        <div className="rounded-xl border border-orange-900/30 bg-orange-950/10 px-4 py-3">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-semibold text-orange-400">Податки (останній місяць)</p>
+            <span className={`text-[10px] px-2 py-0.5 rounded-full ${lastTax.isPaid ? "bg-emerald-950 text-emerald-400" : "bg-red-950 text-red-400"}`}>
+              {lastTax.isPaid ? "Сплачено" : "Не сплачено"}
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-x-6 gap-y-1">
+            {[
+              { label: "ПДВ (20%)",           val: lastTax.vatUah },
+              { label: "Податок на прибуток", val: lastTax.citUah },
+              { label: "ЄСВ (22%)",           val: lastTax.esvUah },
+              { label: "ПДФО (18%)",          val: lastTax.pdfoUah },
+              { label: "Військовий збір (5%)", val: lastTax.militaryUah },
+            ].map(({ label, val }) => val > 0 && (
+              <div key={label} className="flex justify-between text-xs">
+                <span className="text-gray-500">{label}</span>
+                <span className="text-orange-300 font-mono">₴{formatNumber(Math.round(val))}</span>
+              </div>
+            ))}
+          </div>
+          <div className="border-t border-orange-900/30 mt-2 pt-2 flex justify-between text-xs font-semibold">
+            <span className="text-gray-400">Разом</span>
+            <span className="text-orange-300 font-mono">₴{formatNumber(Math.round(lastTax.totalUah))}</span>
+          </div>
+        </div>
+      )}
+
+      {/* ── NPC Competitors ──────────────────────────────────────── */}
+      {competitors.length > 0 && (
+        <div className="rounded-xl border border-red-900/30 bg-red-950/10 px-4 py-3">
+          <p className="text-xs font-semibold text-red-400 mb-2">Конкуренти на ринку</p>
+          <div className="space-y-1.5">
+            {competitors.map(c => (
+              <div key={c.username} className="flex items-center justify-between text-xs">
+                <span className="text-gray-300">{c.company}</span>
+                <div className="flex items-center gap-3 text-right">
+                  {c.totalStock > 0 ? (
+                    <span className="text-gray-500">{formatNumber(c.totalStock)} од.</span>
+                  ) : (
+                    <span className="text-gray-700">немає запасів</span>
+                  )}
+                  {c.avgPrice > 0 && (
+                    <span className="text-red-300 font-mono">~₴{formatNumber(Math.round(c.avgPrice))}</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ── Active research ──────────────────────────────────────── */}
       {activeResearch && (

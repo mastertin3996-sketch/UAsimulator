@@ -207,7 +207,7 @@ function EnterpriseRow({ ent, tickNumber }: { ent: EntData; tickNumber: number }
 
         {/* Salary */}
         <div className="shrink-0 text-right w-24 hidden lg:block">
-          <p className="text-[10px] text-gray-600 mb-0.5">ЗП/тік</p>
+          <p className="text-[10px] text-gray-600 mb-0.5">ЗП/день</p>
           <p className="text-xs text-red-400 font-mono">−{formatNumber(Math.round(ent.totalSalaryPerTick))}</p>
         </div>
 
@@ -220,7 +220,7 @@ function EnterpriseRow({ ent, tickNumber }: { ent: EntData; tickNumber: number }
           {/* Mobile stats */}
           <div className="flex gap-4 mb-3 sm:hidden text-xs">
             <span className="text-gray-500">Персонал: <span className="text-white">{ent.workersCurrent}/{ent.workersMax}</span></span>
-            <span className="text-gray-500">ЗП: <span className="text-red-400">−{formatNumber(Math.round(ent.totalSalaryPerTick))} ₴/тік</span></span>
+            <span className="text-gray-500">ЗП: <span className="text-red-400">−{formatNumber(Math.round(ent.totalSalaryPerTick))} ₴/день</span></span>
           </div>
 
           {/* Office equipment mood panel */}
@@ -246,9 +246,9 @@ function EnterpriseRow({ ent, tickNumber }: { ent: EntData; tickNumber: number }
                 {ent.equipment.moodDelta === null ? (
                   <span className="text-xs text-gray-500">—</span>
                 ) : ent.equipment.moodDelta > 0 ? (
-                  <span className="text-xs font-semibold text-emerald-400">😊 +{(ent.equipment.moodDelta * 100).toFixed(1)}% настрій/тік</span>
+                  <span className="text-xs font-semibold text-emerald-400">😊 +{(ent.equipment.moodDelta * 100).toFixed(1)}% настрій/день</span>
                 ) : ent.equipment.moodDelta < 0 ? (
-                  <span className="text-xs font-semibold text-red-400">😔 {(ent.equipment.moodDelta * 100).toFixed(1)}% настрій/тік</span>
+                  <span className="text-xs font-semibold text-red-400">😔 {(ent.equipment.moodDelta * 100).toFixed(1)}% настрій/день</span>
                 ) : (
                   <span className="text-xs text-gray-400">😐 нейтрально</span>
                 )}
@@ -432,7 +432,7 @@ export default function EmployeesClient() {
 
         <div className="bg-gray-900 border border-gray-800 rounded-xl px-4 py-3">
           <p className="text-gray-500 text-xs mb-1 flex items-center gap-1">
-            <TrendingDown size={10} /> ЗП/тік
+            <TrendingDown size={10} /> ЗП/день
           </p>
           <p className="text-xl font-bold text-red-400 font-mono">
             −{formatNumber(summary.totalSalaryPerTick)}

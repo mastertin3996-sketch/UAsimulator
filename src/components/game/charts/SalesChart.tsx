@@ -18,7 +18,7 @@ export function TopSalesChart({ data }: { data: SaleEntry[] }) {
         <CardHeader><CardTitle>Топ магазинів за виручкою</CardTitle></CardHeader>
         <CardContent>
           <div className="flex items-center justify-center h-44 text-gray-600 text-sm">
-            Продажі з'являться після першого тіку
+            Продажі з'являться після першого дня
           </div>
         </CardContent>
       </Card>

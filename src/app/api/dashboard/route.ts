@@ -43,6 +43,7 @@ export async function GET() {
     lastTickLogs,
     allEmployees,
     compliance,
+    lastTaxRecord,
   ] = await Promise.all([
     // Enterprises summary
     prisma.enterprise.findMany({
@@ -127,6 +128,17 @@ export async function GET() {
     prisma.complianceRecord.findUnique({
       where:  { playerId },
       select: { score: true, lastAuditTick: true, consecutiveViolations: true },
+    }),
+
+    // Last tax record
+    prisma.taxRecord.findFirst({
+      where:   { playerId },
+      orderBy: { periodEnd: "desc" },
+      select:  {
+        vatUah: true, citUah: true, esvUah: true,
+        pdfoUah: true, militaryTaxUah: true, totalUah: true,
+        isPaid: true, periodStart: true, periodEnd: true,
+      },
     }),
   ]);
 
@@ -328,6 +340,17 @@ export async function GET() {
       description: e.description,
       ticksLeft:   Math.max(0, Number(e.endTick) - Number(currentTick)),
     })),
+    lastTax: lastTaxRecord ? {
+      vatUah:        Number(lastTaxRecord.vatUah),
+      citUah:        Number(lastTaxRecord.citUah),
+      esvUah:        Number(lastTaxRecord.esvUah),
+      pdfoUah:       Number(lastTaxRecord.pdfoUah),
+      militaryUah:   Number(lastTaxRecord.militaryTaxUah),
+      totalUah:      Number(lastTaxRecord.totalUah),
+      isPaid:        lastTaxRecord.isPaid,
+      periodStart:   lastTaxRecord.periodStart,
+      periodEnd:     lastTaxRecord.periodEnd,
+    } : null,
     activeResearch: await (async () => {
       const p = await prisma.player.findUnique({
         where:  { id: playerId },

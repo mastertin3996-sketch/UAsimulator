@@ -43,6 +43,7 @@ import { TenderService }             from './TenderService';
 import { RatingService }             from './RatingService';
 import { SyndicateVoteService }      from './SyndicateVoteService';
 import { WarehouseRentalService }    from './WarehouseRentalService';
+import { NpcCompetitorService }      from './NpcCompetitorService';
 import { TICKS_PER_MONTH, TICKS_PER_SNAPSHOT } from '../constants/economic';
 
 interface TickSummary {
@@ -78,9 +79,10 @@ export class TickEngine {
   private readonly stockExchange:  StockExchangeService;
   private readonly tenders:        TenderService;
   private readonly ratings:        RatingService;
-  private readonly syndicateVotes: SyndicateVoteService;
-  private readonly warehouseRents: WarehouseRentalService;
-  private readonly db:             PrismaClient;
+  private readonly syndicateVotes:   SyndicateVoteService;
+  private readonly warehouseRents:   WarehouseRentalService;
+  private readonly npcCompetitors:   NpcCompetitorService;
+  private readonly db:               PrismaClient;
 
   constructor(prismaClient: PrismaClient = defaultPrisma) {
     this.db         = prismaClient;
@@ -106,8 +108,9 @@ export class TickEngine {
     this.stockExchange  = new StockExchangeService(prismaClient);
     this.tenders        = new TenderService(prismaClient);
     this.ratings        = new RatingService(prismaClient);
-    this.syndicateVotes = new SyndicateVoteService(prismaClient);
-    this.warehouseRents = new WarehouseRentalService(prismaClient);
+    this.syndicateVotes  = new SyndicateVoteService(prismaClient);
+    this.warehouseRents  = new WarehouseRentalService(prismaClient);
+    this.npcCompetitors  = new NpcCompetitorService(prismaClient);
   }
 
   /**
@@ -205,6 +208,12 @@ export class TickEngine {
     if (Number(tickNumber) % 5 === 0) {
       await this.market.replenishDerzhprom()
         .catch(e => console.error(`[Tick ${tickNumber}] ДержПром replenish failed:`, e));
+    }
+
+    // ── 3a1b. NPC конкуренти — кожні 3 тіки ────────────────────────────
+    if (Number(tickNumber) % 3 === 0) {
+      await this.npcCompetitors.tick(tickNumber)
+        .catch(e => console.error(`[Tick ${tickNumber}] NPC competitors failed:`, e));
     }
 
     // ── 3a1c. Тендери — генерація кожні 15 тіків, expiry кожен тік ─────────

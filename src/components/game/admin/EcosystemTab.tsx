@@ -100,7 +100,7 @@ export default function EcosystemTab() {
         <StatCard label="Активних гравців" value={stats ? `${stats.activeUsers}/${stats.totalUsers}` : "—"}
           sub={stats ? `Заблоковано: ${stats.flaggedUsers}` : undefined} icon={Users} accent="border-amber-700" />
         <StatCard label="Відкриті алерти" value={stats ? String(stats.openAlerts) : "—"}
-          sub={`Тік №${stats?.currentTick ?? 0}`} icon={AlertTriangle}
+          sub={`День №${stats?.currentTick ?? 0}`} icon={AlertTriangle}
           accent={stats && stats.openAlerts > 0 ? "border-red-700" : "border-gray-700"} />
       </div>
 

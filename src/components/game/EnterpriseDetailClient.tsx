@@ -10,6 +10,7 @@ import {
   BookOpen, SlidersHorizontal, Loader2, X, ChevronDown, Pencil, Truck,
 } from "lucide-react";
 import { cn, formatUAH, formatNumber } from "@/lib/utils";
+import { QualityStars } from "@/components/game/QualityBar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 
@@ -604,8 +605,8 @@ function ManagementTab({ enterprise, stats, productionLogs, onToggleOperational 
         return (
           <div className="rounded-xl border border-gray-800 bg-gray-900 p-4 space-y-3">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-white">Виробництво (останні тіки)</h3>
-              <span className="text-xs text-gray-500">сер. {formatNumber(Math.round(avgUnits))} од/тік</span>
+              <h3 className="text-sm font-semibold text-white">Виробництво (останні дні)</h3>
+              <span className="text-xs text-gray-500">сер. {formatNumber(Math.round(avgUnits))} од/день</span>
             </div>
             <div className="flex items-end gap-1 h-16">
               {ticks.map(([tick, val]) => {
@@ -617,15 +618,15 @@ function ManagementTab({ enterprise, stats, productionLogs, onToggleOperational 
                       style={{ height: `${Math.max(4, pct)}%` }}
                     />
                     <div className="absolute bottom-full mb-1 hidden group-hover:block bg-gray-800 border border-gray-700 rounded px-1.5 py-0.5 text-[10px] text-white whitespace-nowrap z-10">
-                      Тік {tick}: {formatNumber(Math.round(val))} од.
+                      День {tick}: {formatNumber(Math.round(val))} од.
                     </div>
                   </div>
                 );
               })}
             </div>
             <div className="flex justify-between text-[10px] text-gray-600">
-              <span>Тік {ticks[0]?.[0]}</span>
-              <span>Тік {ticks[ticks.length - 1]?.[0]}</span>
+              <span>День {ticks[0]?.[0]}</span>
+              <span>День {ticks[ticks.length - 1]?.[0]}</span>
             </div>
           </div>
         );
@@ -1290,6 +1291,9 @@ function ShowcaseTab({ enterpriseId, onGoToSupply }: { enterpriseId: string; onG
             <p className="text-xs text-gray-500 mt-0.5">
               {item.isActive ? `~${item.estimatedDemand.toFixed(1)}/день` : `${item.baseUnitsPerDay.toFixed(0)}/день база`}
             </p>
+            {item.avgQuality > 0 && (
+              <div className="text-amber-400 mt-1"><QualityStars value={item.avgQuality} size="sm" /></div>
+            )}
             {item.inStock > 0 ? (
               <p className="text-xs text-blue-400 mt-1.5 font-mono">{item.inStock.toFixed(0)} {item.unit} на складі</p>
             ) : (
