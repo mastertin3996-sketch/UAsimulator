@@ -74,13 +74,40 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
   const { id: enterpriseId } = await params;
   const playerId = session.user.id;
-  const body = await req.json().catch(() => ({})) as { productId?: string; price?: number; isActive?: boolean };
+  const body = await req.json().catch(() => ({})) as {
+    productId?: string; price?: number; isActive?: boolean;
+    startPromotion?: boolean; // if true: start a 5-tick promotion (-15% price, ×1.5 NPC share)
+  };
 
   if (!body.productId) return NextResponse.json({ error: "productId required" }, { status: 400 });
   if (body.price !== undefined && body.price <= 0) return NextResponse.json({ error: "Ціна має бути > 0" }, { status: 400 });
 
   const enterprise = await prisma.enterprise.findFirst({ where: { id: enterpriseId, playerId } });
   if (!enterprise) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  // Handle promotion launch
+  if (body.startPromotion) {
+    const PROMO_COST      = 5000;
+    const PROMO_DURATION  = 5n;
+    const player = await prisma.player.findFirst({ where: { id: playerId }, select: { cashBalance: true } });
+    if (!player || Number(player.cashBalance) < PROMO_COST) {
+      return NextResponse.json({ error: `Недостатньо коштів. Потрібно ₴${PROMO_COST} рекламного бюджету.` }, { status: 422 });
+    }
+    const tick = await prisma.gameTick.findFirst({ orderBy: { tickNumber: 'desc' }, select: { tickNumber: true } });
+    const endTick = (tick?.tickNumber ?? 0n) + PROMO_DURATION;
+    await prisma.$transaction([
+      prisma.retailListing.upsert({
+        where:  { enterpriseId_productId: { enterpriseId, productId: body.productId } },
+        create: { enterpriseId, productId: body.productId, pricePerUnit: 0, isActive: true, promotionActive: true, promotionEndTick: endTick },
+        update: { promotionActive: true, promotionEndTick: endTick },
+      }),
+      prisma.player.update({
+        where: { id: playerId },
+        data:  { cashBalance: { decrement: PROMO_COST } },
+      }),
+    ]);
+    return NextResponse.json({ ok: true, promoted: true, endTick: Number(endTick) });
+  }
 
   const upd: { pricePerUnit?: number; isActive?: boolean } = {};
   if (body.price    !== undefined) upd.pricePerUnit = body.price;

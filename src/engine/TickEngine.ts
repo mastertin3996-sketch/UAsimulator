@@ -39,6 +39,7 @@ import { CorporateSecurityService }   from './CorporateSecurityService';
 import { CompanyValuationService }    from './CompanyValuationService';
 import { BankingLiquidityService }   from './BankingLiquidityService';
 import { StockExchangeService }      from './StockExchangeService';
+import { TenderService }             from './TenderService';
 import { TICKS_PER_MONTH, TICKS_PER_SNAPSHOT } from '../constants/economic';
 
 interface TickSummary {
@@ -72,6 +73,7 @@ export class TickEngine {
   private readonly valuation:      CompanyValuationService;
   private readonly banking:        BankingLiquidityService;
   private readonly stockExchange:  StockExchangeService;
+  private readonly tenders:        TenderService;
   private readonly db:             PrismaClient;
 
   constructor(prismaClient: PrismaClient = defaultPrisma) {
@@ -96,6 +98,7 @@ export class TickEngine {
     this.valuation     = new CompanyValuationService(prismaClient);
     this.banking       = new BankingLiquidityService(prismaClient);
     this.stockExchange = new StockExchangeService(prismaClient);
+    this.tenders       = new TenderService(prismaClient);
   }
 
   /**
@@ -194,6 +197,21 @@ export class TickEngine {
       await this.market.replenishDerzhprom()
         .catch(e => console.error(`[Tick ${tickNumber}] ДержПром replenish failed:`, e));
     }
+
+    // ── 3a1c. Тендери — генерація кожні 15 тіків, expiry кожен тік ─────────
+    await this.tenders.expireTenders(tickNumber)
+      .catch(e => console.error(`[Tick ${tickNumber}] Tender expiry failed:`, e));
+    if (Number(tickNumber) % 15 === 0) {
+      const newTenders = await this.tenders.generateTenders(tickNumber)
+        .catch(e => { console.error(`[Tick ${tickNumber}] Tender generation failed:`, e); return 0; });
+      if (newTenders > 0) console.log(`[Tick ${tickNumber}] Тендери: ${newTenders} нових держзакупівель.`);
+    }
+
+    // ── 3a1d. Промо-акції RETAIL_STORE — expiry за promotionEndTick ─────────
+    await this.db.retailListing.updateMany({
+      where: { promotionActive: true, promotionEndTick: { lte: tickNumber } },
+      data:  { promotionActive: false, promotionEndTick: null },
+    }).catch(e => console.error(`[Tick ${tickNumber}] Promo expiry failed:`, e));
 
     // ── 3a1b. Держзамовлення — нові BUY-ордери з премією кожні 8 тіків ──
     // Виконується ДО matchOrders щоб нові ордери одразу потрапляли в матчинг
@@ -303,6 +321,7 @@ export class TickEngine {
           GRAIN_MARKET_BOOM:    { title: 'Зерновий бум',          body: 'Попит на зерно зріс. Агропідприємства отримують +35% до виручки протягом 5 тіків.' },
           DROUGHT:              { title: 'Посуха',                 body: 'Посуха у регіоні. AGRO_FARM-підприємства виробляють −60% від норми протягом 8 тіків.' },
           PEST_ATTACK:          { title: 'Нашестя шкідників',     body: 'Шкідники атакують AGRO_FARM. Тримайте RM-PESTICIDE для захисту врожаю.' },
+          CURRENCY_SHOCK:       { title: 'Девальвація гривні',    body: 'НБУ утримує курс — NPC купує дорожче ×1.20, але попит −10% на 10 тіків. Підвищуйте ціни та використовуйте момент!' },
         };
         const label = macroLabels[regulationSummary.macroEvent.type] ?? { title: 'Макро-подія', body: regulationSummary.macroEvent.description ?? '' };
         const allPlayers = await this.db.player.findMany({ where: { isBankrupt: false }, select: { id: true } });
@@ -701,9 +720,18 @@ export class TickEngine {
   private async processSupplyRoutes(): Promise<number> {
     const routes = await this.db.supplyRoute.findMany({
       where:  { isActive: true },
-      select: { id: true, sourceEnterpriseId: true, targetEnterpriseId: true, productId: true, qtyPerTick: true },
+      select: { id: true, sourceEnterpriseId: true, targetEnterpriseId: true, productId: true, qtyPerTick: true,
+                sourceEnterprise: { select: { playerId: true } } },
     });
     if (routes.length === 0) return 0;
+
+    // LOGISTICS_HUB: players who own one get +50% throughput on their supply routes
+    const logisticsPlayerIds = new Set(
+      (await this.db.enterprise.findMany({
+        where:  { type: 'LOGISTICS_HUB', isOperational: true },
+        select: { playerId: true },
+      })).map(e => e.playerId)
+    );
 
     // Batch-fetch all required source inventories in ONE query instead of N findUnique calls
     const srcInventories = await this.db.enterpriseInventory.findMany({
@@ -719,9 +747,9 @@ export class TickEngine {
     let transfers = 0;
     for (const route of routes) {
       const srcInv = invMap.get(`${route.sourceEnterpriseId}:${route.productId}`);
-      if (!srcInv || Number(srcInv.quantity) < route.qtyPerTick) continue;
-
-      const qty     = route.qtyPerTick;
+      const hubBonus = logisticsPlayerIds.has(route.sourceEnterprise.playerId) ? 1.5 : 1.0;
+      const qty     = route.qtyPerTick * hubBonus;
+      if (!srcInv || Number(srcInv.quantity) < qty) continue;
       const quality = Number(srcInv.avgQuality);
 
       await this.db.$transaction([

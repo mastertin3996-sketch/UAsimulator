@@ -449,6 +449,13 @@ export class MarketService {
   async processAllNpcSales(tickNumber: bigint): Promise<{ totalSold: number; totalRevenue: number }> {
     const season = Math.floor((Number(tickNumber) % 120) / 30);
 
+    // CURRENCY_SHOCK: NPC buys at higher prices, but lower volume
+    const currencyShock = await this.prisma.macroEvent.findFirst({
+      where: { type: 'CURRENCY_SHOCK', status: 'ACTIVE' },
+    });
+    const shockPriceMult  = currencyShock ? 1.20 : 1.0;
+    const shockDemandMult = currencyShock ? 0.90 : 1.0;
+
     const allShops = await this.prisma.enterprise.findMany({
       where:   { type: 'RETAIL_STORE', isOperational: true },
       include: {
@@ -479,21 +486,24 @@ export class MarketService {
       const skuMap     = new Map(products.map(pr => [pr.id, pr.sku]));
 
       for (const demand of demands) {
-        const refPrice     = Number(demand.referencePrice);
+        const refPrice     = Number(demand.referencePrice) * shockPriceMult;
         const sku          = skuMap.get(demand.productId) ?? '';
         const seasonMult   = MarketService.SEASONAL_NPC_DEMAND[sku]?.[season] ?? 1.0;
-        const totalDemand  = demand.baseUnitsPerDay * Number(city.demandCoefficient) * seasonMult;
+        const totalDemand  = demand.baseUnitsPerDay * Number(city.demandCoefficient) * seasonMult * shockDemandMult;
 
         // Score each competing shop for this product
         const competitors = shops
           .map(shop => {
             const inv     = shop.inventory.find(i => i.productId === demand.productId && Number(i.quantity) > 0.001);
-            const listing = shop.retailListings.find(l => l.productId === demand.productId);
+            const listing = shop.retailListings.find(l => l.productId === demand.productId && l.isActive);
             if (!inv) return null;
-            const price   = listing ? Number(listing.pricePerUnit) : refPrice;
-            const qFactor = Number(demand.qualityWeight) * (inv.avgQuality / 10) + (1 - Number(demand.qualityWeight));
-            const pFactor = refPrice > 0 ? Math.pow(refPrice / Math.max(price, 0.01), Math.abs(Number(demand.priceElasticity))) : 1;
-            return { shop, inv, price, score: qFactor * pFactor };
+            const basePrice    = listing ? Number(listing.pricePerUnit) : refPrice;
+            const promoActive  = listing?.promotionActive ?? false;
+            const price        = promoActive ? basePrice * 0.85 : basePrice;
+            const qFactor      = Number(demand.qualityWeight) * (inv.avgQuality / 10) + (1 - Number(demand.qualityWeight));
+            const pFactor      = refPrice > 0 ? Math.pow(refPrice / Math.max(price, 0.01), Math.abs(Number(demand.priceElasticity))) : 1;
+            const promoBoost   = promoActive ? 1.5 : 1.0;
+            return { shop, inv, price, score: qFactor * pFactor * promoBoost };
           })
           .filter((c): c is NonNullable<typeof c> => c !== null);
 
@@ -556,10 +566,20 @@ export class MarketService {
     'FG-CORN-SYRUP':        [1.0, 1.2, 1.0, 0.9],
     'FG-CONDENSED-MILK':    [0.9, 0.8, 1.0, 1.3],  // зимою — традиційний
     'FG-MEAT':              [1.0, 1.1, 1.2, 1.3],  // осінньо-зимовий пік (шашлики + свята)
+    'FG-CHEESE':            [1.0, 0.9, 1.1, 1.4],  // зима — новорічні столи
+    'FG-BUTTER':            [0.9, 0.9, 1.1, 1.3],  // зима — традиційна випічка
+    'FG-SAUSAGE':           [1.0, 1.1, 1.2, 1.3],  // осінь/зима — пікніки та свята
   };
 
   async matchNpcMarketOrders(tickNumber?: bigint): Promise<number> {
     const season = Math.floor((Number(tickNumber ?? 0n) % 120) / 30);
+
+    // Check for active CURRENCY_SHOCK macro event
+    const currencyShock = await this.prisma.macroEvent.findFirst({
+      where: { type: 'CURRENCY_SHOCK', status: 'ACTIVE' },
+    });
+    const shockPriceMult  = currencyShock ? 1.20 : 1.0; // NPC pays 20% more
+    const shockDemandMult = currencyShock ? 0.90 : 1.0; // 10% less volume (consumers poorer)
 
     // Aggregate total NPC demand by product across all cities
     const demands = await this.prisma.npcDemand.groupBy({
@@ -578,8 +598,9 @@ export class MarketService {
       const baseDemand = d._sum.baseUnitsPerDay ?? 0;
       const sku        = skuMap.get(d.productId) ?? '';
       const seasonMult = MarketService.SEASONAL_NPC_DEMAND[sku]?.[season] ?? 1.0;
-      const totalDemand = baseDemand * seasonMult;
-      const refPrice     = new Decimal(String(d._avg.referencePrice ?? 0));
+      const totalDemand = baseDemand * seasonMult * shockDemandMult;
+      const baseRefPrice = new Decimal(String(d._avg.referencePrice ?? 0));
+      const refPrice     = baseRefPrice.times(shockPriceMult);
       if (totalDemand <= 0 || refPrice.lte(0)) continue;
 
       // Quality-tiered pricing for grain: high-quality grain can sell above referencePrice

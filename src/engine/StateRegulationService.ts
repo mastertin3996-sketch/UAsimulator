@@ -485,11 +485,12 @@ export class StateRegulationService {
 
     const r = Math.random();
     const type: MacroEventType =
-      r < 0.30 ? 'POWER_OUTAGE' :
-      r < 0.55 ? 'LOGISTICS_BOTTLENECK' :
-      r < 0.75 ? 'GRAIN_MARKET_BOOM' :
-      r < 0.90 ? 'DROUGHT' :
-                 'PEST_ATTACK';
+      r < 0.28 ? 'POWER_OUTAGE' :
+      r < 0.52 ? 'LOGISTICS_BOTTLENECK' :
+      r < 0.70 ? 'GRAIN_MARKET_BOOM' :
+      r < 0.83 ? 'DROUGHT' :
+      r < 0.92 ? 'PEST_ATTACK' :
+                 'CURRENCY_SHOCK';
 
     switch (type) {
       case 'POWER_OUTAGE':          return this.createPowerOutageEvent(currentTick);
@@ -497,6 +498,7 @@ export class StateRegulationService {
       case 'GRAIN_MARKET_BOOM':     return this.createGrainBoomEvent(currentTick);
       case 'DROUGHT':               return this.createDroughtEvent(currentTick);
       case 'PEST_ATTACK':           return this.createPestAttackEvent(currentTick);
+      case 'CURRENCY_SHOCK':        return this.createCurrencyShockEvent(currentTick);
     }
   }
 
@@ -702,6 +704,15 @@ export class StateRegulationService {
     return { fired: true, eventId: event.id, type: 'PEST_ATTACK', description };
   }
 
+  private async createCurrencyShockEvent(currentTick: bigint): Promise<MacroEventResult> {
+    const SHOCK_TICKS = 10n;
+    const description = `Девальвація гривні: NPC-ціни ×1.20, споживчий попит −10% протягом ${SHOCK_TICKS} тіків. Підвищуйте ціни поки ринок гарячий.`;
+    const event = await this.db.macroEvent.create({
+      data: { type: 'CURRENCY_SHOCK', startTick: currentTick, endTick: currentTick + SHOCK_TICKS, description },
+    });
+    return { fired: true, eventId: event.id, type: 'CURRENCY_SHOCK', description };
+  }
+
   // ── Private: apply active event effects each tick ─────────────────────────
 
   private async applyActiveMacroEffects(currentTick: bigint): Promise<number> {
@@ -727,7 +738,8 @@ export class StateRegulationService {
       }
       // LOGISTICS_BOTTLENECK effect applied once at creation (delivery time increment)
       // DROUGHT yield reduction is applied per-enterprise in ProductionService
-      if (event.type === 'DROUGHT') effectsApplied += 1;
+      // CURRENCY_SHOCK and PEST_ATTACK effects applied in MarketService/ProductionService
+      if (event.type === 'DROUGHT' || event.type === 'CURRENCY_SHOCK') effectsApplied += 1;
     }
 
     return effectsApplied;

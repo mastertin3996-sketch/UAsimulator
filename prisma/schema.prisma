@@ -223,6 +223,7 @@ enum MacroEventType {
   GRAIN_MARKET_BOOM      // Ціновий спалах на зернові
   DROUGHT                // Посуха: AGRO_FARM −60% врожайності у місті
   PEST_ATTACK            // Нашестя шкідників: знищує 25–40% врожаю (захист — RM-PESTICIDE)
+  CURRENCY_SHOCK         // Девальвація: NPC ціни ×1.20, попит −10%, 10 тіків
 }
 
 enum MacroEventStatus {
@@ -359,6 +360,7 @@ model Player {
   syndicateLeadership     Syndicate?          @relation("SyndicateLeader")
   syndicateMembership     SyndicateMember?
   notifications           Notification[]
+  wonTenders              Tender[]            @relation("PlayerTenders")
 
   @@index([username])
 }
@@ -542,12 +544,14 @@ model Enterprise {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 model RetailListing {
-  id           String   @id @default(uuid())
-  enterpriseId String
-  productId    String
-  pricePerUnit Decimal  @db.Decimal(12, 4)
-  isActive     Boolean  @default(true)
-  updatedAt    DateTime @updatedAt
+  id               String   @id @default(uuid())
+  enterpriseId     String
+  productId        String
+  pricePerUnit     Decimal  @db.Decimal(12, 4)
+  isActive         Boolean  @default(true)
+  promotionActive  Boolean  @default(false)
+  promotionEndTick BigInt?
+  updatedAt        DateTime @updatedAt
 
   enterprise Enterprise @relation(fields: [enterpriseId], references: [id], onDelete: Cascade)
   product    Product    @relation(fields: [productId], references: [id])
@@ -682,6 +686,7 @@ model Product {
   pendingDeliveries   PendingDelivery[]
   replenishRules      ReplenishRule[]
   supplyRoutes        SupplyRoute[]
+  tenders             Tender[]
 
   @@index([category])
   @@index([sku])
@@ -1806,4 +1811,32 @@ model Notification {
 
   @@index([playerId, isRead])
   @@index([playerId, createdAt(sort: Desc)])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TENDERS (Державні тендери — закупки з премією)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+enum TenderStatus {
+  OPEN
+  FULFILLED
+  EXPIRED
+}
+
+model Tender {
+  id               String       @id @default(cuid())
+  title            String
+  productId        String
+  quantityRequired Float
+  pricePerUnitUah  Decimal      @db.Decimal(12, 4)
+  expiresAtTick    BigInt
+  status           TenderStatus @default(OPEN)
+  winnerId         String?
+  createdAtTick    BigInt
+  createdAt        DateTime     @default(now())
+
+  product Product @relation(fields: [productId], references: [id])
+  winner  Player? @relation("PlayerTenders", fields: [winnerId], references: [id])
+
+  @@index([status, expiresAtTick])
 }

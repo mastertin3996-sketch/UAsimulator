@@ -1371,6 +1371,21 @@ function ShowcaseTab({ enterpriseId, onGoToSupply }: { enterpriseId: string; onG
             >
               🏭 Постачання
             </button>
+            <button
+              onClick={async () => {
+                if (!confirm("Запустити акцію: −15% ціна, ×1.5 частка NPC попиту на 5 тіків. Вартість ₴5 000. Продовжити?")) return;
+                const res = await fetch(`/api/enterprises/${enterpriseId}/showcase`, {
+                  method: "PATCH", headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ productId: selected.productId, startPromotion: true }),
+                });
+                const d = await res.json();
+                if (res.ok) { setSaveMsg("✓ Акцію запущено на 5 тіків"); load(); }
+                else setSaveMsg(`✗ ${d.error}`);
+              }}
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-purple-700/30 border border-purple-500/30 hover:bg-purple-700/50 text-purple-300 text-xs font-medium transition-colors"
+            >
+              🏷️ Акція −15% (₴5 000)
+            </button>
           </div>
         </div>
       )}

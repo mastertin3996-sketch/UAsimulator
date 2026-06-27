@@ -175,6 +175,9 @@ async function main() {
     { sku: 'RM-LIVESTOCK',        name: 'Livestock (Live)',  nameUa: 'Худоба (жива)',           category: 'RAW_MATERIAL',  unit: 'head', baseWeightKg: 250 },
     { sku: 'SF-COMPOST',          name: 'Organic Compost',   nameUa: 'Органічний компост',      category: 'SEMI_FINISHED', unit: 'kg',   baseWeightKg: 1 },
     { sku: 'FG-MEAT',             name: 'Processed Meat',    nameUa: "М'ясо оброблене",         category: 'FINISHED_GOOD', unit: 'kg',   baseWeightKg: 1 },
+    { sku: 'FG-CHEESE',           name: 'Hard Cheese',       nameUa: 'Твердий сир',             category: 'FINISHED_GOOD', unit: 'kg',   baseWeightKg: 1 },
+    { sku: 'FG-BUTTER',           name: 'Butter',            nameUa: 'Вершкове масло',          category: 'FINISHED_GOOD', unit: 'kg',   baseWeightKg: 1 },
+    { sku: 'FG-SAUSAGE',          name: 'Sausage',           nameUa: 'Ковбаса',                 category: 'FINISHED_GOOD', unit: 'kg',   baseWeightKg: 1 },
     // ── Будівельні матеріали (RAW_MATERIAL / SEMI_FINISHED) ─────────────────
     // Ціни-орієнтири 2026 (UAH/тонна або UAH/шт):
     //   Цемент М500:    3 800 UAH/т  (2.8 т = 1 м³ бетону М300)
@@ -328,6 +331,24 @@ async function main() {
       inputs:  [{ sku: 'RM-LIVESTOCK', qty: 1.4 }],  // 1.4 голови → 1 кг м'яса
       outputs: [{ sku: 'FG-MEAT',      qty: 1.0 }],
     },
+    {
+      name: 'Cheese Making',            enterpriseType: 'FOOD_PROCESSING',
+      ticksToComplete: 3,               laborHoursPerUnit: 0.12,  baseQuality: 8.0, powerKwhPerUnit: 0.18,
+      inputs:  [{ sku: 'RM-MILK', qty: 4.0 }],   // 4 л молока → 1 кг сиру
+      outputs: [{ sku: 'FG-CHEESE', qty: 1.0 }],
+    },
+    {
+      name: 'Butter Churning',          enterpriseType: 'FOOD_PROCESSING',
+      ticksToComplete: 2,               laborHoursPerUnit: 0.08,  baseQuality: 8.2, powerKwhPerUnit: 0.14,
+      inputs:  [{ sku: 'RM-MILK', qty: 8.0 }],   // 8 л молока → 1 кг масла
+      outputs: [{ sku: 'FG-BUTTER', qty: 1.0 }],
+    },
+    {
+      name: 'Sausage Making',           enterpriseType: 'FOOD_PROCESSING',
+      ticksToComplete: 2,               laborHoursPerUnit: 0.11,  baseQuality: 7.8, powerKwhPerUnit: 0.22,
+      inputs:  [{ sku: 'RM-LIVESTOCK', qty: 2.0 }, { sku: 'SF-CORN-STARCH', qty: 0.3 }],
+      outputs: [{ sku: 'FG-SAUSAGE', qty: 1.0 }],
+    },
     // TEXTILE_FACTORY — важка промисловість і деревообробка (поки найближчий тип)
     {
       name: 'Steel Smelting',         enterpriseType: 'TEXTILE_FACTORY',
@@ -411,6 +432,9 @@ async function main() {
     'FG-CAKE':            { baseUnits:  80,  priceUah:   145, elasticity: -1.2, qualityWeight: 0.70 }, // кондитерські вироби
     'FG-CORN-SYRUP':      { baseUnits:  40,  priceUah:    95, elasticity: -1.0, qualityWeight: 0.45 }, // кукурудзяний сироп
     'FG-CONDENSED-MILK':  { baseUnits:  60,  priceUah:    88, elasticity: -1.0, qualityWeight: 0.55 }, // згущене молоко
+    'FG-CHEESE':          { baseUnits:  90,  priceUah:   185, elasticity: -1.1, qualityWeight: 0.65 }, // твердий сир
+    'FG-BUTTER':          { baseUnits:  70,  priceUah:   220, elasticity: -1.0, qualityWeight: 0.60 }, // масло
+    'FG-SAUSAGE':         { baseUnits: 110,  priceUah:   210, elasticity: -1.2, qualityWeight: 0.70 }, // ковбаса
   };
 
   // Попит з боку будівельної галузі (B2B-орієнтований, але частина йде через роздріб)
