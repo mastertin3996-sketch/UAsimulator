@@ -210,8 +210,10 @@ export class TickEngine {
         .catch(e => console.error(`[Tick ${tickNumber}] ДержПром replenish failed:`, e));
     }
 
-    // ── 3a1b. NPC конкуренти — кожні 3 тіки ────────────────────────────
+    // ── 3a1b. NPC конкуренти — кожні 3 тіки (ensureBotsExist — idempotent upsert)
     if (Number(tickNumber) % 3 === 0) {
+      await this.npcCompetitors.ensureBotsExist()
+        .catch(e => console.error(`[Tick ${tickNumber}] NPC init failed:`, e));
       await this.npcCompetitors.tick(tickNumber)
         .catch(e => console.error(`[Tick ${tickNumber}] NPC competitors failed:`, e));
     }
