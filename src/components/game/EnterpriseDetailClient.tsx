@@ -58,7 +58,7 @@ interface Employee {
 }
 
 interface Equipment {
-  id: string; name: string; status: string; wearAndTear: number;
+  id: string; name: string; nameUa: string | null; status: string; wearAndTear: number;
   energyConsumptionKw: number; marketValueUah: number; isBroken: boolean;
   maintenanceCostUah: number;
 }
@@ -905,6 +905,13 @@ function WorkshopsTab({
                   <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden mt-1">
                     <div className={cn("h-full rounded-full", capacityPct >= 80 ? "bg-emerald-500" : capacityPct >= 40 ? "bg-amber-500" : "bg-gray-600")} style={{ width: `${capacityPct}%` }} />
                   </div>
+                  {vol === 0 ? (
+                    <p className="text-[10px] text-red-400 mt-1">⛔ Виробництво зупинено (обсяг = 0)</p>
+                  ) : enterprise.type === 'AGRO_FARM' ? (
+                    <p className="text-[10px] text-gray-600 mt-1">Ліміт {vol} од/тік. Фактичний врожай = площа × ґрунт × сезон × ротація.</p>
+                  ) : (
+                    <p className="text-[10px] text-gray-600 mt-1">Ліміт {vol} од/тік. Фактичне виробництво = min(ліміт, пропускна здатність обладнання, запас матеріалів).</p>
+                  )}
                 </div>
 
                 {/* Recipe / Production Order */}
@@ -912,7 +919,7 @@ function WorkshopsTab({
                   <div>
                     <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-0.5">Рецепт / продукт</p>
                     {activeOrder?.recipe ? (
-                      <p className="text-sm text-white font-medium">{activeOrder.recipe.name}</p>
+                      <p className="text-sm text-white font-medium">{RECIPE_UA[activeOrder.recipe.name] ?? activeOrder.recipe.name}</p>
                     ) : (
                       <p className="text-sm text-amber-400">Рецепт не призначено</p>
                     )}
@@ -960,7 +967,7 @@ function WorkshopsTab({
                         <div key={eq.id} className="border border-gray-800 rounded-lg overflow-hidden">
                           <div className="flex items-center gap-3 text-xs px-3 py-2">
                             <Cpu size={12} className="text-gray-500 shrink-0" />
-                            <span className="flex-1 text-gray-300 truncate">{eq.name}</span>
+                            <span className="flex-1 text-gray-300 truncate">{eq.nameUa ?? eq.name}</span>
                             <span className={cn("font-medium shrink-0", STATUS_COLOR[eq.status] ?? "text-gray-400")}>{STATUS_UA[eq.status] ?? eq.status}</span>
                             <div className="w-16 shrink-0"><WearBar value={eq.wearAndTear} /></div>
                             {eq.isBroken ? (

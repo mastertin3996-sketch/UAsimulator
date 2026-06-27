@@ -206,7 +206,8 @@ export class ProductionService {
             baseCapacity = ws.maxCapacity;
           }
           const maxThisTick   = baseCapacity * efficiency;
-          const unitsThisTick = Math.min(maxThisTick, remaining);
+          const volumeCap     = ws.currentVolume > 0 ? ws.currentVolume : Infinity;
+          const unitsThisTick = Math.min(maxThisTick, volumeCap, remaining);
 
           if (unitsThisTick < 0.001) {
             // Efficiency so low nothing gets produced
