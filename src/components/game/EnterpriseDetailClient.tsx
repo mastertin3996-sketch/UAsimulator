@@ -1801,7 +1801,84 @@ function FieldsTab({ enterprise, agroInfo, onRefresh }: { enterprise: Enterprise
         </div>
       )}
 
-      {/* Розширення поля */}
+      {/* Ділянки — що засівати (ПЕРШОЧЕРГОВО) */}
+      <div className="space-y-2">
+        <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Ділянки — що засівати</p>
+        {enterprise.workshops.length === 0 && (
+          <CreateFieldPlot enterpriseId={enterprise.id} enterpriseType={enterprise.type} onCreated={onRefresh} />
+        )}
+        <div className="grid gap-2 sm:grid-cols-2">
+          {enterprise.workshops.map((ws) => {
+            const order    = ws.productionOrders[0] ?? null;
+            const cropSku  = order?.recipe?.outputs?.[0]?.product?.sku ?? null;
+            const cropName = order?.recipe?.outputs?.[0]?.product?.nameUa ?? null;
+            const emoji    = cropSku ? (SKU_EMOJI[cropSku] ?? "🌿") : null;
+            const seasonMult = cropSku ? (AGRO_SEASON_MULTS_UI[cropSku]?.[season] ?? 1.0) : null;
+
+            let rotationStatus: 'optimal' | 'mono' | 'neutral' | null = null;
+            const nextRecommended = lastCrop ? ROTATION_NEXT_UI[lastCrop] : null;
+            if (cropSku && FIELD_CROPS_UI.has(cropSku)) {
+              if (lastCrop === cropSku) rotationStatus = 'mono';
+              else if (lastCrop && ROTATION_NEXT_UI[lastCrop] === cropSku) rotationStatus = 'optimal';
+              else if (lastCrop) rotationStatus = 'neutral';
+            }
+
+            const borderCls = cropSku
+              ? rotationStatus === 'optimal' ? 'border-emerald-700/50' : rotationStatus === 'mono' ? 'border-red-800/50' : 'border-gray-800'
+              : 'border-dashed border-gray-700';
+
+            return (
+              <div key={ws.id} className={cn("rounded-lg border bg-gray-900 p-3 space-y-2", borderCls)}>
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-sm font-medium text-white leading-tight">{ws.name}</p>
+                  <span className="shrink-0 text-[10px] text-gray-500 font-mono">{ws.footprintM2.toLocaleString()} м²</span>
+                </div>
+                {cropSku ? (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base leading-none">{emoji}</span>
+                      <div>
+                        <p className="text-sm font-semibold text-white">{cropName}</p>
+                        <p className="text-[10px] text-gray-500 font-mono">{cropSku}</p>
+                      </div>
+                    </div>
+                    {seasonMult !== null && (
+                      <div className={cn("flex items-center gap-1.5 text-xs rounded px-2 py-1",
+                        seasonMult === 0 ? "bg-red-950/40 text-red-400" : seasonMult >= 0.8 ? "bg-emerald-950/40 text-emerald-400" : "bg-amber-950/40 text-amber-400")}>
+                        <span>{seasonMult === 0 ? "❌" : seasonMult >= 0.8 ? "✓" : "⚠"}</span>
+                        <span>Сезон: <strong>{Math.round(seasonMult * 100)}%</strong></span>
+                        {seasonMult === 0 && <span className="ml-1 opacity-70">— позасезонно, без врожаю</span>}
+                      </div>
+                    )}
+                    {rotationStatus === 'optimal' && <p className="text-[10px] text-emerald-400">✓ Оптимальна ротація +15%</p>}
+                    {rotationStatus === 'mono' && nextRecommended && (
+                      <p className="text-[10px] text-red-400">✗ Монокультура −15% · краще: {SKU_EMOJI[nextRecommended] ?? ""} {nextRecommended}</p>
+                    )}
+                    {rotationStatus === 'neutral' && nextRecommended && (
+                      <p className="text-[10px] text-gray-500">Рекомендовано: {SKU_EMOJI[nextRecommended] ?? ""} {nextRecommended}</p>
+                    )}
+                    <button onClick={() => setRecipeModal(ws)} className="text-[10px] text-blue-400 hover:text-blue-300 underline underline-offset-2">
+                      Змінити культуру
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-xs text-gray-500">Ділянка порожня — оберіть, що посіяти</p>
+                    {nextRecommended && (
+                      <p className="text-[10px] text-emerald-500">Рекомендовано: {SKU_EMOJI[nextRecommended] ?? ""} {nextRecommended}</p>
+                    )}
+                    <button onClick={() => setRecipeModal(ws)} className="w-full py-1.5 bg-green-800 hover:bg-green-700 text-white text-xs rounded font-medium">
+                      🌱 Засіяти ділянку
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Площа поля + оренда */}
       {fieldInfo && (
         <div className="rounded-lg border border-green-900/40 bg-green-950/10 p-3 space-y-2">
           <p className="text-xs font-semibold text-green-400">Площа поля</p>
@@ -1970,91 +2047,6 @@ function FieldsTab({ enterprise, agroInfo, onRefresh }: { enterprise: Enterprise
           {loanMsg && <p className={`text-xs ${loanMsg.startsWith("✓") ? "text-emerald-400" : "text-red-400"}`}>{loanMsg}</p>}
         </div>
       )}
-
-      {/* Ділянки */}
-      <div className="space-y-2">
-        <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Ділянки — що засівати</p>
-        {enterprise.workshops.length === 0 && (
-          <CreateFieldPlot enterpriseId={enterprise.id} enterpriseType={enterprise.type} onCreated={onRefresh} />
-        )}
-        <div className="grid gap-2 sm:grid-cols-2">
-          {enterprise.workshops.map((ws) => {
-            const order    = ws.productionOrders[0] ?? null;
-            const cropSku  = order?.recipe?.outputs?.[0]?.product?.sku ?? null;
-            const cropName = order?.recipe?.outputs?.[0]?.product?.nameUa ?? null;
-            const emoji    = cropSku ? (SKU_EMOJI[cropSku] ?? "🌿") : null;
-            const seasonMult = cropSku ? (AGRO_SEASON_MULTS_UI[cropSku]?.[season] ?? 1.0) : null;
-
-            let rotationStatus: 'optimal' | 'mono' | 'neutral' | null = null;
-            const nextRecommended = lastCrop ? ROTATION_NEXT_UI[lastCrop] : null;
-            if (cropSku && FIELD_CROPS_UI.has(cropSku)) {
-              if (lastCrop === cropSku) rotationStatus = 'mono';
-              else if (lastCrop && ROTATION_NEXT_UI[lastCrop] === cropSku) rotationStatus = 'optimal';
-              else if (lastCrop) rotationStatus = 'neutral';
-            }
-
-            const multColor = seasonMult === null ? '' : seasonMult >= 0.8 ? 'text-emerald-400' : seasonMult >= 0.4 ? 'text-amber-400' : 'text-red-400';
-            const borderCls = cropSku
-              ? rotationStatus === 'optimal' ? 'border-emerald-700/50' : rotationStatus === 'mono' ? 'border-red-800/50' : 'border-gray-800'
-              : 'border-dashed border-gray-700';
-
-            return (
-              <div key={ws.id} className={cn("rounded-lg border bg-gray-900 p-3 space-y-2", borderCls)}>
-                <div className="flex items-start justify-between gap-2">
-                  <p className="text-sm font-medium text-white leading-tight">{ws.name}</p>
-                  <span className="shrink-0 text-[10px] text-gray-500 font-mono">{ws.footprintM2.toLocaleString()} м²</span>
-                </div>
-
-                {cropSku ? (
-                  <div className="space-y-1.5">
-                    <div className="flex items-center gap-2">
-                      <span className="text-base leading-none">{emoji}</span>
-                      <div>
-                        <p className="text-sm font-semibold text-white">{cropName}</p>
-                        <p className="text-[10px] text-gray-500 font-mono">{cropSku}</p>
-                      </div>
-                    </div>
-                    {seasonMult !== null && (
-                      <div className={cn("flex items-center gap-1.5 text-xs rounded px-2 py-1",
-                        seasonMult === 0 ? "bg-red-950/40 text-red-400" : seasonMult >= 0.8 ? "bg-emerald-950/40 text-emerald-400" : "bg-amber-950/40 text-amber-400")}>
-                        <span>{seasonMult === 0 ? "❌" : seasonMult >= 0.8 ? "✓" : "⚠"}</span>
-                        <span>Сезонний коефіцієнт: <strong>{Math.round(seasonMult * 100)}%</strong></span>
-                        {seasonMult === 0 && <span className="ml-1 opacity-70">— не сезон, без врожаю</span>}
-                      </div>
-                    )}
-                    {rotationStatus === 'optimal' && (
-                      <p className="text-[10px] text-emerald-400">✓ Оптимальна ротація +15% до врожаю</p>
-                    )}
-                    {rotationStatus === 'mono' && nextRecommended && (
-                      <p className="text-[10px] text-red-400">✗ Монокультура −15% · рекомендовано: {SKU_EMOJI[nextRecommended] ?? ""} {nextRecommended}</p>
-                    )}
-                    {rotationStatus === 'neutral' && nextRecommended && (
-                      <p className="text-[10px] text-gray-500">— Нейтральна ротація · рекомендовано: {SKU_EMOJI[nextRecommended] ?? ""} {nextRecommended}</p>
-                    )}
-                    <button onClick={() => setRecipeModal(ws)}
-                      className="text-[10px] text-blue-400 hover:text-blue-300 underline underline-offset-2">
-                      Змінити культуру
-                    </button>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <p className="text-xs text-gray-500">Ділянка порожня — оберіть, що посіяти</p>
-                    {nextRecommended && (
-                      <p className="text-[10px] text-emerald-500">
-                        Рекомендовано після {lastCrop}: {SKU_EMOJI[nextRecommended] ?? ""} {nextRecommended}
-                      </p>
-                    )}
-                    <button onClick={() => setRecipeModal(ws)}
-                      className="w-full py-1.5 bg-green-800 hover:bg-green-700 text-white text-xs rounded font-medium">
-                      🌱 Засіяти ділянку
-                    </button>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
 
       {recipeModal && (
         <RecipeModal
