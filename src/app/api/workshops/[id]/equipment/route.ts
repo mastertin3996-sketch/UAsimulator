@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { CompanyService } from "@/engine/CompanyService";
+import { EQUIPMENT_CATALOG, DEFAULT_EQUIPMENT_SPEC } from "@/config/equipmentCatalog";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -33,7 +34,6 @@ export async function GET(_req: NextRequest, { params }: Params) {
   const allowedSkus = entType === 'RETAIL_STORE' ? RETAIL_SKUS
                     : entType === 'OFFICE'        ? OFFICE_SKUS
                     : FACTORY_SKUS;
-  const debugType = String(entType);
 
   const catalogItems = await prisma.product.findMany({
     where:   { isEquipmentItem: true, sku: { in: allowedSkus } },
@@ -44,45 +44,32 @@ export async function GET(_req: NextRequest, { params }: Params) {
     orderBy: { nameUa: "asc" },
   });
 
-  const SKU_FOOTPRINT: Record<string, number> = {
-    // Office
-    'EQ-DESK':       6,  'EQ-OFFCHAIR':  1,  'EQ-COMPUTER':  2,
-    'EQ-PRINTER':    2,  'EQ-PROJECTOR': 10, 'EQ-SERVER':    5,
-    'EQ-PBXPHONE':   2,  'EQ-AIRCON':    2,  'EQ-COFFEEMACH':3,
-    'EQ-OFFICESAFE': 2,
-    // Retail
-    'EQ-CASHREGISTER':5, 'EQ-POSTERMINAL':2, 'EQ-SHELVING':   8,
-    'EQ-DISPLAYFRIDGE':6,'EQ-FREEZER':    8,  'EQ-CCTV':       1,
-    'EQ-SCALE':      2,  'EQ-PRICETAG':   1,  'EQ-SELFCHECKOUT':6,
-    'EQ-CONVEYOR':   10,
-    // Factory / Agro
-    'EQ-MILLGRIND':  25, 'EQ-OILPRESS':  20,  'EQ-FURNACE':   35,
-    'EQ-TRACTOR':    40, 'EQ-SAWMILL':   60,  'EQ-DAIRYLINE': 50,
-  };
-  const DEFAULT_FOOTPRINT = 30;
+  const getFootprint = (sku: string) =>
+    (EQUIPMENT_CATALOG[sku] ?? DEFAULT_EQUIPMENT_SPEC).footprintM2;
 
   // freeM2 обчислюється з реальних даних equipment у цеху
   const installedEquip = await prisma.equipment.findMany({
     where: { workshopId },
     select: { catalogProduct: { select: { sku: true } } },
   });
-  const usedM2  = installedEquip.reduce((s, e) => s + (SKU_FOOTPRINT[e.catalogProduct.sku] ?? DEFAULT_FOOTPRINT), 0);
+  const usedM2  = installedEquip.reduce((s, e) => s + getFootprint(e.catalogProduct.sku), 0);
   const freeM2  = workshop.footprintM2 - usedM2;
 
   return NextResponse.json({
     workshopId,
     freeM2,
-    maxSlots: catalogItems.length, // shown per-item now
+    maxSlots: catalogItems.length,
     catalog: catalogItems.map((p) => {
-      const fp = SKU_FOOTPRINT[p.sku] ?? DEFAULT_FOOTPRINT;
+      const spec = EQUIPMENT_CATALOG[p.sku] ?? DEFAULT_EQUIPMENT_SPEC;
       return {
-        id:          p.id,
-        name:        p.nameUa,
-        sku:         p.sku,
-        basePrice:   Number(p.npcDemand[0]?.referencePrice ?? 50_000),
-        unit:        p.unit,
-        footprintM2: fp,
-        canBuy:      freeM2 >= fp,
+        id:                  p.id,
+        name:                p.nameUa,
+        sku:                 p.sku,
+        basePrice:           Number(p.npcDemand[0]?.referencePrice ?? spec.basePriceUah),
+        unit:                p.unit,
+        footprintM2:         spec.footprintM2,
+        energyConsumptionKw: spec.energyConsumptionKw,
+        canBuy:              freeM2 >= spec.footprintM2,
       };
     }),
   });
@@ -102,14 +89,10 @@ export async function POST(req: NextRequest, { params }: Params) {
   }
 
   try {
-    const SKU_FOOTPRINT: Record<string, number> = {
-      'EQ-DESK':6,'EQ-OFFCHAIR':1,'EQ-COMPUTER':2,'EQ-PRINTER':2,'EQ-PROJECTOR':10,
-      'EQ-SERVER':5,'EQ-PBXPHONE':2,'EQ-AIRCON':2,'EQ-COFFEEMACH':3,'EQ-OFFICESAFE':2,
-      'EQ-CASHREGISTER':5,'EQ-POSTERMINAL':2,'EQ-SHELVING':8,'EQ-DISPLAYFRIDGE':6,
-      'EQ-FREEZER':8,'EQ-CCTV':1,'EQ-SCALE':2,'EQ-PRICETAG':1,'EQ-SELFCHECKOUT':6,'EQ-CONVEYOR':10,
-    };
     const product = await prisma.product.findUnique({ where: { id: body.productId }, select: { sku: true } });
-    const footprintM2 = product ? (SKU_FOOTPRINT[product.sku] ?? 30) : 30;
+    const footprintM2 = product
+      ? (EQUIPMENT_CATALOG[product.sku] ?? DEFAULT_EQUIPMENT_SPEC).footprintM2
+      : DEFAULT_EQUIPMENT_SPEC.footprintM2;
 
     const svc = new CompanyService(prisma);
     const eqId = await svc.installEquipment(playerId, {

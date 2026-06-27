@@ -4,6 +4,7 @@ import {
   CONSTRUCTION_COST_PER_M2,
   CONSTRUCTION_TICKS_PER_100M2,
 } from '../constants/economic';
+import { EQUIPMENT_CATALOG, DEFAULT_EQUIPMENT_SPEC } from '../config/equipmentCatalog';
 import type {
   RegisterOfficeDto,
   AcquireLandDto,
@@ -354,6 +355,8 @@ export class CompanyService {
       .findUniqueOrThrow({ where: { id: dto.productId } })
       .catch(() => { throw new NotFoundError('Product (equipment catalog)', dto.productId); });
 
+    const spec = EQUIPMENT_CATALOG[product.sku] ?? DEFAULT_EQUIPMENT_SPEC;
+
     return this.prisma.$transaction(async tx => {
       const equipment = await tx.equipment.create({
         data: {
@@ -362,10 +365,10 @@ export class CompanyService {
           name:                product.name,
           status:              'NEW',
           wearAndTear:         0,
-          wearRatePerTick:     0.005,
+          wearRatePerTick:     spec.wearRatePerTick,
           isBroken:            false,
-          energyConsumptionKw: 5.0,
-          baseQualityModifier: 1.0,
+          energyConsumptionKw: spec.energyConsumptionKw,
+          baseQualityModifier: spec.baseQualityModifier,
           marketValueUah:      price,
           maintenanceCostUah:  price.times('0.03'),  // 3% ціни/міс
         },
