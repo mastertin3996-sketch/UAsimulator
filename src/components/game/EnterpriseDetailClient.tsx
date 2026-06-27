@@ -368,6 +368,45 @@ function AddWorkshopModal({
   );
 }
 
+const RECIPE_UA: Record<string, string> = {
+  'Wheat Growing':              'Вирощування пшениці',
+  'Sunflower Growing':          'Вирощування соняшнику',
+  'Sugar Beet Growing':         'Вирощування цукрового буряку',
+  'Corn Growing':               'Вирощування кукурудзи',
+  'Dairy Farming':              'Молочне тваринництво',
+  'Livestock Farming':          "М'ясне тваринництво",
+  'Composting':                 'Компостування',
+  'Beekeeping (Honey)':         'Бджільництво (мед)',
+  'Bread Baking':               'Випікання хліба',
+  'Pasta Production':           'Виробництво макаронів',
+  'Sunflower Oil Pressing':     'Виготовлення олії',
+  'Sugar Refining':             'Рафінування цукру',
+  'Dairy Pasteurisation':       'Пастеризація молока',
+  'Corn Starch Milling':        'Кукурудзяний крохмаль',
+  'Pastry Baking':              'Випікання тістечок',
+  'Corn Syrup Production':      'Кукурудзяний сироп',
+  'Condensed Milk Making':      'Згущене молоко',
+  'Meat Processing':            "Переробка м'яса",
+  'Cheese Making':              'Виробництво сиру',
+  'Butter Churning':            'Виробництво масла',
+  'Sausage Making':             'Виробництво ковбас',
+  'Steel Smelting':             'Виплавка сталі',
+  'Steel Product Fabrication':  'Сталеві вироби',
+  'Sawmilling':                 'Лісопилення',
+  'Furniture Manufacturing':    'Меблеве виробництво',
+  'Malting':                    'Солодове виробництво',
+  'Beer Brewing':               'Пивоваріння',
+  'Spirits Distillation':       'Дистиляція спирту',
+  'Cotton Spinning':            'Прядіння бавовни',
+  'Clothing Manufacturing':     'Виробництво одягу',
+  'Wool Combing':               'Чесання вовни',
+  'Knitwear Production':        'Виробництво трикотажу',
+  'Beef Processing':            'Переробка яловичини',
+  'Pork Processing':            'Переробка свинини',
+  'Poultry Processing':         'Переробка птиці',
+  'Milk Pasteurization':        'Пастеризація молока',
+};
+
 // ─── Recipe Picker Modal ───────────────────────────────────────────────────────
 
 function RecipeModal({
@@ -433,7 +472,7 @@ function RecipeModal({
                 )}
               >
                 <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm font-semibold text-white">{r.name}</p>
+                  <p className="text-sm font-semibold text-white">{RECIPE_UA[r.name] ?? r.name}</p>
                   {isCurrent ? (
                     <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">Поточний</span>
                   ) : saving === r.id ? (

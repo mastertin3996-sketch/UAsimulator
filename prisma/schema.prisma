@@ -757,6 +757,7 @@ model Product {
 model Recipe {
   id               String         @id @default(uuid())
   name             String
+  nameUa           String?
   enterpriseType   EnterpriseType
   ticksToComplete  Int            @default(1)
   laborHoursPerUnit Float

@@ -49,7 +49,6 @@ export async function POST(req: NextRequest, { params }: Params) {
     select: { id: true, isActive: true, enterprise: { select: { type: true } } },
   });
   if (!workshop) return NextResponse.json({ error: "Цех не знайдено" }, { status: 404 });
-  if (!workshop.isActive) return NextResponse.json({ error: "Цех не активний" }, { status: 400 });
 
   const body = await req.json().catch(() => ({})) as { recipeId?: string; targetQuantity?: number };
   if (!body.recipeId) return NextResponse.json({ error: "Потрібен recipeId" }, { status: 400 });
