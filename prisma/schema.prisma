@@ -243,6 +243,7 @@ enum MacroEventType {
   LATE_FROST             // Пізні заморозки: знищує 30–50% весняних посівів
   HAIL                   // Град: −20–40% врожаю одноразово
   FLOOD                  // Повінь: −0.5–1.0 soilQuality на 2 сезони
+  AGRO_FAIR              // Ярмарок: продаж зерна за referencePrice×1.15 без ринкового спреду
 }
 
 enum MacroEventStatus {
@@ -1061,9 +1062,12 @@ model Loan {
   // 1 = daily commercial credit; 30 = standard monthly loan
   paymentFrequencyTicks Int    @default(30)
   fullyPaidAt       DateTime?
-  // ── Collateral ─────────────────────────────────────────────────────────────
+  // ── Тип та застава ─────────────────────────────────────────────────────────
+  loanType               String? // STANDARD | AGRO_LOAN | CREDIT_LINE
   collateralEnterpriseId String?
   collateralReleased     Boolean @default(false)
+  // Застава для агрокредиту: GrainForwardContract id
+  collateralForwardContractId String?
 
   player      Player      @relation(fields: [playerId], references: [id])
   collateral  Enterprise? @relation("CollateralEnterprise", fields: [collateralEnterpriseId], references: [id])

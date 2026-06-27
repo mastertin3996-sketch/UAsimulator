@@ -279,11 +279,13 @@ export class TickEngine {
     await this.processMachineryWear(tickNumber)
       .catch(e => console.error(`[Tick ${tickNumber}] Machinery wear failed:`, e));
 
-    // ── 3a1i. AGRO: локальна погода, ф'ючерси, оренда полів ─────────────────
+    // ── 3a1i. AGRO: локальна погода, ф'ючерси, оренда полів, якість зерна ────
     await this.agro.processLocalWeather(tickNumber)
       .catch(e => console.error(`[Tick ${tickNumber}] Agro weather failed:`, e));
     await this.agro.processForwardContracts(tickNumber)
       .catch(e => console.error(`[Tick ${tickNumber}] Forward contracts failed:`, e));
+    await this.agro.processGrainQualityDegradation()
+      .catch(e => console.error(`[Tick ${tickNumber}] Grain quality degradation failed:`, e));
     if (Number(tickNumber) % 30 === 0) {
       const subsidyCount = await this.agro.payAgroSubsidies(tickNumber)
         .catch(e => { console.error(`[Tick ${tickNumber}] Agro subsidies failed:`, e); return 0; });

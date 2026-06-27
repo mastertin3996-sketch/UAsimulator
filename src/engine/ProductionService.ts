@@ -68,6 +68,11 @@ export class ProductionService {
       where: { sku: 'SF-COMPOST' }, select: { id: true },
     });
 
+    // Pre-fetch RM-SUNFL product ID for beehive quality bonus
+    const sunflProduct = await this.prisma.product.findFirst({
+      where: { sku: 'RM-SUNFL' }, select: { id: true },
+    });
+
     // Pre-fetch EQ-* product IDs for CapacityService required-equipment checks
     const eqProducts = await this.prisma.product.findMany({
       where:  { sku: { startsWith: 'EQ-' } },
@@ -245,11 +250,20 @@ export class ProductionService {
           const rdBonus = this.rdService
             ? await this.rdService.getProductionQualityModifier(playerId, ent.type)
             : 0;
+
+          // Beehive bonus: FG-HONEY +15% quality if AGRO_FARM has RM-SUNFL in inventory
+          const outputSku = recipe.outputs[0]?.product.sku ?? '';
+          let beeBonus = 0;
+          if (outputSku === 'FG-HONEY' && ent.type === 'AGRO_FARM' && sunflProduct) {
+            const hasSunfl = ent.inventory.some(i => i.productId === sunflProduct.id && Number(i.quantity) > 0.001);
+            if (hasSunfl) beeBonus = 1.5; // +1.5 on 0-10 scale ≈ +15%
+          }
+
           const outputQuality = clamp(
             QUALITY_WEIGHTS.EQUIPMENT * equipQuality +
             QUALITY_WEIGHTS.MOOD      * moodFactor   +
             QUALITY_WEIGHTS.INPUT     * inputQualityFactor +
-            rdBonus,
+            rdBonus + beeBonus,
             0, 10,
           );
 

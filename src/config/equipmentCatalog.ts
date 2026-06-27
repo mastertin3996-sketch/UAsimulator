@@ -97,6 +97,22 @@ const FACTORY_SPECS: Record<string, EquipmentSpec> = {
     footprintM2:         50,
     basePriceUah:        290_000,
   },
+  'EQ-SILO': {
+    nameUa:              'Силос (зерносховище)',
+    energyConsumptionKw: 2.5,  // ventilation fan + auger motor
+    wearRatePerTick:     0.003, // metal structure, very low wear
+    baseQualityModifier: 1.00,  // no direct quality effect on production
+    footprintM2:         30,
+    basePriceUah:        120_000,
+  },
+  'EQ-BEEHIVE': {
+    nameUa:              'Вулик (пасіка)',
+    energyConsumptionKw: 0.1,  // minimal (warming lamp in winter)
+    wearRatePerTick:     0.002, // wooden hive, minimal mechanical wear
+    baseQualityModifier: 0.92,
+    footprintM2:         4,
+    basePriceUah:        8_000,
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

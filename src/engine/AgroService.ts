@@ -251,6 +251,116 @@ export class AgroService {
     }
   }
 
+  // ── 5. Деградація якості зерна без силосу ────────────────────────────────────
+  /**
+   * Кожен тік перевіряє AGRO_FARM без EQ-SILO в обладнанні.
+   * Якщо є зерно (RM-WHEAT/RM-CORN/RM-SUNFL/RM-SUGBEET) — avgQuality -= 0.05, min 1.0.
+   */
+  async processGrainQualityDegradation(): Promise<void> {
+    const GRAIN_SKUS = ['RM-WHEAT', 'RM-CORN', 'RM-SUNFL', 'RM-SUGBEET', 'RM-WHEAT-ORG', 'RM-CORN-ORG'];
+
+    const farms = await this.prisma.enterprise.findMany({
+      where: { type: 'AGRO_FARM', isOperational: true, isSeized: false },
+      select: {
+        id: true,
+        workshops: {
+          select: { equipment: { select: { name: true } } },
+        },
+        inventory: {
+          select: { id: true, avgQuality: true, product: { select: { sku: true } } },
+        },
+      },
+    });
+
+    for (const farm of farms) {
+      // Перевіряємо чи є хоч один EQ-SILO (за назвою, бо sku зберігається в name equipment)
+      const hasSilo = farm.workshops.some(w =>
+        w.equipment.some(eq => eq.name.includes('Силос') || eq.name.includes('EQ-SILO') || eq.name.includes('Grain Silo'))
+      );
+      if (hasSilo) continue;
+
+      for (const inv of farm.inventory) {
+        if (!GRAIN_SKUS.includes(inv.product.sku)) continue;
+        if (inv.avgQuality <= 1.0) continue;
+
+        const newQuality = Math.max(1.0, inv.avgQuality - 0.05);
+        await this.prisma.enterpriseInventory.update({
+          where: { id: inv.id },
+          data:  { avgQuality: newQuality },
+        });
+      }
+    }
+  }
+
+  // ── 6. Агро-ярмарок ──────────────────────────────────────────────────────────
+  /**
+   * Одноразовий продаж запасів зерна на ярмарку за referencePrice × FAIR_PREMIUM.
+   * Можна викликати лише коли tickNumber % 20 === 0.
+   * Повертає: { soldUnits, revenueUah }
+   */
+  static readonly FAIR_PREMIUM = 1.15;
+  static readonly FAIR_GRAIN_SKUS = new Set(['RM-WHEAT', 'RM-CORN', 'RM-SUNFL', 'RM-SUGBEET', 'RM-WHEAT-ORG', 'RM-CORN-ORG']);
+
+  async sellAtAgroFair(
+    enterpriseId: string,
+    playerId: string,
+    skuToSell: string,
+    quantityToSell: number,
+  ): Promise<{ soldUnits: number; revenueUah: number }> {
+    if (!AgroService.FAIR_GRAIN_SKUS.has(skuToSell)) {
+      throw new Error('На ярмарку продається лише зерно');
+    }
+
+    const product = await this.prisma.product.findUnique({ where: { sku: skuToSell }, select: { id: true, nameUa: true } });
+    if (!product) throw new Error('Товар не знайдено');
+
+    const inv = await this.prisma.enterpriseInventory.findUnique({
+      where: { enterpriseId_productId: { enterpriseId, productId: product.id } },
+      select: { id: true, quantity: true },
+    });
+    if (!inv || inv.quantity < 0.001) throw new Error('Немає товару на складі');
+
+    const actualQty = Math.min(Number(inv.quantity), quantityToSell);
+
+    // Отримуємо середню referencePrice з NpcDemand
+    const demand = await this.prisma.npcDemand.aggregate({
+      where:   { productId: product.id },
+      _avg:    { referencePrice: true },
+    });
+    const refPrice = Number(demand._avg.referencePrice ?? 0);
+    if (refPrice <= 0) throw new Error('Немає ринкової ціни для цього товару');
+
+    const fairPrice = refPrice * AgroService.FAIR_PREMIUM;
+    const revenue   = Math.round(actualQty * fairPrice);
+
+    const playerBal = await this.prisma.player.findUnique({ where: { id: playerId }, select: { cashBalance: true } });
+    const balanceBefore = new Decimal(playerBal?.cashBalance?.toString() ?? '0');
+    const balanceAfter  = balanceBefore.plus(revenue);
+
+    await this.prisma.$transaction([
+      this.prisma.enterpriseInventory.update({
+        where: { id: inv.id },
+        data:  { quantity: { decrement: actualQty } },
+      }),
+      this.prisma.player.update({
+        where: { id: playerId },
+        data:  { cashBalance: { increment: revenue } },
+      }),
+      this.prisma.financialTransaction.create({
+        data: {
+          playerId,
+          type:         'MARKET_SALE',
+          amountUah:    new Decimal(revenue),
+          balanceBefore,
+          balanceAfter,
+          description:  `Агро-ярмарок: ${product.nameUa} × ${actualQty.toFixed(1)} (+15%)`,
+        },
+      }),
+    ]);
+
+    return { soldUnits: actualQty, revenueUah: revenue };
+  }
+
   // ── Допоміжні: розширення поля (викликається з API) ─────────────────────────
   static calcExtraFieldRent(areaM2: number): number {
     return Math.round(areaM2 * EXTRA_FIELD_RENT_PER_M2);

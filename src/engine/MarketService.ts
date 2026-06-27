@@ -654,13 +654,18 @@ export class MarketService {
       // Organic products trade at up to 1.8× reference price (NPC premium)
       const maxPrice     = isOrganic ? refPrice.times(1.8) : isGrain ? refPrice.times(1.3) : refPrice;
 
+      // For grain SKUs: find players with ORGANIC_CERT + soilQuality ≥ 8 who get ×1.35 premium
+      const organicCertPlayerIds = isGrain ? await this.getOrganicCertPlayers() : new Set<string>();
+
       // Find cheapest SELL orders at or below quality-adjusted ceiling
+      // Use 1.35× ceiling to include organic cert sellers in the initial fetch
+      const fetchCeiling = isGrain ? maxPrice.times(1.35) : maxPrice;
       const sells = await this.prisma.marketOrder.findMany({
         where: {
           productId:    d.productId,
           type:         'SELL',
           status:       { in: ['OPEN', 'PARTIALLY_FILLED'] },
-          pricePerUnit: { lte: maxPrice },
+          pricePerUnit: { lte: fetchCeiling },
         },
         orderBy: [{ pricePerUnit: 'asc' }, { createdAt: 'asc' }],
         take: 20,
@@ -675,11 +680,18 @@ export class MarketService {
       for (const sell of sells) {
         if (remaining <= 0.001) break;
 
+        // Organic cert premium: seller with ORGANIC_CERT + soilQuality ≥ 8 gets ×1.35 ceiling
+        const hasOrganicCert = organicCertPlayerIds.has(sell.playerId);
+        const effectiveCeiling = hasOrganicCert ? maxPrice.times(1.35) : maxPrice;
+        const sellPrice = new Decimal(sell.pricePerUnit.toString());
+        if (sellPrice.gt(effectiveCeiling)) continue;
+
         // For grain: NPC pays premium for quality ≥8, discount for quality <5
         if (isGrain) {
           const q = sell.quality ?? 5.0;
-          const qualityCeiling = q >= 8.0 ? refPrice.times(1.3) : q < 5.0 ? refPrice.times(0.8) : refPrice;
-          if (new Decimal(sell.pricePerUnit.toString()).gt(qualityCeiling)) continue;
+          const qualityMax = hasOrganicCert ? refPrice.times(1.35) : refPrice.times(1.3);
+          const qualityCeiling = q >= 8.0 ? qualityMax : q < 5.0 ? refPrice.times(0.8) : refPrice;
+          if (sellPrice.gt(qualityCeiling)) continue;
         }
 
         const available  = sell.quantityTotal - sell.quantityFilled;
@@ -948,5 +960,20 @@ export class MarketService {
     }
 
     return created;
+  }
+
+  // Returns playerIds who have active ORGANIC_CERT license AND at least one AGRO_FARM with soilQuality ≥ 8
+  private async getOrganicCertPlayers(): Promise<Set<string>> {
+    const licensed = await this.prisma.license.findMany({
+      where: { type: 'ORGANIC_CERT', status: 'ACTIVE' },
+      select: { enterprise: { select: { playerId: true, landPlot: { select: { soilQuality: true } } } } },
+    });
+    const ids = new Set<string>();
+    for (const lic of licensed) {
+      if (lic.enterprise && (lic.enterprise.landPlot?.soilQuality ?? 0) >= 8) {
+        ids.add(lic.enterprise.playerId);
+      }
+    }
+    return ids;
   }
 }

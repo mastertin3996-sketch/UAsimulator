@@ -178,6 +178,7 @@ async function main() {
     { sku: 'FG-CHEESE',           name: 'Hard Cheese',       nameUa: 'Твердий сир',             category: 'FINISHED_GOOD', unit: 'kg',   baseWeightKg: 1 },
     { sku: 'FG-BUTTER',           name: 'Butter',            nameUa: 'Вершкове масло',          category: 'FINISHED_GOOD', unit: 'kg',   baseWeightKg: 1 },
     { sku: 'FG-SAUSAGE',          name: 'Sausage',           nameUa: 'Ковбаса',                 category: 'FINISHED_GOOD', unit: 'kg',   baseWeightKg: 1 },
+    { sku: 'FG-HONEY',            name: 'Natural Honey',     nameUa: 'Мед натуральний',         category: 'FINISHED_GOOD', unit: 'kg',   baseWeightKg: 1.4 },
     // ── Будівельні матеріали (RAW_MATERIAL / SEMI_FINISHED) ─────────────────
     // Ціни-орієнтири 2026 (UAH/тонна або UAH/шт):
     //   Цемент М500:    3 800 UAH/т  (2.8 т = 1 м³ бетону М300)
@@ -201,6 +202,8 @@ async function main() {
     { sku: 'EQ-TRACTOR',    name:'Agricultural Tractor',     nameUa:'Сільгосптрактор',            category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
     { sku: 'EQ-SAWMILL',    name:'Sawmill',                  nameUa:'Лісопильний верстат',        category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
     { sku: 'EQ-DAIRYLINE',  name:'Dairy Processing Line',   nameUa:'Молочна лінія',              category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
+    { sku: 'EQ-SILO',       name:'Grain Silo',               nameUa:'Силос (зерносховище)',        category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
+    { sku: 'EQ-BEEHIVE',    name:'Beehive',                  nameUa:'Вулик (пасіка)',              category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
     // Equipment items — retail
     { sku: 'EQ-CASHREGISTER',name:'Cash Register',           nameUa:'Касовий апарат',             category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
     { sku: 'EQ-POSTERMINAL', name:'POS Terminal',            nameUa:'POS-термінал',               category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
@@ -370,6 +373,18 @@ async function main() {
       ticksToComplete: 2,               laborHoursPerUnit: 0.01,  baseQuality: 7.0, powerKwhPerUnit: 0.01,
       inputs:  [{ sku: 'RM-WHEAT', qty: 0.15 }],  // органічна маса → компост
       outputs: [{ sku: 'SF-COMPOST',   qty: 1.0 }],
+    },
+    {
+      name: 'Beekeeping (Honey)',        enterpriseType: 'AGRO_FARM',
+      ticksToComplete: 5,               laborHoursPerUnit: 0.03,  baseQuality: 9.0, powerKwhPerUnit: 0.005,
+      inputs:  [],                       // бджоли самі збирають нектар
+      outputs: [{ sku: 'FG-HONEY',     qty: 0.5 }],  // 0.5 кг меду / 5 тіків з вулика
+    },
+    {
+      name: 'Corn Growing',             enterpriseType: 'AGRO_FARM',
+      ticksToComplete: 3,               laborHoursPerUnit: 0.006, baseQuality: 7.5, powerKwhPerUnit: 0.01,
+      inputs:  [],
+      outputs: [{ sku: 'RM-CORN',      qty: 2.0 }],
     },
     {
       name: 'Meat Processing',          enterpriseType: 'FOOD_PROCESSING',
@@ -562,6 +577,8 @@ async function main() {
     // ── ОРГАНІЧНІ ────────────────────────────────────────────────────────────
     'RM-WHEAT-ORG':       { baseUnits:  15,  priceUah: 9_500, elasticity: -1.3, qualityWeight: 0.80 }, // органічна пшениця (B2B)
     'RM-CORN-ORG':        { baseUnits:  12,  priceUah: 7_200, elasticity: -1.3, qualityWeight: 0.80 }, // органічна кукурудза (B2B)
+    // ── ПАСІКА ───────────────────────────────────────────────────────────────
+    'FG-HONEY':           { baseUnits:  45,  priceUah:   380, elasticity: -1.1, qualityWeight: 0.75 }, // мед натуральний
   };
 
   // Попит з боку будівельної галузі (B2B-орієнтований, але частина йде через роздріб)

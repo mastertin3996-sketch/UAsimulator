@@ -1567,16 +1567,43 @@ function FieldsTab({ enterprise, agroInfo }: { enterprise: EnterpriseData; agroI
   const [contractMsg, setContractMsg] = useState<string | null>(null);
   const [submittingContract, setSubmittingContract] = useState(false);
 
+  // Агро-ярмарок
+  const [fairInfo, setFairInfo] = useState<{
+    isFairDay: boolean; nextFairIn: number; fairPremium: number; currentTick: number;
+    grainStock: { sku: string; nameUa: string; unit: string; quantity: number; quality: number; refPrice: number; fairPrice: number }[];
+  } | null>(null);
+  const [fairSku, setFairSku] = useState("");
+  const [fairQty, setFairQty] = useState("");
+  const [fairMsg, setFairMsg] = useState<string | null>(null);
+  const [sellingFair, setSellingFair] = useState(false);
+
+  // Аграрний кредит
+  const [loanContractId, setLoanContractId] = useState("");
+  const [loanAmount, setLoanAmount] = useState("");
+  const [loanMonths, setLoanMonths] = useState("6");
+  const [loanMsg, setLoanMsg] = useState<string | null>(null);
+  const [takingLoan, setTakingLoan] = useState(false);
+
   const AGRO_SKUS = ["RM-WHEAT", "RM-SUNFL", "RM-CORN", "RM-SUGBEET", "SF-MILK", "FG-EGGS"];
 
-  useEffect(() => {
-    fetch(`/api/agro/expand-field?enterpriseId=${enterprise.id}`)
-      .then(r => r.ok ? r.json() : null).then(setFieldInfo).catch(() => {});
+  const hasSilo = enterprise.workshops.some(w =>
+    w.equipment.some(eq => eq.name.includes("Силос") || eq.name.includes("Grain Silo"))
+  );
+
+  const refreshContracts = () => {
     fetch(`/api/agro/forward-contracts`)
       .then(r => r.ok ? r.json() : [])
       .then((all: { enterpriseName?: string; id: string; productSku: string; productNameUa: string; productUnit: string; quantityUnits: number; pricePerUnit: number; totalValue: number; deliveryTick: number; createdAtTick: number; status: string }[]) =>
         setContracts(all.filter((c) => c.status === "ACTIVE"))
       ).catch(() => {});
+  };
+
+  useEffect(() => {
+    fetch(`/api/agro/expand-field?enterpriseId=${enterprise.id}`)
+      .then(r => r.ok ? r.json() : null).then(setFieldInfo).catch(() => {});
+    refreshContracts();
+    fetch(`/api/agro/fair?enterpriseId=${enterprise.id}`)
+      .then(r => r.ok ? r.json() : null).then(setFairInfo).catch(() => {});
   }, [enterprise.id]);
 
   const handleExpand = async () => {
@@ -1618,11 +1645,7 @@ function FieldsTab({ enterprise, agroInfo }: { enterprise: EnterpriseData; agroI
       if (r.ok) {
         setContractMsg(`✓ ${data.message}`);
         setNewContract({ productSku: "", qty: "", price: "", days: "30" });
-        fetch(`/api/agro/forward-contracts`)
-          .then(r => r.ok ? r.json() : [])
-          .then((all: { id: string; productSku: string; productNameUa: string; productUnit: string; quantityUnits: number; pricePerUnit: number; totalValue: number; deliveryTick: number; createdAtTick: number; status: string }[]) =>
-            setContracts(all.filter((c) => c.status === "ACTIVE"))
-          ).catch(() => {});
+        refreshContracts();
       } else setContractMsg(`✗ ${data.error}`);
     } finally { setSubmittingContract(false); }
   };
@@ -1633,6 +1656,47 @@ function FieldsTab({ enterprise, agroInfo }: { enterprise: EnterpriseData; agroI
     const data = await r.json();
     setContractMsg(r.ok ? `✓ ${data.message}` : `✗ ${data.error}`);
     setContracts(prev => prev.filter(c => c.id !== id));
+  };
+
+  const handleFairSell = async () => {
+    if (!fairSku || !fairQty) return;
+    setSellingFair(true);
+    setFairMsg(null);
+    try {
+      const r = await fetch("/api/agro/fair", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enterpriseId: enterprise.id, sku: fairSku, quantity: parseFloat(fairQty) }),
+      });
+      const data = await r.json();
+      if (r.ok) {
+        setFairMsg(`✓ ${data.message}`);
+        setFairQty("");
+        fetch(`/api/agro/fair?enterpriseId=${enterprise.id}`)
+          .then(res => res.ok ? res.json() : null).then(setFairInfo).catch(() => {});
+      } else setFairMsg(`✗ ${data.error}`);
+    } finally { setSellingFair(false); }
+  };
+
+  const handleTakeLoan = async () => {
+    if (!loanContractId || !loanAmount || !loanMonths) return;
+    setTakingLoan(true);
+    setLoanMsg(null);
+    try {
+      const r = await fetch("/api/agro/loan", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          forwardContractId: loanContractId,
+          principalUah: parseFloat(loanAmount),
+          termMonths: parseInt(loanMonths),
+        }),
+      });
+      const data = await r.json();
+      if (r.ok) {
+        setLoanMsg(`✓ ${data.message}`);
+        setLoanAmount("");
+        setLoanContractId("");
+      } else setLoanMsg(`✗ ${data.error}`);
+    } finally { setTakingLoan(false); }
   };
 
   return (
@@ -1722,6 +1786,101 @@ function FieldsTab({ enterprise, agroInfo }: { enterprise: EnterpriseData; agroI
         </button>
         {contractMsg && <p className={`text-xs ${contractMsg.startsWith("✓") ? "text-emerald-400" : "text-red-400"}`}>{contractMsg}</p>}
       </div>
+
+      {/* Силос */}
+      {!hasSilo && (
+        <div className="rounded-lg border border-red-900/40 bg-red-950/10 p-3 flex items-start gap-2 text-xs">
+          <span className="text-red-400 text-sm">⚠</span>
+          <div>
+            <p className="font-semibold text-red-400">Немає силосу (EQ-SILO)</p>
+            <p className="text-gray-500 mt-0.5">Зерно втрачає якість −0.05/день. Купіть EQ-SILO на ринку та встановіть у цеху, щоб зупинити деградацію.</p>
+          </div>
+        </div>
+      )}
+      {hasSilo && (
+        <div className="rounded-lg border border-emerald-900/40 bg-emerald-950/10 p-2 flex items-center gap-2 text-xs text-emerald-400">
+          <span>✓</span><span>Силос встановлено — якість зерна не деградує</span>
+        </div>
+      )}
+
+      {/* Агро-ярмарок */}
+      {fairInfo && (
+        <div className="rounded-lg border border-yellow-900/40 bg-yellow-950/10 p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold text-yellow-400">Агро-ярмарок (+{Math.round((fairInfo.fairPremium - 1) * 100)}%)</p>
+            {fairInfo.isFairDay ? (
+              <span className="text-[10px] bg-yellow-700 text-yellow-100 px-2 py-0.5 rounded-full">Відкрито сьогодні!</span>
+            ) : (
+              <span className="text-[10px] text-gray-500">До ярмарку: {fairInfo.nextFairIn} дн.</span>
+            )}
+          </div>
+          {fairInfo.grainStock.length === 0 ? (
+            <p className="text-xs text-gray-600">Немає зерна для продажу на ярмарку</p>
+          ) : fairInfo.isFairDay ? (
+            <div className="space-y-2">
+              <div className="space-y-1">
+                {fairInfo.grainStock.map(g => (
+                  <div key={g.sku} className="flex items-center justify-between text-xs text-gray-400">
+                    <span className="font-mono text-emerald-300">{g.sku}</span>
+                    <span>{g.quantity.toFixed(1)} {g.unit}</span>
+                    <span className="text-yellow-300">₴{g.fairPrice}/од</span>
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-2 items-end">
+                <select value={fairSku} onChange={e => { setFairSku(e.target.value); setFairQty(""); }}
+                  className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:border-yellow-500">
+                  <option value="">Оберіть культуру</option>
+                  {fairInfo.grainStock.map(g => <option key={g.sku} value={g.sku}>{g.sku} ({g.quantity.toFixed(1)} {g.unit})</option>)}
+                </select>
+                <input type="number" placeholder="Кількість" value={fairQty} onChange={e => setFairQty(e.target.value)}
+                  className="w-24 bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-yellow-500" />
+                <button onClick={handleFairSell} disabled={sellingFair || !fairSku || !fairQty}
+                  className="px-3 py-1.5 bg-yellow-700 hover:bg-yellow-600 disabled:opacity-50 text-white text-xs rounded">
+                  {sellingFair ? "..." : "Продати"}
+                </button>
+              </div>
+              {fairMsg && <p className={`text-xs ${fairMsg.startsWith("✓") ? "text-emerald-400" : "text-red-400"}`}>{fairMsg}</p>}
+            </div>
+          ) : (
+            <p className="text-xs text-gray-500">Ярмарок відбувається кожні 20 днів. Зберіть зерно до наступного.</p>
+          )}
+        </div>
+      )}
+
+      {/* Аграрний кредит */}
+      {contracts.length > 0 && (
+        <div className="rounded-lg border border-blue-900/40 bg-blue-950/10 p-3 space-y-2">
+          <p className="text-xs font-semibold text-blue-400">Аграрний кредит (8% річних)</p>
+          <p className="text-[10px] text-gray-500">Застава: активний ф'ючерсний контракт. Сума до 70% вартості контракту.</p>
+          <div className="grid grid-cols-2 gap-2">
+            <select value={loanContractId} onChange={e => setLoanContractId(e.target.value)}
+              className="col-span-2 bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500">
+              <option value="">Оберіть контракт-заставу</option>
+              {contracts.map(c => (
+                <option key={c.id} value={c.id}>
+                  {c.productSku} × {c.quantityUnits} = ₴{c.totalValue.toLocaleString()} (макс. кредит ₴{Math.round(c.totalValue * 0.7).toLocaleString()})
+                </option>
+              ))}
+            </select>
+            <input type="number" placeholder="Сума ₴" value={loanAmount} onChange={e => setLoanAmount(e.target.value)}
+              className="bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-blue-500" />
+            <select value={loanMonths} onChange={e => setLoanMonths(e.target.value)}
+              className="bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500">
+              <option value="1">1 місяць</option>
+              <option value="3">3 місяці</option>
+              <option value="6">6 місяців</option>
+              <option value="12">12 місяців</option>
+              <option value="24">24 місяці</option>
+            </select>
+          </div>
+          <button onClick={handleTakeLoan} disabled={takingLoan || !loanContractId || !loanAmount}
+            className="w-full py-1.5 bg-blue-700 hover:bg-blue-600 disabled:opacity-50 text-white text-xs rounded">
+            {takingLoan ? "..." : "Взяти кредит"}
+          </button>
+          {loanMsg && <p className={`text-xs ${loanMsg.startsWith("✓") ? "text-emerald-400" : "text-red-400"}`}>{loanMsg}</p>}
+        </div>
+      )}
 
       {/* Ділянки */}
       <div className="grid gap-2 sm:grid-cols-2">
