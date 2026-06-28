@@ -1082,41 +1082,44 @@ export class MarketService {
     });
     const priceMap = new Map(npcPrices.map(n => [n.productId, Number(n._avg.referencePrice ?? 0)]));
 
-    const expiresAt = new Date(Date.now() + 8 * 60 * 60 * 1000); // ~8 тіків
-    let created = 0;
+    const expiresAt = new Date(Date.now() + 8 * 60 * 60 * 1000);
 
+    // Будуємо дані для batch-операцій
+    const toCreate: { productId: string; sku: string; price: number; qty: number }[] = [];
     for (const product of products) {
       const ref = priceMap.get(product.id) ?? FALLBACK_PRICES[product.sku] ?? 0;
       if (ref === 0) continue;
-      const price = +(ref * 1.05).toFixed(2);
-      const qty   = Math.round(300 + Math.random() * 1200);
-
-      // Поповнити інвентар ДержПром щоб було що продавати
-      await this.prisma.playerInventory.upsert({
-        where:  { playerId_productId: { playerId: derzhprom.id, productId: product.id } },
-        update: { quantity: { increment: qty } },
-        create: { playerId: derzhprom.id, productId: product.id, quantity: qty, avgQuality: 6 },
-      });
-
-      await this.prisma.marketOrder.create({
-        data: {
-          playerId:       derzhprom.id,
-          productId:      product.id,
-          resourceType:   product.sku,
-          type:           'SELL',
-          status:         'OPEN',
-          pricePerUnit:   price,
-          quality:        6.0,
-          quantityTotal:  qty,
-          quantityFilled: 0,
-          isStateOrder:   false,
-          expiresAt,
-        },
-      });
-      created++;
+      toCreate.push({ productId: product.id, sku: product.sku, price: +(ref * 1.05).toFixed(2), qty: Math.round(300 + Math.random() * 1200) });
     }
+    if (toCreate.length === 0) return 0;
 
-    return created;
+    // Поповнити інвентар ДержПром одним batch-запитом (upsert у паралелі)
+    await Promise.all(toCreate.map(p =>
+      this.prisma.playerInventory.upsert({
+        where:  { playerId_productId: { playerId: derzhprom.id, productId: p.productId } },
+        update: { quantity: { increment: p.qty } },
+        create: { playerId: derzhprom.id, productId: p.productId, quantity: p.qty, avgQuality: 6 },
+      })
+    ));
+
+    // Один createMany для всіх ордерів
+    await this.prisma.marketOrder.createMany({
+      data: toCreate.map(p => ({
+        playerId:       derzhprom.id,
+        productId:      p.productId,
+        resourceType:   p.sku,
+        type:           'SELL' as const,
+        status:         'OPEN' as const,
+        pricePerUnit:   p.price,
+        quality:        6.0,
+        quantityTotal:  p.qty,
+        quantityFilled: 0,
+        isStateOrder:   false,
+        expiresAt,
+      })),
+    });
+
+    return toCreate.length;
   }
 
   /** Перевіряє цінові сповіщення та надсилає нотифікації гравцям. */

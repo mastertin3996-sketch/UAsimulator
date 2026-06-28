@@ -6,6 +6,9 @@
   "installCommand": "npm install",
   "framework": "nextjs",
   "alias": ["uaeconomy-api.vercel.app"],
+  "functions": {
+    "src/app/api/cron/tick/route.ts": { "maxDuration": 60 }
+  },
   "crons": [
     {
       "path": "/api/cron/tick",

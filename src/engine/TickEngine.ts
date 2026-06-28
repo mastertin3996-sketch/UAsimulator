@@ -198,106 +198,74 @@ export class TickEngine {
       }
     }));
 
-    // ── 2b. Training sessions tick ───────────────────────────────────────
-    await this.processTrainingSessions().catch(e =>
-      console.error(`[Tick ${tickNumber}] Training sessions failed:`, e)
-    );
-
-    // ── 2c-retail. Global retail NPC sales — quality-competition aware ───
-    const retailSummary = await this.market.processAllNpcSales(tickNumber)
-      .catch(e => { console.error(`[Tick ${tickNumber}] Retail NPC sales failed:`, e); return null; });
+    // ── 2b-2d. Незалежні глобальні операції — паралельно ────────────────
+    const [retailSummary, supplyTransfers] = await Promise.all([
+      this.market.processAllNpcSales(tickNumber)
+        .catch(e => { console.error(`[Tick ${tickNumber}] Retail NPC sales failed:`, e); return null; }),
+      this.processSupplyRoutes()
+        .catch(e => { console.error(`[Tick ${tickNumber}] Supply routes failed:`, e); return 0; }),
+      this.processTrainingSessions()
+        .catch(e => console.error(`[Tick ${tickNumber}] Training sessions failed:`, e)),
+      this.processLivestock(tickNumber)
+        .catch(e => console.error(`[Tick ${tickNumber}] Livestock failed:`, e)),
+      this.processMachineryWear(tickNumber)
+        .catch(e => console.error(`[Tick ${tickNumber}] Machinery wear failed:`, e)),
+      this.syndicateVotes.processExpiredVotes(tickNumber)
+        .catch(e => console.error(`[Tick ${tickNumber}] Syndicate votes failed:`, e)),
+      this.warehouseRents.processRentals(tickNumber)
+        .catch(e => console.error(`[Tick ${tickNumber}] Warehouse rentals failed:`, e)),
+      this.db.retailListing.updateMany({
+        where: { promotionActive: true, promotionEndTick: { lte: tickNumber } },
+        data:  { promotionActive: false, promotionEndTick: null },
+      }).catch(e => console.error(`[Tick ${tickNumber}] Promo expiry failed:`, e)),
+      // AGRO: погода, ф'ючерси, якість зерна — незалежні між собою
+      this.agro.processLocalWeather(tickNumber)
+        .catch(e => console.error(`[Tick ${tickNumber}] Agro weather failed:`, e)),
+      this.agro.processForwardContracts(tickNumber)
+        .catch(e => console.error(`[Tick ${tickNumber}] Forward contracts failed:`, e)),
+      this.agro.processGrainQualityDegradation()
+        .catch(e => console.error(`[Tick ${tickNumber}] Grain quality degradation failed:`, e)),
+    ]);
     if (retailSummary && retailSummary.totalSold > 0) {
       console.log(`[Tick ${tickNumber}] Retail: ${retailSummary.totalSold.toFixed(0)} od. sold, ₴${retailSummary.totalRevenue.toFixed(0)} revenue.`);
     }
-
-    // ── 2c. Supply route transfers (intra-company, per player) ──────────
-    const supplyTransfers = await this.processSupplyRoutes().catch(e => {
-      console.error(`[Tick ${tickNumber}] Supply routes failed:`, e);
-      return 0;
-    });
     if (supplyTransfers > 0) {
       console.log(`[Tick ${tickNumber}] Supply routes: ${supplyTransfers} transfers executed.`);
     }
 
-    // ── 3a1. ДержПром replenishment — поповнення інвентарю кожні 5 тіків ──
-    if (Number(tickNumber) % 5 === 0) {
-      await this.market.replenishDerzhprom()
-        .catch(e => console.error(`[Tick ${tickNumber}] ДержПром replenish failed:`, e));
-    }
-
-    // ── 3a1b. NPC конкуренти — кожні 3 тіки (ensureBotsExist — idempotent upsert)
-    if (Number(tickNumber) % 3 === 0) {
-      await this.npcCompetitors.ensureBotsExist()
-        .catch(e => console.error(`[Tick ${tickNumber}] NPC init failed:`, e));
-      await this.npcCompetitors.tick(tickNumber)
-        .catch(e => console.error(`[Tick ${tickNumber}] NPC competitors failed:`, e));
-    }
-
-    // ── 3a1c. Тендери — генерація кожні 15 тіків, expiry кожен тік ─────────
-    await this.tenders.expireTenders(tickNumber)
-      .catch(e => console.error(`[Tick ${tickNumber}] Tender expiry failed:`, e));
-    if (Number(tickNumber) % 15 === 0) {
-      const newTenders = await this.tenders.generateTenders(tickNumber)
-        .catch(e => { console.error(`[Tick ${tickNumber}] Tender generation failed:`, e); return 0; });
-      if (newTenders > 0) console.log(`[Tick ${tickNumber}] Тендери: ${newTenders} нових держзакупівель.`);
-    }
-
-    // ── 3a1d. Промо-акції RETAIL_STORE — expiry за promotionEndTick ─────────
-    await this.db.retailListing.updateMany({
-      where: { promotionActive: true, promotionEndTick: { lte: tickNumber } },
-      data:  { promotionActive: false, promotionEndTick: null },
-    }).catch(e => console.error(`[Tick ${tickNumber}] Promo expiry failed:`, e));
-
-    // ── 3a1e0. Активація нових цехів (розширення підприємств) ────────────────
+    // ── Активація нових цехів ─────────────────────────────────────────────
     const newWorkshops = await this.db.workshop.findMany({
       where: { isActive: false, activatesAtTick: { lte: tickNumber } },
       select: { id: true, enterprise: { select: { playerId: true, name: true } }, name: true },
     });
     if (newWorkshops.length > 0) {
-      await this.db.workshop.updateMany({
-        where: { id: { in: newWorkshops.map(w => w.id) } },
-        data:  { isActive: true },
-      });
-      for (const w of newWorkshops) {
-        await this.db.notification.create({
-          data: {
-            playerId: w.enterprise.playerId,
-            type:     'CONSTRUCTION_COMPLETE',
-            title:    'Розширення завершено',
-            body:     `Новий цех "${w.name}" у "${w.enterprise.name}" введено в експлуатацію.`,
-          },
-        }).catch(() => {});
-      }
+      await this.db.workshop.updateMany({ where: { id: { in: newWorkshops.map(w => w.id) } }, data: { isActive: true } });
+      await this.db.notification.createMany({
+        data: newWorkshops.map(w => ({
+          playerId: w.enterprise.playerId, type: 'CONSTRUCTION_COMPLETE',
+          title: 'Розширення завершено', body: `Новий цех "${w.name}" у "${w.enterprise.name}" введено в експлуатацію.`,
+        })),
+      }).catch(() => {});
     }
 
-    // ── 3a1e. Синдикат — expiry голосувань ───────────────────────────────────
-    await this.syndicateVotes.processExpiredVotes(tickNumber)
-      .catch(e => console.error(`[Tick ${tickNumber}] Syndicate votes failed:`, e));
-
-    // ── 3a1f. Оренда складів — щотічна оплата ───────────────────────────────
-    await this.warehouseRents.processRentals(tickNumber)
-      .catch(e => console.error(`[Tick ${tickNumber}] Warehouse rentals failed:`, e));
-
-    // ── 3a1g. Рейтинги — кожні 30 тіків ─────────────────────────────────────
-    if (Number(tickNumber) % 30 === 0) {
-      const awarded = await this.ratings.processAwards(tickNumber)
-        .catch(e => { console.error(`[Tick ${tickNumber}] Ratings failed:`, e); return 0; });
-      if (awarded > 0) console.log(`[Tick ${tickNumber}] Рейтинги: ${awarded} нагород видано.`);
+    // ── Умовні операції (кожні N тіків) — паралельно ─────────────────────
+    await Promise.all([
+      Number(tickNumber) % 5  === 0 ? this.market.replenishDerzhprom()
+        .catch(e => console.error(`[Tick ${tickNumber}] ДержПром replenish failed:`, e)) : Promise.resolve(),
+      Number(tickNumber) % 3  === 0 ? this.npcCompetitors.ensureBotsExist()
+        .then(() => this.npcCompetitors.tick(tickNumber))
+        .catch(e => console.error(`[Tick ${tickNumber}] NPC competitors failed:`, e)) : Promise.resolve(),
+      Number(tickNumber) % 30 === 0 ? this.ratings.processAwards(tickNumber)
+        .then(n => n > 0 && console.log(`[Tick ${tickNumber}] Рейтинги: ${n} нагород.`))
+        .catch(e => console.error(`[Tick ${tickNumber}] Ratings failed:`, e)) : Promise.resolve(),
+      this.tenders.expireTenders(tickNumber)
+        .catch(e => console.error(`[Tick ${tickNumber}] Tender expiry failed:`, e)),
+    ]);
+    if (Number(tickNumber) % 15 === 0) {
+      const newTenders = await this.tenders.generateTenders(tickNumber)
+        .catch(e => { console.error(`[Tick ${tickNumber}] Tender generation failed:`, e); return 0; });
+      if (newTenders > 0) console.log(`[Tick ${tickNumber}] Тендери: ${newTenders} нових.`);
     }
-
-    // ── 3a1h. Тваринництво — продукція і знос техніки ────────────────────────
-    await this.processLivestock(tickNumber)
-      .catch(e => console.error(`[Tick ${tickNumber}] Livestock failed:`, e));
-    await this.processMachineryWear(tickNumber)
-      .catch(e => console.error(`[Tick ${tickNumber}] Machinery wear failed:`, e));
-
-    // ── 3a1i. AGRO: локальна погода, ф'ючерси, оренда полів, якість зерна ────
-    await this.agro.processLocalWeather(tickNumber)
-      .catch(e => console.error(`[Tick ${tickNumber}] Agro weather failed:`, e));
-    await this.agro.processForwardContracts(tickNumber)
-      .catch(e => console.error(`[Tick ${tickNumber}] Forward contracts failed:`, e));
-    await this.agro.processGrainQualityDegradation()
-      .catch(e => console.error(`[Tick ${tickNumber}] Grain quality degradation failed:`, e));
     if (Number(tickNumber) % 30 === 0) {
       const subsidyCount = await this.agro.payAgroSubsidies(tickNumber)
         .catch(e => { console.error(`[Tick ${tickNumber}] Agro subsidies failed:`, e); return 0; });
@@ -308,17 +276,18 @@ export class TickEngine {
         .catch(e => console.error(`[Tick ${tickNumber}] Seasonal soil/pests failed:`, e));
     }
 
-    // ── 3a1j. Phase 28: B2B трансфер, логіст. замовлення, інспекції, кредитний рейтинг ──
-    await this.b2bTransfer.processTransfers(tickNumber)
-      .catch(e => console.error(`[Tick ${tickNumber}] B2B transfer failed:`, e));
-    await this.freightSvc.processCompletedOrders(tickNumber)
-      .catch(e => console.error(`[Tick ${tickNumber}] Freight orders failed:`, e));
-    if (Number(tickNumber) % 5 === 0) {
-      await this.freightSvc.generateNpcOrders(tickNumber)
-        .catch(e => console.error(`[Tick ${tickNumber}] Freight NPC orders failed:`, e));
-    }
-    await this.inspections.processInspections(tickNumber)
-      .catch(e => console.error(`[Tick ${tickNumber}] Regulatory inspections failed:`, e));
+    // ── 3a1j. B2B трансфер, логіст. замовлення, інспекції — паралельно ──
+    await Promise.all([
+      this.b2bTransfer.processTransfers(tickNumber)
+        .catch(e => console.error(`[Tick ${tickNumber}] B2B transfer failed:`, e)),
+      this.freightSvc.processCompletedOrders(tickNumber)
+        .catch(e => console.error(`[Tick ${tickNumber}] Freight orders failed:`, e)),
+      this.inspections.processInspections(tickNumber)
+        .catch(e => console.error(`[Tick ${tickNumber}] Regulatory inspections failed:`, e)),
+      Number(tickNumber) % 5 === 0
+        ? this.freightSvc.generateNpcOrders(tickNumber).catch(e => console.error(`[Tick ${tickNumber}] Freight NPC orders failed:`, e))
+        : Promise.resolve(),
+    ]);
 
     // ── 3a1b. Держзамовлення — нові BUY-ордери з премією кожні 8 тіків ──
     // Виконується ДО matchOrders щоб нові ордери одразу потрапляли в матчинг
