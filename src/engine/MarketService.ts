@@ -72,32 +72,46 @@ export class MarketService {
    * при великих угодах (напр. 50 000 т × 8 000 UAH/т = 400 000 000 UAH).
    */
   async matchOrders(): Promise<TradeResult[]> {
-    const products = await this.prisma.product.findMany({
-      where: {
-        marketOrders: {
-          some: { status: { in: ['OPEN', 'PARTIALLY_FILLED'] } },
+    // Batch-fetch all open orders in 2 queries instead of 2×N per-product queries
+    const [allSells, allBuysRaw] = await Promise.all([
+      this.prisma.marketOrder.findMany({
+        where:   { type: 'SELL', status: { in: ['OPEN', 'PARTIALLY_FILLED'] } },
+        orderBy: [{ pricePerUnit: 'asc' }, { createdAt: 'asc' }],
+      }),
+      this.prisma.marketOrder.findMany({
+        where:   { type: 'BUY',  status: { in: ['OPEN', 'PARTIALLY_FILLED'] } },
+        orderBy: [{ pricePerUnit: 'desc' }, { createdAt: 'asc' }],
+        select: {
+          id: true, playerId: true, pricePerUnit: true, qualityMin: true,
+          quantityTotal: true, quantityFilled: true, isStateOrder: true, productId: true,
         },
-      },
-      select: { id: true },
-    });
+      }),
+    ]);
+
+    if (allSells.length === 0 || allBuysRaw.length === 0) return [];
+
+    // Group by productId (in-memory)
+    const sellsByProduct = new Map<string, typeof allSells>();
+    const buysByProduct  = new Map<string, typeof allBuysRaw>();
+    for (const s of allSells) {
+      if (!sellsByProduct.has(s.productId)) sellsByProduct.set(s.productId, []);
+      sellsByProduct.get(s.productId)!.push(s);
+    }
+    for (const b of allBuysRaw) {
+      if (!buysByProduct.has(b.productId)) buysByProduct.set(b.productId, []);
+      buysByProduct.get(b.productId)!.push(b);
+    }
+
+    // Only process products that have BOTH sells AND buys
+    const productIds = [...sellsByProduct.keys()].filter(pid => buysByProduct.has(pid));
+    if (productIds.length === 0) return [];
 
     const allTrades: TradeResult[] = [];
     const filledNotifs: { playerId: string; orderType: string; productId: string; qty: number; price: number; unit?: string; name?: string }[] = [];
 
-    for (const { id: productId } of products) {
-      const sells = await this.prisma.marketOrder.findMany({
-        where:   { productId, type: 'SELL', status: { in: ['OPEN', 'PARTIALLY_FILLED'] } },
-        orderBy: [{ pricePerUnit: 'asc' }, { createdAt: 'asc' }],
-      });
-
-      const buys = await this.prisma.marketOrder.findMany({
-        where:   { productId, type: 'BUY',  status: { in: ['OPEN', 'PARTIALLY_FILLED'] } },
-        orderBy: [{ pricePerUnit: 'desc' }, { createdAt: 'asc' }],
-        select: {
-          id: true, playerId: true, pricePerUnit: true, qualityMin: true,
-          quantityTotal: true, quantityFilled: true, isStateOrder: true,
-        },
-      });
+    for (const productId of productIds) {
+      const sells = sellsByProduct.get(productId)!;
+      const buys  = buysByProduct.get(productId)!;
 
       let si = 0;
       let bi = 0;
