@@ -1,0 +1,21 @@
+name: Game Tick (hourly)
+
+on:
+  schedule:
+    - cron: "0 * * * *"   # щогодини
+  workflow_dispatch:        # ручний запуск з GitHub UI
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger game tick
+        run: |
+          response=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            https://uaeconomy-api.vercel.app/api/cron/tick)
+          echo "HTTP status: $response"
+          if [ "$response" != "200" ]; then
+            echo "Tick failed with status $response"
+            exit 1
+          fi
