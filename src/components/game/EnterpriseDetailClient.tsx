@@ -3327,6 +3327,7 @@ export default function EnterpriseDetailClient({ enterpriseId, initialTab }: Pro
     { key: "supply",    label: "Постачання",    emoji: "🚚" },
     ...(enterprise.type === "RETAIL_STORE"   ? [{ key: "showcase",  label: "Вітрина",        emoji: "🏪" }] : []),
     ...(enterprise.type === "AGRO_FARM"      ? [
+      { key: "machinery", label: "Техніка",         emoji: "🚜" },
       { key: "livestock", label: "Тваринництво",    emoji: "🐄" },
     ] : []),
     ...(enterprise.type === "LOGISTICS_HUB"  ? [{ key: "freight",   label: "Вантаж",          emoji: "🚛" }] : []),
