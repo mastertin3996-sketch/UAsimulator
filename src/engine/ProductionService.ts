@@ -107,6 +107,9 @@ export class ProductionService {
           where:  { isOperational: true },
           select: { machineryType: true, durability: true },
         },
+        livestockHerds: {
+          select: { species: true, headCount: true, health: true },
+        },
       },
     });
 
@@ -225,7 +228,26 @@ export class ProductionService {
             // Pest damage multiplier
             const pestMult = ent.landPlot?.pestDamageMult ?? 1.0;
 
-            baseCapacity = ws.footprintM2 * soilMult * seasonMult * rotationMult * droughtMult * irrigationBonus * agronomistMult * plantingBonus * fieldAreaMult * localWeatherMod * tractorBonus * machineryMult * fertBonus * pestMult;
+            // Livestock health multiplier (для RM-MILK, SF-MILK, RM-LIVESTOCK, FG-EGGS)
+            const LIVESTOCK_SKUS = new Set(['RM-MILK', 'SF-MILK', 'RM-LIVESTOCK', 'FG-EGGS']);
+            let livestockMult = 1.0;
+            if (LIVESTOCK_SKUS.has(cropSku)) {
+              const herds = (ent as any).livestockHerds ?? [];
+              livestockMult = herds.length > 0
+                ? herds.reduce((s: number, h: { health: number }) => s + h.health, 0) / herds.length
+                : 0.0; // Немає стада — немає продукції
+            }
+
+            // FG-HONEY gate: потрібен RM-SUNFL в інвентарі (бджоли без нектару не дають мед)
+            let honeyGate = 1.0;
+            if (cropSku === 'FG-HONEY') {
+              const hasSunflower = sunflProduct
+                ? ent.inventory.some(i => i.productId === sunflProduct.id && Number(i.quantity) >= 1)
+                : false;
+              if (!hasSunflower) honeyGate = 0.0;
+            }
+
+            baseCapacity = ws.footprintM2 * soilMult * seasonMult * rotationMult * droughtMult * irrigationBonus * agronomistMult * plantingBonus * fieldAreaMult * localWeatherMod * tractorBonus * machineryMult * fertBonus * pestMult * livestockMult * honeyGate;
           } else {
             baseCapacity = ws.maxCapacity;
           }

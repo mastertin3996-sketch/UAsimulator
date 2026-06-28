@@ -811,6 +811,8 @@ function WorkshopsTab({
   const [equipMsg,      setEquipMsg]      = useState<{ id: string; ok: boolean; text: string } | null>(null);
   const [buyEquipWs,    setBuyEquipWs]    = useState<Workshop | null>(null);
   const [machinery,     setMachinery]     = useState<any[]>([]);
+  const [livestock,     setLivestock]     = useState<any[]>([]);
+  const [machRepBusy,   setMachRepBusy]   = useState<string | null>(null);
 
   useEffect(() => {
     if (enterprise.type !== "AGRO_FARM") return;
@@ -818,7 +820,23 @@ function WorkshopsTab({
       .then(r => r.json())
       .then(d => setMachinery(d.machinery ?? []))
       .catch(() => {});
+    fetch(`/api/enterprises/${enterprise.id}/livestock`)
+      .then(r => r.json())
+      .then(d => setLivestock(d.herds ?? []))
+      .catch(() => {});
   }, [enterprise.id, enterprise.type]);
+
+  async function repairMachinery(machId: string) {
+    setMachRepBusy(machId);
+    await fetch(`/api/enterprises/${enterprise.id}/machinery`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "repair", machineryId: machId }),
+    });
+    const d = await fetch(`/api/enterprises/${enterprise.id}/machinery`).then(r => r.json());
+    setMachinery(d.machinery ?? []);
+    setMachRepBusy(null);
+    window.dispatchEvent(new CustomEvent("game:balance"));
+  }
 
   async function doEquipAction(eqId: string, action: "maintenance" | "repair") {
     setEquipBusy(eqId);
@@ -926,10 +944,16 @@ function WorkshopsTab({
             const seasonName = SEASON_UA[seasonIdx] ?? "—";
             const fertLeft   = agroInfo?.fertilizerTicksLeft ?? 0;
             const pestDmg    = agroInfo?.pestDamageMult ?? 1.0;
-            const activeMach = machinery.filter((m: any) => m.isOperational && m.durability > 0);
-            const machBonus  = activeMach.reduce((s: number, m: any) => s + (MACHINERY_YIELD_BONUS_UI[m.type] ?? 0), 0);
-            const machMult   = 1 + machBonus / 100;
-            const isField    = FIELD_CROPS_UI.has(cropSku ?? '');
+            const activeMach  = machinery.filter((m: any) => m.isOperational && m.durability > 0);
+            const machBonus   = activeMach.reduce((s: number, m: any) => s + (MACHINERY_YIELD_BONUS_UI[m.type] ?? 0), 0);
+            const machMult    = 1 + machBonus / 100;
+            const isField     = FIELD_CROPS_UI.has(cropSku ?? '');
+            const LIVESTOCK_CROP_SKUS = new Set(['RM-MILK', 'SF-MILK', 'RM-LIVESTOCK', 'FG-EGGS']);
+            const isLivestockCrop = LIVESTOCK_CROP_SKUS.has(cropSku ?? '');
+            const avgHealth   = livestock.length > 0
+              ? livestock.reduce((s: number, h: any) => s + (h.health ?? 1), 0) / livestock.length
+              : null;
+            const SPECIES_UA: Record<string, string> = { CATTLE: "🐄 ВРХ", PIGS: "🐷 Свині", POULTRY: "🐔 Птиця" };
             const estYield   = cropSku && seasonMult > 0 ? w.footprintM2 * soilMult * seasonMult * machMult : 0;
             const lastCrop   = agroInfo?.lastCropSku ?? null;
             let rotStatus: 'optimal' | 'mono' | 'neutral' | null = null;
@@ -1094,6 +1118,67 @@ function WorkshopsTab({
                       );
                     })}
                   </div>
+
+                  {/* FarmMachinery panel */}
+                  {machinery.length > 0 && (
+                    <div className="pt-1.5 border-t border-gray-800 space-y-1">
+                      <p className="text-[9px] text-gray-600 uppercase tracking-wider">Техніка підприємства</p>
+                      {machinery.map((m: any) => {
+                        const dur = m.durability ?? 1;
+                        const isBroken = !m.isOperational || dur <= 0;
+                        const isWorn   = dur < 0.3 && !isBroken;
+                        return (
+                          <div key={m.id} className="flex items-center gap-2 text-[10px]">
+                            <span className="shrink-0">{MACHINERY_EMOJI_UI[m.type] ?? "⚙️"}</span>
+                            <span className="flex-1 text-gray-400 truncate">{m.nameUa ?? m.type}</span>
+                            <div className="w-12 shrink-0 h-1 rounded-full bg-gray-700">
+                              <div className={cn("h-full rounded-full", dur > 0.5 ? "bg-emerald-500" : dur > 0.2 ? "bg-amber-500" : "bg-red-500")}
+                                style={{ width: `${Math.max(0, dur * 100)}%` }} />
+                            </div>
+                            <span className={cn("shrink-0 text-[9px]", isBroken ? "text-red-400" : isWorn ? "text-amber-400" : "text-emerald-400")}>
+                              {isBroken ? "Зламано" : isWorn ? "Зношено" : `${Math.round(dur * 100)}%`}
+                            </span>
+                            {(isBroken || isWorn) && (
+                              <button onClick={() => repairMachinery(m.id)} disabled={machRepBusy === m.id}
+                                className="shrink-0 text-[9px] px-1.5 py-0.5 rounded bg-blue-700 hover:bg-blue-600 text-white transition-colors disabled:opacity-50">
+                                {machRepBusy === m.id ? <Loader2 size={8} className="animate-spin" /> : "Рем."}
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Livestock health panel */}
+                  {isLivestockCrop && (
+                    <div className="pt-1.5 border-t border-gray-800 space-y-1">
+                      <p className="text-[9px] text-gray-600 uppercase tracking-wider">Стадо</p>
+                      {livestock.length === 0 ? (
+                        <p className="text-[10px] text-red-400">⚠ Немає стада — виробництво неможливе</p>
+                      ) : livestock.map((h: any) => {
+                        const hp  = h.health ?? 1;
+                        const skipped = h.feedSkippedTicks ?? 0;
+                        return (
+                          <div key={h.id} className="flex items-center gap-2 text-[10px]">
+                            <span className="shrink-0">{SPECIES_UA[h.species] ?? h.species}</span>
+                            <span className="text-gray-500">{h.headCount} гол.</span>
+                            <div className="flex-1 h-1 rounded-full bg-gray-700">
+                              <div className={cn("h-full rounded-full", hp >= 0.7 ? "bg-emerald-500" : hp >= 0.4 ? "bg-amber-500" : "bg-red-500")}
+                                style={{ width: `${hp * 100}%` }} />
+                            </div>
+                            <span className={cn("shrink-0 font-mono", hp >= 0.7 ? "text-emerald-400" : hp >= 0.4 ? "text-amber-400" : "text-red-400")}>
+                              {Math.round(hp * 100)}%
+                            </span>
+                            {skipped > 0 && <span className="text-[9px] text-red-400">😟 −{skipped}тік корму</span>}
+                          </div>
+                        );
+                      })}
+                      {avgHealth !== null && avgHealth < 0.5 && (
+                        <p className="text-[9px] text-red-400">⚠ Здоров'я &lt;50% — продуктивність впала. Поповніть RM-CORN.</p>
+                      )}
+                    </div>
+                  )}
 
                   {/* Action buttons */}
                   <div className="flex gap-1.5 pt-1.5 border-t border-gray-800 flex-wrap">
