@@ -968,11 +968,19 @@ export class MarketService {
    * Викликається кожні 8 тіків разом із generateStateOrders().
    */
   async generateNpcSellOrders(): Promise<number> {
-    const derzhprom = await this.prisma.player.findFirst({
-      where: { username: 'derzhprom', isNpcSeller: true },
+    const derzhprom = await this.prisma.player.upsert({
+      where:  { username: 'derzhprom' },
+      create: {
+        email:        'derzhprom@state.gov.ua',
+        username:     'derzhprom',
+        passwordHash: 'npc-no-login',
+        companyName:  'ДержПром',
+        isNpcSeller:  true,
+        cashBalance:  100_000_000,
+      },
+      update: {},
       select: { id: true },
     });
-    if (!derzhprom) return 0;
 
     const NPC_SELL_SKUS = [
       'RM-WHEAT', 'RM-CORN', 'RM-SUNFL', 'RM-SUGBEET',
