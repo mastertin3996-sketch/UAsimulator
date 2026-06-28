@@ -1120,12 +1120,13 @@ export class MarketService {
     if (toCreate.length === 0) return 0;
 
     // Batch inventory upsert via raw SQL (1 query замість 58 upserts)
-    const invValues = toCreate.map(p => `('${derzhprom.id}', '${p.productId}', ${p.qty}, 6.0)`).join(',');
+    const invValues = toCreate.map(p => `('${derzhprom.id}', '${p.productId}', ${p.qty}, 6.0, NOW())`).join(',');
     await this.prisma.$executeRawUnsafe(`
-      INSERT INTO "PlayerInventory" ("playerId", "productId", "quantity", "avgQuality")
+      INSERT INTO "PlayerInventory" ("playerId", "productId", "quantity", "avgQuality", "updatedAt")
       VALUES ${invValues}
       ON CONFLICT ("playerId", "productId")
-      DO UPDATE SET "quantity" = "PlayerInventory"."quantity" + EXCLUDED."quantity"
+      DO UPDATE SET "quantity" = "PlayerInventory"."quantity" + EXCLUDED."quantity",
+                    "updatedAt" = NOW()
     `);
 
     // Один createMany для всіх ордерів
