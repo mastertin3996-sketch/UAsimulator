@@ -449,58 +449,76 @@ export class MarketService {
   async processAllNpcSales(tickNumber: bigint): Promise<{ totalSold: number; totalRevenue: number }> {
     const season = Math.floor((Number(tickNumber) % 120) / 30);
 
-    // CURRENCY_SHOCK: NPC buys at higher prices, but lower volume
-    const currencyShock = await this.prisma.macroEvent.findFirst({
-      where: { type: 'CURRENCY_SHOCK', status: 'ACTIVE' },
-    });
-    const shockPriceMult  = currencyShock ? 1.20 : 1.0;
-    const shockDemandMult = currencyShock ? 0.90 : 1.0;
-
-    // SYNDICATE AD_CAMPAIGN: active campaigns give +20% NPC market share score to member players
-    const activeCampaigns = await this.prisma.syndicate.findMany({
-      where:  { campaignEndsAtTick: { gte: tickNumber } },
-      select: { members: { select: { playerId: true } } },
-    });
-    const campaignPlayerIds = new Set<string>(
-      activeCampaigns.flatMap(s => s.members.map(m => m.playerId)),
-    );
-
-    const allShops = await this.prisma.enterprise.findMany({
-      where:   { type: 'RETAIL_STORE', isOperational: true },
-      include: {
-        inventory:     true,
-        retailListings: { where: { isActive: true } },
-        landPlot:       { include: { city: true } },
-      },
-    });
+    // ── Pre-fetch everything needed for computation ──────────────────────
+    const [currencyShock, activeCampaigns, allShops, allDemands, allPlayers, exciseLicenses] = await Promise.all([
+      this.prisma.macroEvent.findFirst({ where: { type: 'CURRENCY_SHOCK', status: 'ACTIVE' } }),
+      this.prisma.syndicate.findMany({
+        where:  { campaignEndsAtTick: { gte: tickNumber } },
+        select: { members: { select: { playerId: true } } },
+      }),
+      this.prisma.enterprise.findMany({
+        where:   { type: 'RETAIL_STORE', isOperational: true },
+        include: {
+          inventory:      true,
+          retailListings: { where: { isActive: true } },
+          landPlot:       { include: { city: true } },
+        },
+      }),
+      this.prisma.npcDemand.findMany({
+        include: { product: { select: { id: true, sku: true } } },
+      }),
+      this.prisma.player.findMany({ select: { id: true, cashBalance: true } }),
+      this.prisma.license.findMany({
+        where: { type: 'EXCISE_LICENSE', status: 'ACTIVE' },
+        select: { enterpriseId: true },
+      }),
+    ]);
 
     if (allShops.length === 0) return { totalSold: 0, totalRevenue: 0 };
 
-    // Group by city
+    const shockPriceMult  = currencyShock ? 1.20 : 1.0;
+    const shockDemandMult = currencyShock ? 0.90 : 1.0;
+    const campaignPlayerIds = new Set<string>(
+      activeCampaigns.flatMap(s => s.members.map(m => m.playerId)),
+    );
+    const playerMap      = new Map(allPlayers.map(p => [p.id, new Decimal(p.cashBalance.toString())]));
+    const exciseShopIds  = new Set(exciseLicenses.map(l => l.enterpriseId));
+
+    // Group shops and demands by city
     const shopsByCity = new Map<string, typeof allShops>();
     for (const shop of allShops) {
-      const cityId = shop.landPlot.cityId;
-      if (!shopsByCity.has(cityId)) shopsByCity.set(cityId, []);
-      shopsByCity.get(cityId)!.push(shop);
+      const cid = shop.landPlot.cityId;
+      if (!shopsByCity.has(cid)) shopsByCity.set(cid, []);
+      shopsByCity.get(cid)!.push(shop);
     }
+    const demandsByCity = new Map<string, typeof allDemands>();
+    for (const d of allDemands) {
+      if (!demandsByCity.has(d.cityId)) demandsByCity.set(d.cityId, []);
+      demandsByCity.get(d.cityId)!.push(d);
+    }
+
+    // ── Compute all sales in-memory ──────────────────────────────────────
+    const EXCISE_RATE: Record<string, number> = { 'FG-BEER': 12, 'FG-SPIRITS': 95 };
+
+    // Accumulators for batch writes
+    const invDecrements    = new Map<string, number>();               // inventoryId → qty
+    const playerRevenue    = new Map<string, Decimal>();              // playerId → net revenue
+    const finTxns: Array<Parameters<typeof this.prisma.financialTransaction.create>[0]['data']> = [];
+    const finLogs: Array<Parameters<typeof this.prisma.financialLog.create>[0]['data']>         = [];
 
     let totalSold    = 0;
     let totalRevenue = 0;
 
     for (const [cityId, shops] of shopsByCity) {
       const city    = shops[0].landPlot.city;
-      const demands = await this.prisma.npcDemand.findMany({ where: { cityId } });
-      const productIds = [...new Set(demands.map(d => d.productId))];
-      const products   = await this.prisma.product.findMany({ where: { id: { in: productIds } }, select: { id: true, sku: true } });
-      const skuMap     = new Map(products.map(pr => [pr.id, pr.sku]));
+      const demands = demandsByCity.get(cityId) ?? [];
 
       for (const demand of demands) {
+        const sku          = demand.product.sku;
         const refPrice     = Number(demand.referencePrice) * shockPriceMult;
-        const sku          = skuMap.get(demand.productId) ?? '';
         const seasonMult   = MarketService.SEASONAL_NPC_DEMAND[sku]?.[season] ?? 1.0;
         const totalDemand  = demand.baseUnitsPerDay * Number(city.demandCoefficient) * seasonMult * shockDemandMult;
 
-        // Score each competing shop for this product
         const competitors = shops
           .map(shop => {
             const inv     = shop.inventory.find(i => i.productId === demand.productId && Number(i.quantity) > 0.001);
@@ -511,7 +529,7 @@ export class MarketService {
             const price        = promoActive ? basePrice * 0.85 : basePrice;
             const qFactor      = Number(demand.qualityWeight) * (inv.avgQuality / 10) + (1 - Number(demand.qualityWeight));
             const pFactor      = refPrice > 0 ? Math.pow(refPrice / Math.max(price, 0.01), Math.abs(Number(demand.priceElasticity))) : 1;
-            const promoBoost    = promoActive ? 1.5 : 1.0;
+            const promoBoost   = promoActive ? 1.5 : 1.0;
             const campaignBoost = campaignPlayerIds.has(shop.playerId) ? 1.20 : 1.0;
             return { shop, inv, price, score: qFactor * pFactor * promoBoost * campaignBoost };
           })
@@ -522,49 +540,43 @@ export class MarketService {
         const totalScore = competitors.reduce((s, c) => s + c.score, 0);
 
         for (const { shop, inv, price, score } of competitors) {
-          const marketShare   = totalScore > 0 ? score / totalScore : 1 / competitors.length;
-          const shopDemandQty = totalDemand * marketShare;
-          const actualSold    = Math.min(shopDemandQty, Number(inv.quantity));
+          const marketShare = totalScore > 0 ? score / totalScore : 1 / competitors.length;
+          const actualSold  = Math.min(totalDemand * marketShare, Number(inv.quantity));
           if (actualSold < 0.001) continue;
 
-          const revenue       = new Decimal(price).times(actualSold);
-          const player        = await this.prisma.player.findUniqueOrThrow({ where: { id: shop.playerId } });
-          const balanceBefore = new Decimal(player.cashBalance.toString());
-          const balanceAfter  = balanceBefore.plus(revenue);
-
+          const revenue   = new Decimal(price).times(actualSold);
           const shareNote = competitors.length > 1 ? ` (ринок ${(marketShare * 100).toFixed(0)}%)` : '';
 
-          await this.prisma.$transaction([
-            this.prisma.enterpriseInventory.update({ where: { id: inv.id }, data: { quantity: { decrement: actualSold } } }),
-            this.prisma.player.update({ where: { id: shop.playerId }, data: { cashBalance: { increment: revenue } } }),
-            this.prisma.financialTransaction.create({
-              data: { playerId: shop.playerId, type: 'NPC_SALE', amountUah: revenue, balanceBefore, balanceAfter,
-                description: `NPC роздріб: ${actualSold.toFixed(2)} × ${sku} у ${city.nameUa}`, referenceId: demand.id },
-            }),
-            this.prisma.financialLog.create({
-              data: { playerId: shop.playerId, category: 'REVENUE_RETAIL', amountUah: revenue,
-                description: `Роздрібний продаж у "${shop.name}": ${actualSold.toFixed(1)} од.${shareNote}`,
-                referenceId: shop.id, tickNumber },
-            }),
-          ]);
+          // Accumulate in-memory
+          invDecrements.set(inv.id, (invDecrements.get(inv.id) ?? 0) + actualSold);
+          const cur = playerRevenue.get(shop.playerId) ?? new Decimal(0);
+          playerRevenue.set(shop.playerId, cur.plus(revenue));
 
-          // EXCISE TAX on alcohol sales
-          const EXCISE_RATE: Record<string, number> = { 'FG-BEER': 12, 'FG-SPIRITS': 95 };
+          const balanceBefore = playerMap.get(shop.playerId) ?? new Decimal(0);
+          const balanceAfter  = balanceBefore.plus(revenue);
+          playerMap.set(shop.playerId, balanceAfter);
+
+          finTxns.push({
+            playerId: shop.playerId, type: 'NPC_SALE', amountUah: revenue,
+            balanceBefore, balanceAfter,
+            description: `NPC роздріб: ${actualSold.toFixed(2)} × ${sku} у ${city.nameUa}`,
+            referenceId: demand.id,
+          });
+          finLogs.push({
+            playerId: shop.playerId, category: 'REVENUE_RETAIL', amountUah: revenue,
+            description: `Роздрібний продаж у "${shop.name}": ${actualSold.toFixed(1)} од.${shareNote}`,
+            referenceId: shop.id, tickNumber,
+          });
+
+          // Excise tax
           const excisePerUnit = EXCISE_RATE[sku];
-          if (excisePerUnit) {
-            const hasLicense = await this.prisma.license.findFirst({
-              where: { enterpriseId: shop.id, type: 'EXCISE_LICENSE', status: 'ACTIVE' },
+          if (excisePerUnit && exciseShopIds.has(shop.id)) {
+            const excise = new Decimal(excisePerUnit).times(actualSold);
+            playerRevenue.set(shop.playerId, (playerRevenue.get(shop.playerId) ?? new Decimal(0)).minus(excise));
+            finLogs.push({
+              playerId: shop.playerId, category: 'EXPENSE_TAX', amountUah: excise.negated(),
+              description: `Акциз ${sku}: ${actualSold.toFixed(1)} × ₴${excisePerUnit}`, tickNumber,
             });
-            if (hasLicense) {
-              const excise = new Decimal(excisePerUnit).times(actualSold);
-              await this.prisma.$transaction([
-                this.prisma.player.update({ where: { id: shop.playerId }, data: { cashBalance: { decrement: excise } } }),
-                this.prisma.financialLog.create({
-                  data: { playerId: shop.playerId, category: 'EXPENSE_TAX', amountUah: excise.negated(),
-                    description: `Акциз ${sku}: ${actualSold.toFixed(1)} × ₴${excisePerUnit}`, tickNumber },
-                }),
-              ]);
-            }
           }
 
           inv.quantity = (Number(inv.quantity) - actualSold) as any;
@@ -573,6 +585,20 @@ export class MarketService {
         }
       }
     }
+
+    if (invDecrements.size === 0) return { totalSold, totalRevenue };
+
+    // ── Single batch write ────────────────────────────────────────────────
+    await this.prisma.$transaction([
+      ...Array.from(invDecrements.entries()).map(([id, qty]) =>
+        this.prisma.enterpriseInventory.update({ where: { id }, data: { quantity: { decrement: qty } } }),
+      ),
+      ...Array.from(playerRevenue.entries()).map(([id, net]) =>
+        this.prisma.player.update({ where: { id }, data: { cashBalance: { increment: net } } }),
+      ),
+      this.prisma.financialTransaction.createMany({ data: finTxns as any[] }),
+      this.prisma.financialLog.createMany({ data: finLogs as any[] }),
+    ]);
 
     return { totalSold, totalRevenue };
   }

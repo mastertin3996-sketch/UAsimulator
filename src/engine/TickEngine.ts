@@ -202,7 +202,7 @@ export class TickEngine {
     }));
     T('playerTicks');
 
-    // ── 2b-2d. Незалежні глобальні операції — паралельно ────────────────
+    // ── 2b-2d. Глобальні операції — паралельно ───────────────────────────
     const [retailSummary, supplyTransfers] = await Promise.all([
       this.market.processAllNpcSales(tickNumber)
         .catch(e => { console.error(`[Tick ${tickNumber}] Retail NPC sales failed:`, e); return null; }),
@@ -218,18 +218,18 @@ export class TickEngine {
         .catch(e => console.error(`[Tick ${tickNumber}] Syndicate votes failed:`, e)),
       this.warehouseRents.processRentals(tickNumber)
         .catch(e => console.error(`[Tick ${tickNumber}] Warehouse rentals failed:`, e)),
-      this.db.retailListing.updateMany({
-        where: { promotionActive: true, promotionEndTick: { lte: tickNumber } },
-        data:  { promotionActive: false, promotionEndTick: null },
-      }).catch(e => console.error(`[Tick ${tickNumber}] Promo expiry failed:`, e)),
-      // AGRO: погода, ф'ючерси, якість зерна — незалежні між собою
       this.agro.processLocalWeather(tickNumber)
         .catch(e => console.error(`[Tick ${tickNumber}] Agro weather failed:`, e)),
       this.agro.processForwardContracts(tickNumber)
         .catch(e => console.error(`[Tick ${tickNumber}] Forward contracts failed:`, e)),
       this.agro.processGrainQualityDegradation()
         .catch(e => console.error(`[Tick ${tickNumber}] Grain quality degradation failed:`, e)),
+      this.db.retailListing.updateMany({
+        where: { promotionActive: true, promotionEndTick: { lte: tickNumber } },
+        data:  { promotionActive: false, promotionEndTick: null },
+      }).catch(e => console.error(`[Tick ${tickNumber}] Promo expiry failed:`, e)),
     ]);
+    T('globalParallelOps');
     if (retailSummary && retailSummary.totalSold > 0) {
       console.log(`[Tick ${tickNumber}] Retail: ${retailSummary.totalSold.toFixed(0)} od. sold, ₴${retailSummary.totalRevenue.toFixed(0)} revenue.`);
     }
