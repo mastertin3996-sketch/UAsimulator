@@ -656,80 +656,84 @@ export class MarketService {
 
   async matchNpcMarketOrders(tickNumber?: bigint): Promise<number> {
     const season = Math.floor((Number(tickNumber ?? 0n) % 120) / 30);
+    const derzhpromId = await this.getDerzhpromId();
 
-    // Check for active CURRENCY_SHOCK macro event
-    const currencyShock = await this.prisma.macroEvent.findFirst({
-      where: { type: 'CURRENCY_SHOCK', status: 'ACTIVE' },
-    });
-    const shockPriceMult  = currencyShock ? 1.20 : 1.0; // NPC pays 20% more
-    const shockDemandMult = currencyShock ? 0.90 : 1.0; // 10% less volume (consumers poorer)
+    const GRAIN_SKUS   = new Set(['RM-WHEAT', 'RM-SUNFL', 'RM-SUGBEET', 'RM-CORN']);
+    const ORGANIC_SKUS = new Set(['RM-WHEAT-ORG', 'RM-CORN-ORG']);
 
-    // Aggregate total NPC demand by product across all cities
-    const demands = await this.prisma.npcDemand.groupBy({
-      by:     ['productId'],
-      _sum:   { baseUnitsPerDay: true },
-      _avg:   { referencePrice: true },
-    });
+    // ── Pre-fetch everything in parallel ─────────────────────────────────
+    const [currencyShock, demands, products, organicCertIds, allPlayerSells, allPlayers] = await Promise.all([
+      this.prisma.macroEvent.findFirst({ where: { type: 'CURRENCY_SHOCK', status: 'ACTIVE' } }),
+      this.prisma.npcDemand.groupBy({ by: ['productId'], _sum: { baseUnitsPerDay: true }, _avg: { referencePrice: true } }),
+      this.prisma.product.findMany({ select: { id: true, sku: true } }),
+      this.getOrganicCertPlayers(),
+      // Exclude ДержПром SELL orders — NPC should not buy from itself
+      this.prisma.marketOrder.findMany({
+        where: {
+          type:         'SELL',
+          status:       { in: ['OPEN', 'PARTIALLY_FILLED'] },
+          NOT:          { playerId: derzhpromId },
+        },
+        orderBy: [{ pricePerUnit: 'asc' }, { createdAt: 'asc' }],
+        select: { id: true, playerId: true, productId: true, quantityTotal: true, quantityFilled: true, pricePerUnit: true, quality: true, createdAt: true },
+      }),
+      this.prisma.player.findMany({ where: { NOT: { username: 'derzhprom' } }, select: { id: true, cashBalance: true } }),
+    ]);
 
-    // SKU map for seasonal demand lookup
-    const products = await this.prisma.product.findMany({ select: { id: true, sku: true } });
-    const skuMap   = new Map(products.map(p => [p.id, p.sku]));
+    if (allPlayerSells.length === 0) return 0;
+
+    const shockPriceMult  = currencyShock ? 1.20 : 1.0;
+    const shockDemandMult = currencyShock ? 0.90 : 1.0;
+    const skuMap          = new Map(products.map(p => [p.id, p.sku]));
+    const playerMap       = new Map(allPlayers.map(p => [p.id, new Decimal(p.cashBalance.toString())]));
+
+    // Group player SELL orders by productId
+    const sellsByProduct = new Map<string, typeof allPlayerSells>();
+    for (const s of allPlayerSells) {
+      if (!sellsByProduct.has(s.productId)) sellsByProduct.set(s.productId, []);
+      sellsByProduct.get(s.productId)!.push(s);
+    }
 
     let totalTraded = 0;
 
+    // Accumulators for batch writes
+    type OrderUpdate = { id: string; quantityFilled: number; status: string; isFilled: boolean };
+    type InvUpdate   = { playerId: string; productId: string; qty: number };
+    const orderUpdates: OrderUpdate[] = [];
+    const invUpdates:   InvUpdate[]   = [];
+    const finTxns: any[] = [];
+    const notifications: { playerId: string; body: string; price: number }[] = [];
+
     for (const d of demands) {
-      const baseDemand = d._sum.baseUnitsPerDay ?? 0;
-      const sku        = skuMap.get(d.productId) ?? '';
-      const seasonMult = MarketService.SEASONAL_NPC_DEMAND[sku]?.[season] ?? 1.0;
-      const totalDemand = baseDemand * seasonMult * shockDemandMult;
-      const baseRefPrice = new Decimal(String(d._avg.referencePrice ?? 0));
-      const refPrice     = baseRefPrice.times(shockPriceMult);
+      const sells = sellsByProduct.get(d.productId);
+      if (!sells || sells.length === 0) continue;
+
+      const sku          = skuMap.get(d.productId) ?? '';
+      const seasonMult   = MarketService.SEASONAL_NPC_DEMAND[sku]?.[season] ?? 1.0;
+      const totalDemand  = (d._sum.baseUnitsPerDay ?? 0) * seasonMult * shockDemandMult;
+      const refPrice     = new Decimal(String(d._avg.referencePrice ?? 0)).times(shockPriceMult);
       if (totalDemand <= 0 || refPrice.lte(0)) continue;
 
-      // Quality-tiered pricing for grain: high-quality grain can sell above referencePrice
-      const GRAIN_SKUS   = new Set(['RM-WHEAT', 'RM-SUNFL', 'RM-SUGBEET', 'RM-CORN']);
-      const ORGANIC_SKUS = new Set(['RM-WHEAT-ORG', 'RM-CORN-ORG']);
       const isGrain      = GRAIN_SKUS.has(sku);
       const isOrganic    = ORGANIC_SKUS.has(sku);
-      // Organic products trade at up to 1.8× reference price (NPC premium)
       const maxPrice     = isOrganic ? refPrice.times(1.8) : isGrain ? refPrice.times(1.3) : refPrice;
-
-      // For grain SKUs: find players with ORGANIC_CERT + soilQuality ≥ 8 who get ×1.35 premium
-      const organicCertPlayerIds = isGrain ? await this.getOrganicCertPlayers() : new Set<string>();
-
-      // Find cheapest SELL orders at or below quality-adjusted ceiling
-      // Use 1.35× ceiling to include organic cert sellers in the initial fetch
       const fetchCeiling = isGrain ? maxPrice.times(1.35) : maxPrice;
-      const sells = await this.prisma.marketOrder.findMany({
-        where: {
-          productId:    d.productId,
-          type:         'SELL',
-          status:       { in: ['OPEN', 'PARTIALLY_FILLED'] },
-          pricePerUnit: { lte: fetchCeiling },
-        },
-        orderBy: [{ pricePerUnit: 'asc' }, { createdAt: 'asc' }],
-        take: 20,
-        select: {
-          id: true, playerId: true, quantityTotal: true, quantityFilled: true,
-          pricePerUnit: true, quality: true, createdAt: true,
-        },
-      });
 
       let remaining = totalDemand;
 
       for (const sell of sells) {
         if (remaining <= 0.001) break;
 
-        // Organic cert premium: seller with ORGANIC_CERT + soilQuality ≥ 8 gets ×1.35 ceiling
-        const hasOrganicCert = organicCertPlayerIds.has(sell.playerId);
-        const effectiveCeiling = hasOrganicCert ? maxPrice.times(1.35) : maxPrice;
         const sellPrice = new Decimal(sell.pricePerUnit.toString());
+        if (sellPrice.gt(fetchCeiling)) continue;
+
+        const hasOrganicCert   = organicCertIds.has(sell.playerId);
+        const effectiveCeiling = hasOrganicCert ? maxPrice.times(1.35) : maxPrice;
         if (sellPrice.gt(effectiveCeiling)) continue;
 
-        // For grain: NPC pays premium for quality ≥8, discount for quality <5
         if (isGrain) {
           const q = sell.quality ?? 5.0;
-          const qualityMax = hasOrganicCert ? refPrice.times(1.35) : refPrice.times(1.3);
+          const qualityMax     = hasOrganicCert ? refPrice.times(1.35) : refPrice.times(1.3);
           const qualityCeiling = q >= 8.0 ? qualityMax : q < 5.0 ? refPrice.times(0.8) : refPrice;
           if (sellPrice.gt(qualityCeiling)) continue;
         }
@@ -738,73 +742,51 @@ export class MarketService {
         const tradeQty   = Math.min(available, remaining);
         if (tradeQty <= 0.001) continue;
 
-        const price      = new Decimal(sell.pricePerUnit.toString());
-        const tradeValue = price.times(tradeQty);
+        const tradeValue = sellPrice.times(tradeQty);
+        const newFilled  = sell.quantityFilled + tradeQty;
+        const isFilled   = newFilled >= sell.quantityTotal - 0.001;
 
-        // Credit seller
-        const seller = await this.prisma.player.findUnique({
-          where:  { id: sell.playerId },
-          select: { cashBalance: true },
+        // Update in-memory balance
+        const curBal = playerMap.get(sell.playerId) ?? new Decimal(0);
+        const newBal = curBal.plus(tradeValue);
+        playerMap.set(sell.playerId, newBal);
+
+        orderUpdates.push({ id: sell.id, quantityFilled: newFilled, status: isFilled ? 'FILLED' : 'PARTIALLY_FILLED', isFilled });
+        invUpdates.push({ playerId: sell.playerId, productId: d.productId, qty: tradeQty });
+        (finTxns as any[]).push({
+          playerId: sell.playerId, type: 'NPC_SALE', amountUah: tradeValue,
+          balanceBefore: curBal, balanceAfter: newBal,
+          description: `NPC купівля: ${tradeQty.toFixed(1)} × ${sku} @ ₴${sellPrice.toFixed(0)}/od.`,
+          referenceId: sell.id,
         });
-        if (!seller) continue;
+        if (isFilled) notifications.push({ playerId: sell.playerId, body: `NPC викупив ${tradeQty.toFixed(0)} od. @ ₴${sellPrice.toFixed(0)}/od.`, price: sellPrice.toNumber() });
 
-        const sellerBal      = new Decimal(seller.cashBalance.toString());
-        const sellerBalAfter = sellerBal.plus(tradeValue);
-        const newFilled      = sell.quantityFilled + tradeQty;
-        const isFilled       = newFilled >= sell.quantityTotal - 0.001;
-
-        await this.prisma.$transaction(async (tx) => {
-          // Update sell order
-          await tx.marketOrder.update({
-            where: { id: sell.id },
-            data: {
-              quantityFilled: newFilled,
-              status:   isFilled ? 'FILLED' : 'PARTIALLY_FILLED',
-              filledAt: isFilled ? new Date() : null,
-            },
-          });
-
-          // Decrement seller's player inventory escrow
-          await tx.playerInventory.updateMany({
-            where: { playerId: sell.playerId, productId: d.productId },
-            data:  { quantity: { decrement: tradeQty } },
-          });
-
-          // Credit seller balance + transaction record
-          await tx.player.update({
-            where: { id: sell.playerId },
-            data:  { cashBalance: sellerBalAfter },
-          });
-          await tx.financialTransaction.create({
-            data: {
-              playerId:      sell.playerId,
-              type:          'NPC_SALE',
-              amountUah:     tradeValue,
-              balanceBefore: sellerBal,
-              balanceAfter:  sellerBalAfter,
-              description:   `NPC купівля: ${tradeQty.toFixed(1)} од. @ ₴${price.toFixed(0)}/од.`,
-              referenceId:   sell.id,
-            },
-          });
-
-          // Notification if fully filled
-          if (isFilled) {
-            await tx.notification.create({
-              data: {
-                playerId: sell.playerId,
-                type:     'ORDER_FILLED',
-                title:    'Ордер виконано',
-                body:     `NPC викупив ${tradeQty.toFixed(0)} од. @ ₴${price.toFixed(0)}/од.`,
-                entityId: null,
-              },
-            }).catch(() => {});
-          }
-        });
-
+        sell.quantityFilled = newFilled; // update in-memory for subsequent passes
         remaining   -= tradeQty;
         totalTraded += tradeQty;
       }
     }
+
+    if (orderUpdates.length === 0) return 0;
+
+    const now = new Date();
+    await this.prisma.$transaction([
+      ...orderUpdates.map(o => this.prisma.marketOrder.update({
+        where: { id: o.id },
+        data: { quantityFilled: o.quantityFilled, status: o.status as any, filledAt: o.isFilled ? now : null },
+      })),
+      ...invUpdates.map(u => this.prisma.playerInventory.updateMany({
+        where: { playerId: u.playerId, productId: u.productId },
+        data:  { quantity: { decrement: u.qty } },
+      })),
+      ...Array.from(playerMap.entries())
+        .filter(([id]) => allPlayers.some(p => p.id === id))
+        .map(([id, bal]) => this.prisma.player.update({ where: { id }, data: { cashBalance: bal } })),
+      this.prisma.financialTransaction.createMany({ data: finTxns as any[] }),
+      ...notifications.map(n => this.prisma.notification.create({
+        data: { playerId: n.playerId, type: 'ORDER_FILLED', title: 'Ордер виконано', body: n.body, entityId: null },
+      })),
+    ]);
 
     return totalTraded;
   }
@@ -820,48 +802,52 @@ export class MarketService {
    *  - Обмеження: не більше ±4% за тік; абсолютний поріг ≥1 UAH
    */
   async updateNpcMarketPrices(): Promise<void> {
-    const demands = await this.prisma.npcDemand.groupBy({
-      by:   ['productId'],
-      _sum: { baseUnitsPerDay: true },
-      _avg: { referencePrice: true },
-    });
+    // Batch fetch: demands + all SELL order supply grouped by product (excluding ДержПром)
+    const derzhpromId = await this.getDerzhpromId();
+    const [demands, supplyGroups] = await Promise.all([
+      this.prisma.npcDemand.groupBy({ by: ['productId'], _sum: { baseUnitsPerDay: true }, _avg: { referencePrice: true } }),
+      this.prisma.marketOrder.groupBy({
+        by:    ['productId'],
+        _sum:  { quantityTotal: true },
+        where: { type: 'SELL', status: { in: ['OPEN', 'PARTIALLY_FILLED'] }, NOT: { playerId: derzhpromId } },
+      }),
+    ]);
 
+    const supplyMap = new Map(supplyGroups.map(s => [s.productId, Number(s._sum.quantityTotal ?? 0)]));
+
+    const updates: { productId: string; newRef: number }[] = [];
     for (const d of demands) {
       const totalDemand = d._sum.baseUnitsPerDay ?? 0;
       const currentRef  = Number(d._avg.referencePrice ?? 0);
       if (totalDemand <= 0 || currentRef <= 0) continue;
 
-      // Кількість пропозиції на ринку за поточною NPC ціною
-      const supplyAgg = await this.prisma.marketOrder.aggregate({
-        where: {
-          productId:    d.productId,
-          type:         'SELL',
-          status:       { in: ['OPEN', 'PARTIALLY_FILLED'] },
-          pricePerUnit: { lte: currentRef },
-        },
-        _sum: { quantityTotal: true },
-      });
-      const supply    = Number(supplyAgg._sum.quantityTotal ?? 0);
+      // Supply: player SELL orders at or below refPrice (approximated by total supply)
+      const supply    = supplyMap.get(d.productId) ?? 0;
       const fillRatio = supply / totalDemand;
 
       let drift: number;
-      if      (fillRatio > 1.5) drift = -0.015;                // надлишок → ціна падає
-      else if (fillRatio > 0.8) drift = -0.003;                // помірне забезпечення
-      else if (fillRatio < 0.2) drift = +0.025;                // гострий дефіцит
-      else if (fillRatio < 0.4) drift = +0.012;                // недозабезпечення
-      else                       drift = 0;                     // рівновага
+      if      (fillRatio > 1.5) drift = -0.015;
+      else if (fillRatio > 0.8) drift = -0.003;
+      else if (fillRatio < 0.2) drift = +0.025;
+      else if (fillRatio < 0.4) drift = +0.012;
+      else                       drift = 0;
 
-      // Невеликий випадковий шум ±0.5%
       const noise     = (Math.random() - 0.5) * 0.01;
       const pctChange = Math.max(-0.04, Math.min(0.04, drift + noise));
       const newRef    = Math.max(1, currentRef * (1 + pctChange));
 
-      if (Math.abs(newRef - currentRef) < 0.001) continue;
+      if (Math.abs(newRef - currentRef) >= 0.001) {
+        updates.push({ productId: d.productId, newRef });
+      }
+    }
 
-      await this.prisma.npcDemand.updateMany({
-        where: { productId: d.productId },
-        data:  { referencePrice: +newRef.toFixed(4) },
-      });
+    if (updates.length > 0) {
+      await this.prisma.$transaction(
+        updates.map(u => this.prisma.npcDemand.updateMany({
+          where: { productId: u.productId },
+          data:  { referencePrice: +u.newRef.toFixed(4) },
+        })),
+      );
     }
   }
 
