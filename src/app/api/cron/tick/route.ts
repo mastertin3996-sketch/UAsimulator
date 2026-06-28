@@ -17,6 +17,7 @@ export async function GET(req: NextRequest) {
       tickNumber: summary.tickNumber.toString(),
       durationMs: Date.now() - start,
       errors:     summary.errors,
+      timings:    summary.timings,
     });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Unknown error";
