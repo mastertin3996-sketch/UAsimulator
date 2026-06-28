@@ -259,7 +259,9 @@ export default function BankingPage() {
   const [loanModal,    setLoanModal]    = useState(false);
   const [depositModal, setDepositModal] = useState(false);
   const [termParam, setTermParam]       = useState(12);
-  const [repaying, setRepaying]         = useState<string | null>(null);
+  const [repaying,   setRepaying]   = useState<string | null>(null);
+  const [paying,     setPaying]     = useState<string | null>(null);
+  const [payMsg,     setPayMsg]     = useState<Record<string, string>>({});
 
   const load = useCallback(() => {
     setLoading(true);
@@ -279,6 +281,24 @@ export default function BankingPage() {
     setRepaying(null);
     if (!res.ok) { alert(d.error ?? "Помилка"); return; }
     load();
+  }
+
+  async function payInstallment(id: string, monthlyPayment: number) {
+    setPaying(id);
+    setPayMsg(m => ({ ...m, [id]: "" }));
+    const res = await fetch("/api/banking/loan", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+    const d = await res.json();
+    setPaying(null);
+    if (res.ok) {
+      setPayMsg(m => ({ ...m, [id]: `✓ Сплачено ${formatUAH(d.paid)}` }));
+      load();
+    } else {
+      setPayMsg(m => ({ ...m, [id]: `✗ ${d.error}` }));
+    }
   }
 
   if (loading) {
@@ -480,7 +500,18 @@ export default function BankingPage() {
                     <span>{l.paidMonths} / {l.termMonths} місяців</span>
                     {l.missedPayments > 0 && <span className="text-red-400">{l.missedPayments} пропущених</span>}
                   </div>
-                  <div className="flex justify-end pt-1">
+                  {payMsg[l.id] && (
+                    <p className={`text-xs ${payMsg[l.id].startsWith("✓") ? "text-emerald-400" : "text-red-400"}`}>{payMsg[l.id]}</p>
+                  )}
+                  <div className="flex items-center justify-between pt-1 gap-2">
+                    <button
+                      onClick={() => payInstallment(l.id, l.monthlyPaymentUah)}
+                      disabled={paying === l.id || l.status === "PAID_OFF"}
+                      className="flex items-center gap-1.5 text-xs font-medium bg-emerald-700 hover:bg-emerald-600 disabled:opacity-40 text-white rounded-lg px-3 py-1.5 transition-colors"
+                    >
+                      {paying === l.id ? <Loader2 size={11} className="animate-spin" /> : null}
+                      Сплатити {formatUAH(l.monthlyPaymentUah)}
+                    </button>
                     <button
                       onClick={() => repayLoan(l.id, l.remainingUah)}
                       disabled={repaying === l.id}

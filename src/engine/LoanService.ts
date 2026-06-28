@@ -197,6 +197,78 @@ export class LoanService {
     }
   }
 
+  async payInstallment(loanId: string, playerId: string, currentTick: bigint): Promise<{ paid: number }> {
+    const loan = await this.prisma.loan.findUnique({ where: { id: loanId } });
+    if (!loan)                   throw new Error('Кредит не знайдено');
+    if (loan.playerId !== playerId) throw new Error('Доступ заборонено');
+    if (loan.status === 'PAID_OFF') throw new Error('Кредит вже погашено');
+
+    const remaining  = new Decimal(loan.remainingUah.toString());
+    const monthlyRate = loan.annualInterestPct / 100 / 12;
+    const rawPayment  = new Decimal(loan.monthlyPaymentUah.toString());
+    const interestPart = remaining.times(monthlyRate);
+    const isLast = loan.paidMonths + 1 >= loan.termMonths;
+    const totalPayment = isLast
+      ? remaining.plus(interestPart)
+      : Decimal.min(rawPayment, remaining.plus(interestPart));
+
+    const player  = await this.prisma.player.findUniqueOrThrow({ where: { id: playerId }, select: { cashBalance: true } });
+    const balance = new Decimal(player.cashBalance.toString());
+    if (balance.lessThan(totalPayment)) {
+      throw new Error(`Недостатньо коштів: потрібно ₴${totalPayment.toFixed(2)}, є ₴${balance.toFixed(2)}`);
+    }
+
+    const principalPart = totalPayment.minus(interestPart);
+    const newRemaining  = Decimal.max(new Decimal(0), remaining.minus(principalPart));
+    const isNowPaidOff  = newRemaining.lessThan(new Decimal('0.01'));
+    const nextTick      = isNowPaidOff ? loan.nextPaymentTick : currentTick + BigInt(30);
+
+    const balanceAfter = balance.minus(totalPayment);
+
+    await this.prisma.$transaction([
+      this.prisma.loan.update({
+        where: { id: loanId },
+        data: {
+          remainingUah:    newRemaining,
+          paidMonths:      { increment: 1 },
+          missedPayments:  0,
+          status:          isNowPaidOff ? 'PAID_OFF' : 'ACTIVE',
+          nextPaymentTick: nextTick,
+          fullyPaidAt:     isNowPaidOff ? new Date() : undefined,
+        },
+      }),
+      this.prisma.loanPayment.create({
+        data: {
+          loanId,
+          totalUah:     totalPayment,
+          principalUah: principalPart,
+          interestUah:  interestPart,
+          wasOnTime:    true,
+        },
+      }),
+      this.prisma.player.update({
+        where: { id: playerId },
+        data:  { cashBalance: { decrement: totalPayment } },
+      }),
+      this.prisma.financialTransaction.create({
+        data: {
+          playerId,
+          type:          'LOAN_REPAYMENT',
+          amountUah:     totalPayment.negated(),
+          balanceBefore: balance,
+          balanceAfter,
+          description:   `Черговий платіж: тіло ₴${principalPart.toFixed(0)} + % ₴${interestPart.toFixed(0)}${isNowPaidOff ? ' | ПОГАШЕНО' : ''}`,
+          referenceId:   loanId,
+        },
+      }),
+    ]);
+
+    if (isNowPaidOff) await this.adjustCreditRating(playerId, RATING_DELTA.PAID_OFF);
+    else              await this.adjustCreditRating(playerId, RATING_DELTA.ON_TIME_PAY);
+
+    return { paid: totalPayment.toNumber() };
+  }
+
   /**
    * Перевіряє всі активні кредити на прострочення.
    * Викликається щотікового циклу.
