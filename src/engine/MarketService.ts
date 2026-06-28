@@ -982,11 +982,22 @@ export class MarketService {
       select: { id: true },
     });
 
-    const NPC_SELL_SKUS = [
-      'RM-WHEAT', 'RM-CORN', 'RM-SUNFL', 'RM-SUGBEET',
-      'SF-FLOUR', 'SF-SUGAR', 'SF-STEEL', 'SF-LUMBER', 'SF-OIL',
-      'AG-FERTILIZER', 'RM-PESTICIDE',
-    ];
+    // Базові ціни (UAH/т або UAH/од) для сировини та напівфабрикатів
+    // яких немає в NpcDemand (де тільки FG/CM)
+    const FALLBACK_PRICES: Record<string, number> = {
+      'RM-WHEAT':     3_800,
+      'RM-CORN':      3_200,
+      'RM-SUNFL':     6_500,
+      'RM-SUGBEET':   1_400,
+      'SF-FLOUR':     8_500,
+      'SF-SUGAR':    15_000,
+      'SF-STEEL':    42_000,
+      'SF-LUMBER':   12_000,
+      'SF-OIL':      28_000,
+      'AG-FERTILIZER': 9_000,
+      'RM-PESTICIDE':  4_500,
+    };
+    const NPC_SELL_SKUS = Object.keys(FALLBACK_PRICES);
 
     // Скасувати старі NPC sell-ордери
     await this.prisma.marketOrder.updateMany({
@@ -1015,7 +1026,7 @@ export class MarketService {
     let created = 0;
 
     for (const product of products) {
-      const ref = priceMap.get(product.id) ?? 0;
+      const ref = priceMap.get(product.id) ?? FALLBACK_PRICES[product.sku] ?? 0;
       if (ref === 0) continue;
       const price = +(ref * 1.05).toFixed(2);
       const qty   = Math.round(300 + Math.random() * 1200);
