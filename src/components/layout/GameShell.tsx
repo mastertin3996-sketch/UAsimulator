@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from "react";
 import Sidebar from "./Sidebar";
 import TopBar from "./TopBar";
 import CommandPalette from "./CommandPalette";
+import TutorialModal from "./TutorialModal";
 
 interface GameShellProps {
   children: React.ReactNode;
@@ -106,6 +107,7 @@ export default function GameShell({ children, cashBalance: initCash, balanceUsd:
       />
 
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+      <TutorialModal />
 
       <main className="lg:ml-60 pt-14 min-h-screen">
         <div className="p-4 lg:p-6">{children}</div>
