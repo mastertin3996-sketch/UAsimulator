@@ -962,7 +962,15 @@ function WorkshopsTab({
               else if (lastCrop && ROTATION_NEXT_UI[lastCrop] === cropSku) rotStatus = 'optimal';
               else rotStatus = 'neutral';
             }
-            const hasHarvest = w.harvestAccumulated >= 0.1 && isField;
+            const hasHarvest    = w.harvestAccumulated >= 0.1 && isField;
+            const agros         = enterprise.employees.filter(e => e.profession === "AGRONOMIST").length;
+            const agronMult     = 1 + Math.min(agros, 2) * 0.08;
+            const hasIrrigation = w.equipment.some(eq =>
+              eq.name?.includes("EQ-IRRIGATION") || eq.nameUa?.toLowerCase().includes("зрошен")
+            );
+            const weatherMod    = enterprise.localWeatherMod ?? 1.0;
+            const weatherDesc   = enterprise.localWeatherDesc ?? null;
+            const soilTrend     = fertLeft > 0 ? "up" : soilQ <= 5 ? "down" : "stable";
 
             return (
               <div key={w.id} className="rounded-xl border border-gray-800 bg-gray-900 overflow-hidden">
@@ -1000,6 +1008,9 @@ function WorkshopsTab({
                       {fertLeft > 0
                         ? <p className="text-[9px] text-emerald-400">🌱 +20% добриво · {Math.ceil(fertLeft / 30)} сез</p>
                         : <p className="text-[9px] text-gray-600">Без добрива</p>}
+                      <p className={cn("text-[9px]", soilTrend === "up" ? "text-emerald-500" : soilTrend === "down" ? "text-red-400" : "text-gray-600")}>
+                        {soilTrend === "up" ? "↑ покращується (+0.2/сез)" : soilTrend === "down" ? "↓ спадає (−0.1/сез)" : "→ стабільний"}
+                      </p>
                       {pestDmg < 1.0 && <p className="text-[9px] text-red-400">🐛 Шкідники −{Math.round((1 - pestDmg) * 100)}%</p>}
                     </div>
                     <div className="rounded bg-gray-800/50 px-2 py-1.5 space-y-1">
@@ -1010,6 +1021,12 @@ function WorkshopsTab({
                       {rotStatus === 'optimal' && <p className="text-[9px] text-emerald-400">✓ Ротація +15%</p>}
                       {rotStatus === 'mono'    && <p className="text-[9px] text-red-400">✗ Монокультура −15%</p>}
                       {rotStatus === 'neutral' && lastCrop && <p className="text-[9px] text-gray-500">Рек.: {SKU_EMOJI[ROTATION_NEXT_UI[lastCrop] ?? ''] ?? ''} {ROTATION_NEXT_UI[lastCrop]}</p>}
+                      {hasIrrigation
+                        ? <p className="text-[9px] text-blue-400">💧 Зрошення: посуха −35% (не −60%)</p>
+                        : <p className="text-[9px] text-gray-600">Без зрошення</p>}
+                      {weatherDesc && weatherMod < 1.0 && (
+                        <p className="text-[9px] text-orange-400">⛈ {weatherDesc} ×{Math.round(weatherMod * 100)}%</p>
+                      )}
                     </div>
                   </div>
 
@@ -1026,9 +1043,13 @@ function WorkshopsTab({
                           <span className="text-gray-600">×</span>
                           <span className="text-emerald-400">техніка ×{machMult.toFixed(2)}</span>
                         </>}
+                        {agros > 0 && <>
+                          <span className="text-gray-600">×</span>
+                          <span className="text-emerald-300">👨‍🌾×{Math.min(agros,2)} агрон. ×{agronMult.toFixed(2)}</span>
+                        </>}
                         <span className="text-gray-600">=</span>
                         <span className={cn("font-semibold", estYield > 0 ? "text-white" : "text-red-400")}>
-                          {estYield > 0 ? `~${estYield.toFixed(1)}/тік` : "0 — позасезонно"}
+                          {estYield > 0 ? `~${(estYield * agronMult).toFixed(1)}/тік` : "0 — позасезонно"}
                         </span>
                       </div>
                       {activeMach.length > 0 && (
@@ -1041,6 +1062,8 @@ function WorkshopsTab({
                         </div>
                       )}
                       {activeMach.length === 0 && <p className="text-[9px] text-amber-600">⚠ Немає активної техніки — додайте у вкладці Техніка</p>}
+                      {agros === 0 && isField && <p className="text-[9px] text-amber-600">⚠ Без агронома — можна +8–16% (найміть у вкладці Персонал)</p>}
+                      {agros > 2 && <p className="text-[9px] text-gray-500">ℹ 2+ агрономи — бонус обмежено +16%</p>}
                     </div>
                   )}
 
