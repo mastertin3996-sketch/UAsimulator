@@ -14,9 +14,15 @@ export async function GET(_req: NextRequest, { params }: Params) {
   const enterprise = await prisma.enterprise.findFirst({
     where: { id: enterpriseId, playerId },
     select: {
-      type: true,
+      type:             true,
+      totalFloorAreaM2: true,
       landPlot: { select: { city: { select: { id: true, nameUa: true } } } },
-      inventory: { select: { productId: true, quantity: true, avgQuality: true } },
+      inventory: {
+        select: {
+          productId: true, quantity: true, avgQuality: true,
+          product: { select: { baseWeightKg: true } },
+        },
+      },
       retailListings: { select: { productId: true, pricePerUnit: true, isActive: true } },
     },
   });
@@ -34,6 +40,10 @@ export async function GET(_req: NextRequest, { params }: Params) {
       product: { select: { id: true, sku: true, nameUa: true, unit: true } },
     },
   });
+
+  const KG_PER_M2  = 100;
+  const capacityKg = enterprise.totalFloorAreaM2 * KG_PER_M2;
+  const usedKg     = enterprise.inventory.reduce((sum, i) => sum + Number(i.quantity) * (i.product.baseWeightKg ?? 1), 0);
 
   const invMap     = new Map(enterprise.inventory.map(i => [i.productId, { quantity: Number(i.quantity), avgQuality: i.avgQuality }]));
   const listingMap = new Map(enterprise.retailListings.map(l => [l.productId, { price: Number(l.pricePerUnit), isActive: l.isActive }]));
@@ -64,7 +74,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
     };
   });
 
-  return NextResponse.json({ cityName: enterprise.landPlot.city.nameUa, items });
+  return NextResponse.json({ cityName: enterprise.landPlot.city.nameUa, items, capacityKg, usedKg: +usedKg.toFixed(1) });
 }
 
 // PATCH — встановити ціну / активувати продаж

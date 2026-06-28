@@ -839,7 +839,8 @@ export class TickEngine {
     const routes = await this.db.supplyRoute.findMany({
       where:  { isActive: true },
       select: { id: true, sourceEnterpriseId: true, targetEnterpriseId: true, productId: true, qtyPerTick: true,
-                sourceEnterprise: { select: { playerId: true } } },
+                sourceEnterprise: { select: { playerId: true } },
+                targetEnterprise: { select: { type: true, totalFloorAreaM2: true } } },
     });
     if (routes.length === 0) return 0;
 
@@ -862,13 +863,50 @@ export class TickEngine {
       srcInventories.map((inv) => [`${inv.enterpriseId}:${inv.productId}`, inv]),
     );
 
+    // Для RETAIL_STORE — ємність 100 кг/м²; потрібні ваги продуктів
+    const retailTargetIds = new Set(
+      routes.filter(r => r.targetEnterprise.type === 'RETAIL_STORE').map(r => r.targetEnterpriseId)
+    );
+    const productIds = [...new Set(routes.map(r => r.productId))];
+    const productWeights = retailTargetIds.size > 0
+      ? await this.db.product.findMany({ where: { id: { in: productIds } }, select: { id: true, baseWeightKg: true } })
+      : [];
+    const weightMap = new Map(productWeights.map(p => [p.id, p.baseWeightKg ?? 1]));
+
+    // Поточне завантаження кожного retail-магазину (кг)
+    const retailCurrentKgMap = new Map<string, number>();
+    if (retailTargetIds.size > 0) {
+      const allRetailInv = await this.db.enterpriseInventory.findMany({
+        where: { enterpriseId: { in: [...retailTargetIds] } },
+        select: { enterpriseId: true, productId: true, quantity: true,
+                  product: { select: { baseWeightKg: true } } },
+      });
+      for (const inv of allRetailInv) {
+        const kg = Number(inv.quantity) * (inv.product.baseWeightKg ?? 1);
+        retailCurrentKgMap.set(inv.enterpriseId, (retailCurrentKgMap.get(inv.enterpriseId) ?? 0) + kg);
+      }
+    }
+
     let transfers = 0;
     for (const route of routes) {
       const srcInv = invMap.get(`${route.sourceEnterpriseId}:${route.productId}`);
       const hubBonus = logisticsPlayerIds.has(route.sourceEnterprise.playerId) ? 1.5 : 1.0;
-      const qty     = route.qtyPerTick * hubBonus;
+      let qty        = route.qtyPerTick * hubBonus;
       if (!srcInv || Number(srcInv.quantity) < qty) continue;
       const quality = Number(srcInv.avgQuality);
+
+      // ── Перевірка ємності RETAIL_STORE ──────────────────────────────────
+      if (route.targetEnterprise.type === 'RETAIL_STORE') {
+        const capacityKg  = route.targetEnterprise.totalFloorAreaM2 * 100;
+        const usedKg      = retailCurrentKgMap.get(route.targetEnterpriseId) ?? 0;
+        const remainingKg = capacityKg - usedKg;
+        const kgPerUnit   = weightMap.get(route.productId) ?? 1;
+        const maxUnits    = Math.floor(remainingKg / kgPerUnit);
+        if (maxUnits <= 0) continue; // магазин переповнений
+        qty = Math.min(qty, maxUnits);
+        // Оновити поточне завантаження для наступних маршрутів того ж магазину
+        retailCurrentKgMap.set(route.targetEnterpriseId, usedKg + qty * kgPerUnit);
+      }
 
       await this.db.$transaction([
         this.db.enterpriseInventory.update({

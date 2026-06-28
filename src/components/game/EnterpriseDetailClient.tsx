@@ -1262,7 +1262,7 @@ interface ShowcaseItem {
 }
 
 function ShowcaseTab({ enterpriseId, onGoToSupply }: { enterpriseId: string; onGoToSupply: () => void }) {
-  const [data,     setData]     = useState<{ cityName: string; items: ShowcaseItem[] } | null>(null);
+  const [data,     setData]     = useState<{ cityName: string; items: ShowcaseItem[]; capacityKg: number; usedKg: number } | null>(null);
   const [loading,  setLoading]  = useState(true);
   const [selected, setSelected] = useState<ShowcaseItem | null>(null);
   const [priceInput, setPriceInput] = useState("");
@@ -1311,12 +1311,31 @@ function ShowcaseTab({ enterpriseId, onGoToSupply }: { enterpriseId: string; onG
   const revenue      = selected ? demand * previewPrice : 0;
   const refRevenue   = selected ? selected.baseUnitsPerDay * selected.referencePrice : 0;
 
+  const capPct = data.capacityKg > 0 ? Math.min(100, (data.usedKg / data.capacityKg) * 100) : 0;
+  const capColor = capPct >= 95 ? "bg-red-500" : capPct >= 75 ? "bg-amber-500" : "bg-emerald-500";
+
   return (
     <div className="space-y-4">
       <p className="text-sm text-gray-500">
         Товари з NPC-попитом у <span className="text-white font-medium">{data.cityName}</span>.
         Виставте ціну — попит змінюється відповідно до еластичності.
       </p>
+
+      {/* Ємність магазину */}
+      <div className="bg-gray-900 border border-gray-800 rounded-xl px-4 py-3 space-y-1.5">
+        <div className="flex items-center justify-between text-xs text-gray-400">
+          <span>Ємність магазину (100 кг/м²)</span>
+          <span className={capPct >= 95 ? "text-red-400 font-semibold" : "text-white"}>
+            {data.usedKg.toLocaleString("uk", { maximumFractionDigits: 0 })} / {data.capacityKg.toLocaleString("uk", { maximumFractionDigits: 0 })} кг
+          </span>
+        </div>
+        <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
+          <div className={cn("h-full rounded-full transition-all", capColor)} style={{ width: `${capPct}%` }} />
+        </div>
+        {capPct >= 95 && (
+          <p className="text-xs text-red-400">Магазин переповнений — нові поставки блокуються</p>
+        )}
+      </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
         {data.items.map(item => (
