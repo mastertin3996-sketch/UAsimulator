@@ -2629,20 +2629,301 @@ function LivestockTab({ enterpriseId }: { enterpriseId: string }) {
   );
 }
 
-const BASE_TABS: { key: Tab; label: string }[] = [
-  { key: "management", label: "Загальне" },
-  { key: "workshops",  label: "Цехи" },
-  { key: "expand",     label: "🔧 Розширення" },
-  { key: "staff",      label: "👥 Персонал" },
-  { key: "hr",         label: "HR" },
-  { key: "warehouse",  label: "Склад" },
-  { key: "supply",     label: "Постачання" },
-  { key: "production", label: "Фінанси" },
-  // "fields" is injected dynamically for AGRO_FARM
-];
+// ─── TeamColumn (compact staff panel for 3-col layout) ────────────────────────
+
+function TeamColumn({
+  enterprise, stats, onRefresh,
+}: {
+  enterprise: EnterpriseData;
+  stats: { salaryPerTick: number; avgEfficiency: number; avgMood: number };
+  onRefresh: () => void;
+}) {
+  const [hireModal, setHireModal] = useState(false);
+  const [firing,    setFiring]    = useState<string | null>(null);
+  const [settling,  setSettling]  = useState(false);
+
+  const employees = enterprise.employees;
+  const onStrike  = employees.filter(e => e.isOnStrike);
+
+  async function fireEmployee(id: string) {
+    if (!confirm("Звільнити?")) return;
+    setFiring(id);
+    await fetch(`/api/enterprises/${enterprise.id}/hire`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ employeeId: id }),
+    });
+    setFiring(null);
+    onRefresh();
+  }
+
+  async function settleStrikes() {
+    setSettling(true);
+    await fetch(`/api/enterprises/${enterprise.id}/hr`, {
+      method:  "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ action: "resolveStrike" }),
+    });
+    setSettling(false);
+    onRefresh();
+  }
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="flex items-center justify-between px-3 py-2.5 border-b border-gray-800 bg-gray-900/50 sticky top-0 z-10">
+        <span className="text-[11px] font-semibold text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
+          <Users size={12} /> Команда · {employees.length}
+        </span>
+        <button onClick={() => setHireModal(true)} className="text-[11px] text-emerald-500 hover:text-emerald-400 transition-colors">
+          + Найняти
+        </button>
+      </div>
+
+      {onStrike.length > 0 && (
+        <div className="mx-2 mt-2 rounded-lg border border-red-800/40 bg-red-950/10 px-3 py-2 text-[11px] text-red-400 flex items-center gap-2">
+          <AlertCircle size={11} />
+          <span className="flex-1">{onStrike.length} на страйку</span>
+          <button onClick={settleStrikes} disabled={settling}
+            className="text-[10px] text-red-300 hover:text-red-200 bg-red-900/40 rounded px-2 py-0.5">
+            {settling ? "…" : "Врегулювати"}
+          </button>
+        </div>
+      )}
+
+      <div className="flex-1 overflow-y-auto">
+        {employees.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-32 text-gray-600">
+            <Users size={20} className="mb-2" />
+            <p className="text-xs">Немає персоналу</p>
+          </div>
+        ) : employees.map(emp => {
+          const moodPct = Math.round(emp.mood * 100);
+          const moodBg  = moodPct >= 70 ? "bg-emerald-500" : moodPct >= 40 ? "bg-amber-500" : "bg-red-500";
+          const moodTxt = moodPct >= 70 ? "text-emerald-400" : moodPct >= 40 ? "text-amber-400" : "text-red-400";
+          const dotBg   = emp.isOnStrike ? "bg-red-400 animate-pulse" : moodPct >= 70 ? "bg-emerald-400" : moodPct >= 40 ? "bg-amber-400" : "bg-red-400";
+          return (
+            <div key={emp.id} className={cn(
+              "px-3 py-2.5 border-b border-gray-800/60 hover:bg-gray-800/20 transition-colors",
+              emp.isOnStrike ? "bg-red-950/10" : "",
+            )}>
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", dotBg)} />
+                <span className="text-xs font-medium text-white truncate flex-1">
+                  {emp.firstName} {emp.lastName}
+                </span>
+                <button onClick={() => fireEmployee(emp.id)} disabled={firing === emp.id}
+                  className="text-gray-700 hover:text-red-400 transition-colors shrink-0">
+                  {firing === emp.id ? <Loader2 size={11} className="animate-spin" /> : <Trash2 size={11} />}
+                </button>
+              </div>
+              <div className="flex items-center gap-1.5 pl-3.5">
+                <span className="text-[10px] text-gray-500 w-20 truncate shrink-0">
+                  {PROF_UA[emp.profession] ?? emp.profession}
+                </span>
+                <div className="flex-1 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                  <div className={cn("h-full rounded-full", moodBg)} style={{ width: `${moodPct}%` }} />
+                </div>
+                <span className={cn("text-[10px] font-mono w-7 text-right shrink-0", moodTxt)}>{moodPct}%</span>
+              </div>
+              <div className="pl-3.5 mt-0.5">
+                <span className="text-[10px] text-gray-600 font-mono">
+                  ₴{(emp.salaryUah / 1000).toFixed(0)}к/міс · {Math.round(emp.efficiency * 100)}% ефект.
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {employees.length > 0 && (
+        <div className="px-3 py-2 border-t border-gray-800 bg-gray-900/30 shrink-0">
+          <div className="flex justify-between text-[11px]">
+            <span className="text-gray-500">ФОП / тік</span>
+            <span className="font-mono text-orange-400">{formatUAH(stats.salaryPerTick)}</span>
+          </div>
+          <div className="flex justify-between text-[11px] mt-0.5">
+            <span className="text-gray-500">Ефективність</span>
+            <span className={cn("font-mono", stats.avgEfficiency >= 0.7 ? "text-emerald-400" : "text-amber-400")}>
+              {Math.round(stats.avgEfficiency * 100)}%
+            </span>
+          </div>
+        </div>
+      )}
+
+      {hireModal && (
+        <HireModal
+          enterpriseId={enterprise.id}
+          enterpriseType={enterprise.type}
+          onHired={() => { setHireModal(false); onRefresh(); }}
+          onClose={() => setHireModal(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── InfoColumn (inventory + finances + type-specific for 3-col layout) ────────
+
+function InfoColumn({
+  enterprise, agroInfo, stats, logs,
+}: {
+  enterprise: EnterpriseData;
+  agroInfo: AgroInfo | null;
+  stats: { salaryPerTick: number; rentPerTick: number; avgEfficiency: number; avgMood: number };
+  logs: FinancialLog[];
+}) {
+  return (
+    <div className="flex flex-col h-full overflow-y-auto">
+      <div className="px-3 py-2.5 border-b border-gray-800 bg-gray-900/50 sticky top-0 z-10">
+        <span className="text-[11px] font-semibold text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
+          <Package size={12} /> Ресурси
+        </span>
+      </div>
+
+      {/* Inventory */}
+      {enterprise.inventory.length === 0 ? (
+        <div className="px-3 py-4 text-center text-gray-700 text-xs">Склад порожній</div>
+      ) : (
+        enterprise.inventory.map((item, i) => (
+          <div key={i} className="flex items-center gap-2.5 px-3 py-2 border-b border-gray-800/60 hover:bg-gray-800/20">
+            <span className="text-sm w-5 text-center shrink-0">{productEmoji(item.product.sku)}</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-[11px] font-medium text-white truncate">{item.product.nameUa}</p>
+              <p className="text-[10px] text-gray-600 font-mono">{item.product.sku}</p>
+            </div>
+            <div className="text-right shrink-0">
+              <p className="text-xs font-mono text-white">
+                {item.quantity >= 1000 ? `${(item.quantity / 1000).toFixed(1)}к` : formatNumber(item.quantity)}
+              </p>
+              <p className="text-[9px] text-gray-600">{item.product.unit}</p>
+            </div>
+          </div>
+        ))
+      )}
+
+      {/* Cost summary */}
+      <div className="mx-2 mt-2 rounded-lg border border-gray-800 bg-gray-900/50 p-3">
+        <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-2">Витрати / тік</p>
+        {[
+          { l: "ФОП",    v: formatUAH(stats.salaryPerTick),                        c: "text-red-400" },
+          { l: "Оренда", v: formatUAH(stats.rentPerTick),                           c: "text-red-400" },
+          { l: "Разом",  v: formatUAH(stats.salaryPerTick + stats.rentPerTick),    c: "text-orange-300" },
+        ].map(({ l, v, c }) => (
+          <div key={l} className={cn("flex justify-between items-center py-0.5", l === "Разом" ? "border-t border-gray-800 mt-1 pt-1" : "")}>
+            <span className="text-[11px] text-gray-500">{l}</span>
+            <span className={cn("text-[11px] font-mono", c)}>−{v}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Agro block */}
+      {enterprise.type === "AGRO_FARM" && agroInfo && (
+        <div className="mx-2 mt-2 rounded-lg border border-emerald-900/40 bg-emerald-950/10 p-3">
+          <p className="text-[10px] text-emerald-500 font-semibold uppercase tracking-wider mb-2">Агро</p>
+          <div className="space-y-1.5">
+            <div className="flex justify-between text-[11px]">
+              <span className="text-gray-500">Ґрунт</span>
+              <span className={cn("font-mono",
+                agroInfo.soilQuality >= 7 ? "text-emerald-400" :
+                agroInfo.soilQuality >= 4 ? "text-amber-400" : "text-red-400"
+              )}>{agroInfo.soilQuality.toFixed(1)}/10</span>
+            </div>
+            <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
+              <div className={cn("h-full rounded-full",
+                agroInfo.soilQuality >= 7 ? "bg-emerald-500" :
+                agroInfo.soilQuality >= 4 ? "bg-amber-500" : "bg-red-500"
+              )} style={{ width: `${(agroInfo.soilQuality / 10) * 100}%` }} />
+            </div>
+            <div className="flex justify-between text-[11px]">
+              <span className="text-gray-500">Сезон</span>
+              <span className={cn(
+                agroInfo.seasonIndex === 0 ? "text-emerald-400" :
+                agroInfo.seasonIndex === 1 ? "text-yellow-400" :
+                agroInfo.seasonIndex === 2 ? "text-orange-400" : "text-blue-400"
+              )}>{agroInfo.currentSeason}</span>
+            </div>
+            {agroInfo.recommendedCropSku && (
+              <div className="flex justify-between text-[11px]">
+                <span className="text-gray-500">Рекомендовано</span>
+                <span className="text-emerald-400 font-mono text-[10px]">{agroInfo.recommendedCropSku} +15%</span>
+              </div>
+            )}
+            {agroInfo.lastCropSku && (
+              <div className="flex justify-between text-[11px]">
+                <span className="text-gray-500">Остання культура</span>
+                <span className="text-gray-400 font-mono text-[10px]">{agroInfo.lastCropSku}</span>
+              </div>
+            )}
+            {[['WHEAT',[1.0,0.8,0.15,0.0]],['SUNFL',[0.2,1.0,0.75,0.0]],['MILK',[1.0,0.9,1.0,0.75]]].map(([name, mults]) => (
+              <div key={name as string} className="flex justify-between text-[10px]">
+                <span className="text-gray-600">{name as string} ×</span>
+                <span className={cn("font-mono",
+                  (mults as number[])[agroInfo.seasonIndex] >= 0.8 ? "text-emerald-400" :
+                  (mults as number[])[agroInfo.seasonIndex] >= 0.3 ? "text-amber-400" : "text-red-400"
+                )}>{((mults as number[])[agroInfo.seasonIndex] * 100).toFixed(0)}%</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Energy */}
+      <div className="mx-2 mt-2 rounded-lg border border-gray-800 bg-gray-900/50 p-3">
+        <div className="flex items-center gap-1.5 mb-2">
+          {enterprise.energySourceType === "SOLAR_AUTONOMOUS"
+            ? <Leaf size={11} className="text-emerald-400" />
+            : <Zap size={11} className="text-yellow-400" />}
+          <p className="text-[10px] text-gray-500 uppercase tracking-wider">
+            {enterprise.energySourceType === "GRID" ? "Міська мережа" :
+             enterprise.energySourceType === "SOLAR_AUTONOMOUS" ? "СЕС" : "Генератор"}
+          </p>
+        </div>
+        <div className="space-y-0.5">
+          <div className="flex justify-between text-[11px]">
+            <span className="text-gray-500">Тариф</span>
+            <span className="font-mono text-gray-300">{Number(enterprise.landPlot.energyTariffUah).toFixed(2)} ₴/кВт</span>
+          </div>
+          {enterprise.batteryCapacityKwh > 0 && (
+            <div className="flex justify-between text-[11px]">
+              <span className="text-gray-500">Батарея</span>
+              <span className="font-mono text-gray-300">
+                {enterprise.currentBatteryKwh.toFixed(1)}/{enterprise.batteryCapacityKwh} кВт·год
+              </span>
+            </div>
+          )}
+          <div className="flex justify-between text-[11px]">
+            <span className="text-gray-500">Оренда/міс</span>
+            <span className="font-mono text-gray-300">{formatUAH(enterprise.landPlot.monthlyLeaseCostUah)}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Recent logs */}
+      {logs.length > 0 && (
+        <div className="mx-2 mt-2 mb-2 space-y-1">
+          <p className="text-[10px] text-gray-600 uppercase tracking-wider px-1">Останні операції</p>
+          {logs.slice(0, 4).map(l => (
+            <div key={l.id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-gray-900 border border-gray-800">
+              <span className={cn("text-[10px] font-mono shrink-0 w-16 text-right",
+                l.amountUah > 0 ? "text-emerald-400" : "text-red-400"
+              )}>
+                {l.amountUah > 0 ? "+" : "−"}{formatUAH(Math.abs(l.amountUah))}
+              </span>
+              <span className="text-[10px] text-gray-500 truncate">{l.description}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Main component ────────────────────────────────────────────────────────────
 
 export default function EnterpriseDetailClient({ enterpriseId, initialTab }: Props) {
-  const [tab,  setTab]  = useState<Tab>(initialTab ?? "management");
+  const PRIMARY_TABS: Tab[] = ["management", "workshops", "hr", "warehouse"];
+  const initSec = initialTab && !PRIMARY_TABS.includes(initialTab) ? initialTab : null;
+  const [secSection, setSecSection] = useState<string | null>(initSec);
   const [data, setData] = useState<{
     enterprise: EnterpriseData;
     agroInfo: AgroInfo | null;
@@ -2650,7 +2931,8 @@ export default function EnterpriseDetailClient({ enterpriseId, initialTab }: Pro
     logs: FinancialLog[];
     productionLogs: { tickNumber: string; unitsProduced: number; avgQuality: number }[];
   } | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading,  setLoading]  = useState(true);
+  const [toggling, setToggling] = useState(false);
   const router = useRouter();
 
   const load = useCallback(() => {
@@ -2690,139 +2972,157 @@ export default function EnterpriseDetailClient({ enterpriseId, initialTab }: Pro
 
   const { enterprise, agroInfo, stats, logs, productionLogs = [] } = data;
   const isActive = enterprise.isOperational && !enterprise.isSeized && !enterprise.isFrozenByInspection && !enterprise.isLegallyFrozen;
-  const TABS: { key: Tab; label: string }[] =
-    enterprise.type === "RETAIL_STORE"
-      ? [...BASE_TABS.slice(0, 4), { key: "showcase", label: "🏪 Вітрина" }, ...BASE_TABS.slice(4)]
-      : enterprise.type === "AGRO_FARM"
-      ? [...BASE_TABS, { key: "fields", label: "🌾 Поля" }, { key: "machinery", label: "🚜 Техніка" }, { key: "livestock", label: "🐄 Тваринництво" }]
-      : enterprise.type === "LOGISTICS_HUB"
-      ? [...BASE_TABS, { key: "freight", label: "🚛 Вантаж" }, { key: "b2b", label: "🔗 B2B" }]
-      : [...BASE_TABS, { key: "b2b", label: "🔗 B2B" }];
+  const freeArea = enterprise.totalFloorAreaM2 - enterprise.usedFloorAreaM2;
+
+  async function toggleOperational() {
+    setToggling(true);
+    await fetch(`/api/enterprises/${enterpriseId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isOperational: !enterprise.isOperational }),
+    });
+    setToggling(false);
+    load();
+  }
+
+  const secondarySections: { key: string; label: string; emoji: string }[] = [
+    { key: "supply",    label: "Постачання",    emoji: "🚚" },
+    ...(enterprise.type === "RETAIL_STORE"   ? [{ key: "showcase",  label: "Вітрина",        emoji: "🏪" }] : []),
+    ...(enterprise.type === "AGRO_FARM"      ? [
+      { key: "fields",    label: "Поля",           emoji: "🌾" },
+      { key: "machinery", label: "Техніка",         emoji: "🚜" },
+      { key: "livestock", label: "Тваринництво",    emoji: "🐄" },
+    ] : []),
+    ...(enterprise.type === "LOGISTICS_HUB"  ? [{ key: "freight",   label: "Вантаж",          emoji: "🚛" }] : []),
+    { key: "b2b",       label: "B2B",              emoji: "🔗" },
+    { key: "staff",     label: "Кваліфікація",     emoji: "📚" },
+    { key: "expand",    label: "Розширення",        emoji: "🔧" },
+    { key: "finance",   label: "Фінанси",           emoji: "📊" },
+    { key: "info",      label: "Деталі",            emoji: "ℹ️" },
+  ];
 
   return (
-    <div className="space-y-5">
-      <div className="flex items-start gap-3">
-        <button onClick={() => router.back()} className="mt-1 p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-gray-800 transition-colors">
+    <div className="space-y-3">
+      {/* ── Header ── */}
+      <div className="flex items-center gap-3">
+        <button onClick={() => router.back()} className="p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-gray-800 transition-colors shrink-0">
           <ArrowLeft size={16} />
         </button>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="text-2xl font-bold text-white">{enterprise.name}</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold text-white truncate">{enterprise.name}</h1>
             {isActive ? (
-              <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-2 py-0.5">
-                <CheckCircle2 size={11} /> Активне
+              <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-2 py-0.5 shrink-0">
+                <CheckCircle2 size={10} /> Активне
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 bg-gray-800 rounded-full px-2 py-0.5">Неактивне</span>
+              <span className="text-xs text-gray-500 bg-gray-800 rounded-full px-2 py-0.5 shrink-0">Неактивне</span>
             )}
           </div>
-          <p className="text-gray-500 text-sm mt-0.5">{enterprise.landPlot.city.nameUa} · {enterprise.type}</p>
+          <p className="text-gray-500 text-xs mt-0.5">{enterprise.landPlot.city.nameUa} · {enterprise.type}</p>
         </div>
+        {/* Quick stats */}
+        <div className="hidden sm:flex items-center gap-4 text-xs shrink-0">
+          <span className="text-gray-600">Цехів: <span className="text-white font-mono">{enterprise.workshops.length}</span></span>
+          <span className="text-gray-600">Прац.: <span className="text-white font-mono">{enterprise.employees.length}</span></span>
+          <span className="text-gray-600">Ефект.: <span className={cn("font-mono", stats.avgEfficiency >= 0.7 ? "text-emerald-400" : "text-amber-400")}>{Math.round(stats.avgEfficiency * 100)}%</span></span>
+          <span className="text-gray-600">Витрати: <span className="text-orange-400 font-mono">{formatUAH(stats.salaryPerTick + stats.rentPerTick)}/тік</span></span>
+        </div>
+        {/* Pause/Resume */}
+        {!enterprise.isSeized && !enterprise.isFrozenByInspection && !enterprise.isLegallyFrozen && (
+          <button onClick={toggleOperational} disabled={toggling}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors shrink-0 border",
+              enterprise.isOperational
+                ? "bg-amber-900/40 text-amber-300 hover:bg-amber-800/40 border-amber-800/30"
+                : "bg-emerald-900/40 text-emerald-300 hover:bg-emerald-800/40 border-emerald-800/30",
+            )}>
+            {toggling && <Loader2 size={11} className="animate-spin" />}
+            {enterprise.isOperational ? "Пауза" : "Запустити"}
+          </button>
+        )}
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {[
-          { label: "Цехів",        value: enterprise.workshops.length.toString() },
-          { label: "Персонал",     value: enterprise.employees.length.toString() },
-          { label: "Витрати/тік",  value: formatUAH(stats.salaryPerTick + stats.rentPerTick), color: "text-orange-400" },
-          { label: "Ефективність", value: `${Math.round(stats.avgEfficiency * 100)}%`, color: stats.avgEfficiency >= 0.7 ? "text-emerald-400" : "text-amber-400" },
-        ].map(({ label, value, color }) => (
-          <div key={label} className="rounded-xl border border-gray-800 bg-gray-900 px-4 py-3">
-            <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">{label}</p>
-            <p className={cn("text-lg font-bold font-mono", color ?? "text-white")}>{value}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* ─── AGRO_FARM агро-показники ──────────────────────────────────────── */}
-      {enterprise.type === "AGRO_FARM" && agroInfo && (
-        <div className="rounded-xl border border-emerald-800/40 bg-emerald-950/20 p-4 space-y-3">
-          <div className="flex items-center gap-2">
-            <Leaf size={14} className="text-emerald-400" />
-            <span className="text-xs font-semibold text-emerald-300 uppercase tracking-wider">Агро-показники</span>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {/* Soil quality */}
-            <div className="rounded-lg border border-gray-800 bg-gray-900 p-3 space-y-1.5">
-              <p className="text-[10px] text-gray-500 uppercase tracking-wider">Якість ґрунту</p>
-              <p className={cn("text-lg font-bold font-mono",
-                agroInfo.soilQuality >= 8 ? "text-emerald-400" :
-                agroInfo.soilQuality >= 5 ? "text-amber-400" : "text-red-400"
-              )}>{agroInfo.soilQuality.toFixed(1)}<span className="text-xs text-gray-500 font-normal ml-1">/ 10</span></p>
-              <div className="w-full h-1.5 rounded-full bg-gray-800">
-                <div className="h-full rounded-full bg-emerald-500 transition-all"
-                  style={{ width: `${(agroInfo.soilQuality / 10) * 100}%` }} />
-              </div>
-            </div>
-            {/* Season */}
-            <div className="rounded-lg border border-gray-800 bg-gray-900 p-3 space-y-1">
-              <p className="text-[10px] text-gray-500 uppercase tracking-wider">Поточний сезон</p>
-              <p className={cn("text-lg font-bold",
-                agroInfo.seasonIndex === 0 ? "text-emerald-400" :
-                agroInfo.seasonIndex === 1 ? "text-yellow-400" :
-                agroInfo.seasonIndex === 2 ? "text-orange-400" : "text-blue-400"
-              )}>{agroInfo.currentSeason}</p>
-              <p className="text-[10px] text-gray-600">Тік {agroInfo.tickNumber % 120}/120</p>
-            </div>
-            {/* Last crop + recommended next */}
-            <div className="rounded-lg border border-gray-800 bg-gray-900 p-3 space-y-1">
-              <p className="text-[10px] text-gray-500 uppercase tracking-wider">Остання культура</p>
-              <p className="text-sm font-mono text-white">{agroInfo.lastCropSku ?? "—"}</p>
-              {agroInfo.recommendedCropSku && (
-                <p className="text-[10px] text-emerald-500">
-                  → рекомендовано: <span className="font-mono">{agroInfo.recommendedCropSku}</span> (+15%)
-                </p>
-              )}
-            </div>
-            {/* Season multipliers reference */}
-            <div className="rounded-lg border border-gray-800 bg-gray-900 p-3 space-y-1">
-              <p className="text-[10px] text-gray-500 uppercase tracking-wider">Врожайність ×</p>
-              {[['RM-WHEAT', [1.0,0.8,0.15,0.0]], ['RM-SUNFL', [0.2,1.0,0.75,0.0]], ['RM-MILK', [1.0,0.9,1.0,0.75]]].map(([sku, mults]) => (
-                <div key={sku as string} className="flex items-center justify-between text-[10px]">
-                  <span className="text-gray-500">{(sku as string).replace('RM-','')}</span>
-                  <span className={cn("font-mono font-medium",
-                    (mults as number[])[agroInfo.seasonIndex] >= 0.8 ? "text-emerald-400" :
-                    (mults as number[])[agroInfo.seasonIndex] >= 0.3 ? "text-amber-400" : "text-red-400"
-                  )}>{((mults as number[])[agroInfo.seasonIndex] * 100).toFixed(0)}%</span>
-                </div>
-              ))}
-            </div>
-          </div>
+      {/* ── Freeze warnings ── */}
+      {(enterprise.isSeized || enterprise.isFrozenByInspection || enterprise.isLegallyFrozen) && (
+        <div className="space-y-1.5">
+          {enterprise.isSeized && <div className="flex items-center gap-2 px-4 py-3 rounded-lg border border-red-500/30 bg-red-500/10 text-red-400 text-sm"><AlertCircle size={14} /> Підприємство вилучено</div>}
+          {enterprise.isFrozenByInspection && <div className="flex items-center gap-2 px-4 py-3 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-400 text-sm"><AlertTriangle size={14} /> Заморожено інспекцією</div>}
+          {enterprise.isLegallyFrozen && <div className="flex items-center gap-2 px-4 py-3 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-400 text-sm"><AlertTriangle size={14} /> Судовий арешт {enterprise.legalFreezeReason ? `— ${enterprise.legalFreezeReason}` : ""}</div>}
         </div>
       )}
 
-      <div className="flex gap-1 border-b border-gray-800 overflow-x-auto">
-        {TABS.map(({ key, label }) => (
-          <button
-            key={key}
-            onClick={() => setTab(key)}
+      {/* ── 3-column layout ── */}
+      <div className="rounded-xl border border-gray-800 overflow-hidden" style={{ height: 660 }}>
+        <div className="flex h-full">
+
+          {/* Col 1 — Workshops (50%) */}
+          <div className="w-1/2 border-r border-gray-800 flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-800 bg-gray-900/50 shrink-0">
+              <span className="text-[11px] font-semibold text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
+                <Factory size={12} /> Виробництво · {enterprise.workshops.length} цехів
+              </span>
+              <span className="text-[11px] text-gray-600">{freeArea.toFixed(0)} м² вільно</span>
+            </div>
+            <div className="flex-1 overflow-y-auto p-3">
+              <WorkshopsTab enterprise={enterprise} onRefresh={load} />
+            </div>
+          </div>
+
+          {/* Col 2 — Team (25%) */}
+          <div className="w-1/4 border-r border-gray-800 overflow-y-auto flex flex-col">
+            <TeamColumn enterprise={enterprise} stats={stats} onRefresh={load} />
+          </div>
+
+          {/* Col 3 — Info/Inventory (25%) */}
+          <div className="w-1/4 overflow-y-auto flex flex-col">
+            <InfoColumn enterprise={enterprise} agroInfo={agroInfo} stats={stats} logs={logs} />
+          </div>
+        </div>
+      </div>
+
+      {/* ── Secondary section nav ── */}
+      <div className="flex gap-1.5 overflow-x-auto pb-1">
+        {secondarySections.map(s => (
+          <button key={s.key} onClick={() => setSecSection(secSection === s.key ? null : s.key)}
             className={cn(
-              "shrink-0 px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px",
-              tab === key ? "text-emerald-400 border-emerald-400" : "text-gray-500 border-transparent hover:text-white",
-            )}
-          >
-            {label}
+              "shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border",
+              secSection === s.key
+                ? "bg-emerald-900/30 text-emerald-400 border-emerald-800/40"
+                : "text-gray-500 border-gray-800 bg-gray-900 hover:text-gray-300 hover:border-gray-700",
+            )}>
+            <span>{s.emoji}</span>
+            <span>{s.label}</span>
           </button>
         ))}
       </div>
 
-      {tab === "management" && <ManagementTab enterprise={enterprise} stats={stats} productionLogs={productionLogs} onToggleOperational={async (val) => {
-        await fetch(`/api/enterprises/${enterpriseId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ isOperational: val }) });
-        load();
-      }} />}
-      {tab === "workshops"  && <WorkshopsTab enterprise={enterprise} onRefresh={load} />}
-      {tab === "expand"     && <ExpandTab enterpriseId={enterpriseId} enterpriseType={enterprise.type} />}
-      {tab === "staff"      && <StaffTab enterpriseId={enterpriseId} />}
-      {tab === "hr"         && <HRTab enterprise={enterprise} onRefresh={load} />}
-      {tab === "warehouse"  && <WarehouseTab inventory={enterprise.inventory} />}
-      {tab === "showcase"   && <ShowcaseTab enterpriseId={enterpriseId} onGoToSupply={() => setTab("supply")} />}
-      {tab === "supply"     && <SupplyTab enterpriseId={enterpriseId} />}
-      {tab === "production" && <LogsTab logs={logs} />}
-      {tab === "fields"     && <FieldsTab enterprise={enterprise} agroInfo={agroInfo} onRefresh={load} />}
-      {tab === "machinery"  && <MachineryTab enterpriseId={enterpriseId} />}
-      {tab === "livestock"  && <LivestockTab enterpriseId={enterpriseId} />}
-      {tab === "freight"    && <FreightTab enterpriseId={enterpriseId} />}
-      {tab === "b2b"        && <B2bTab enterpriseId={enterpriseId} />}
+      {/* ── Secondary content ── */}
+      {secSection === "supply"    && <SupplyTab enterpriseId={enterpriseId} />}
+      {secSection === "showcase"  && <ShowcaseTab enterpriseId={enterpriseId} onGoToSupply={() => setSecSection("supply")} />}
+      {secSection === "fields"    && <FieldsTab enterprise={enterprise} agroInfo={agroInfo} onRefresh={load} />}
+      {secSection === "machinery" && <MachineryTab enterpriseId={enterpriseId} />}
+      {secSection === "livestock" && <LivestockTab enterpriseId={enterpriseId} />}
+      {secSection === "freight"   && <FreightTab enterpriseId={enterpriseId} />}
+      {secSection === "b2b"       && <B2bTab enterpriseId={enterpriseId} />}
+      {secSection === "staff"     && <StaffTab enterpriseId={enterpriseId} />}
+      {secSection === "expand"    && <ExpandTab enterpriseId={enterpriseId} enterpriseType={enterprise.type} />}
+      {secSection === "finance"   && <LogsTab logs={logs} />}
+      {secSection === "info"      && (
+        <ManagementTab
+          enterprise={enterprise}
+          stats={stats}
+          productionLogs={productionLogs}
+          onToggleOperational={async (val) => {
+            await fetch(`/api/enterprises/${enterpriseId}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ isOperational: val }),
+            });
+            load();
+          }}
+        />
+      )}
     </div>
   );
 }
