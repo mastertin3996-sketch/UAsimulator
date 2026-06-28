@@ -66,7 +66,7 @@ interface Equipment {
 interface ProductionOrder {
   id: string; targetQuantity: number; completedQuantity: number;
   outputQuality: number | null; ticksRemaining: number;
-  recipe: { id: string; name: string; outputs: { product: { sku: string; nameUa: string } }[] } | null;
+  recipe: { id: string; name: string; outputs: { product: { sku: string; nameUa: string; unit: string } }[] } | null;
 }
 
 interface Workshop {
@@ -1899,6 +1899,7 @@ function FieldsTab({ enterprise, agroInfo, onRefresh }: { enterprise: Enterprise
             const order    = ws.productionOrders[0] ?? null;
             const cropSku  = order?.recipe?.outputs?.[0]?.product?.sku ?? null;
             const cropName = order?.recipe?.outputs?.[0]?.product?.nameUa ?? null;
+            const cropUnit = order?.recipe?.outputs?.[0]?.product?.unit ?? null;
             const emoji    = cropSku ? (SKU_EMOJI[cropSku] ?? "🌿") : null;
             const seasonMult = cropSku ? (AGRO_SEASON_MULTS_UI[cropSku]?.[season] ?? 1.0) : null;
 
@@ -1913,6 +1914,12 @@ function FieldsTab({ enterprise, agroInfo, onRefresh }: { enterprise: Enterprise
             const borderCls = cropSku
               ? rotationStatus === 'optimal' ? 'border-emerald-700/50' : rotationStatus === 'mono' ? 'border-red-800/50' : 'border-gray-800'
               : 'border-dashed border-gray-700';
+
+            const soilMult  = agroInfo ? agroInfo.soilQuality / 7.0 : 1.0;
+            const rotMult   = rotationStatus === 'optimal' ? 1.15 : rotationStatus === 'mono' ? 0.85 : 1.0;
+            const estYield  = cropSku && seasonMult !== null
+              ? Math.min(ws.footprintM2 * soilMult * seasonMult * rotMult, ws.currentVolume > 0 ? ws.currentVolume : Infinity)
+              : null;
 
             return (
               <div key={ws.id} className={cn("rounded-lg border bg-gray-900 p-3 space-y-2", borderCls)}>
@@ -1943,6 +1950,19 @@ function FieldsTab({ enterprise, agroInfo, onRefresh }: { enterprise: Enterprise
                     )}
                     {rotationStatus === 'neutral' && nextRecommended && (
                       <p className="text-[10px] text-gray-500">Рекомендовано: {SKU_EMOJI[nextRecommended] ?? ""} {nextRecommended}</p>
+                    )}
+                    {estYield !== null && (
+                      <div className="mt-1 border-t border-gray-800 pt-1.5">
+                        {estYield === 0 || seasonMult === 0 ? (
+                          <p className="text-[10px] text-red-400">Врожай: 0 — позасезонно</p>
+                        ) : (
+                          <p className="text-[10px] text-gray-400">
+                            Врожай ~<span className="text-white font-mono">{estYield.toFixed(1)}</span>
+                            {cropUnit ? ` ${cropUnit}` : ""}/тік
+                            <span className="text-gray-600 ml-1">({ws.footprintM2} м² · ґрунт {(soilMult * 100).toFixed(0)}%)</span>
+                          </p>
+                        )}
+                      </div>
                     )}
                     <button onClick={() => setRecipeModal(ws)} className="text-[10px] text-blue-400 hover:text-blue-300 underline underline-offset-2">
                       Змінити культуру
