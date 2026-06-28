@@ -1010,6 +1010,18 @@ export class MarketService {
       'SF-PLANKS':      15.0,
       'SF-FABRIC':      65.0,
       'SF-YARN':        55.0,
+      // Тваринництво (жива худоба — ціна за голову)
+      'RM-LIVESTOCK':      250,
+      'RM-CATTLE':      45_000,
+      'RM-PIGS':        12_000,
+      'RM-POULTRY':       120,
+      // Молочне
+      'SF-MILK':           8.5,
+      // Органічні культури (ціна за тонну)
+      'RM-WHEAT-ORG':  9_500,
+      'RM-CORN-ORG':   7_200,
+      // Компост
+      'SF-COMPOST':        3.0,
       // Агро витратники
       'AG-FERTILIZER':   9.0,
       'RM-PESTICIDE':    4.5,
