@@ -59,6 +59,7 @@ interface TickSummary {
   ordersExpired:  number;
   tradesExecuted: number;
   errors:         Array<{ playerId: string; error: string }>;
+  timings:        Record<string, number>;
 }
 
 export class TickEngine {
@@ -145,8 +146,9 @@ export class TickEngine {
     });
 
     const errors: Array<{ playerId: string; error: string }> = [];
-    const T = (label: string) => console.log(`[Tick ${tickNumber}] ⏱ ${label}: ${Date.now() - tickStart}ms`);
+    const timings: Record<string, number> = {};
     const tickStart = Date.now();
+    const T = (label: string) => { timings[label] = Date.now() - tickStart; };
 
     // ── 1. Expire stale orders ───────────────────────────────────────────
     const ordersExpired = await this.market.expireStaleOrders();
@@ -493,6 +495,7 @@ export class TickEngine {
       ordersExpired,
       tradesExecuted:    trades.length,
       errors,
+      timings,
     };
   }
 
