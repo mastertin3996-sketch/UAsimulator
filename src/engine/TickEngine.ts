@@ -216,6 +216,14 @@ export class TickEngine {
         .catch(e => console.error(`[Tick ${tickNumber}] Livestock failed:`, e)),
       this.processMachineryWear(tickNumber)
         .catch(e => console.error(`[Tick ${tickNumber}] Machinery wear failed:`, e)),
+      this.processAutoHarvest()
+        .catch(e => console.error(`[Tick ${tickNumber}] Auto-harvest failed:`, e)),
+      this.processAutoFertilize()
+        .catch(e => console.error(`[Tick ${tickNumber}] Auto-fertilize failed:`, e)),
+      this.processAgroTourism(tickNumber)
+        .catch(e => console.error(`[Tick ${tickNumber}] Agro tourism failed:`, e)),
+      this.processFeedLowAlert()
+        .catch(e => console.error(`[Tick ${tickNumber}] Feed low alert failed:`, e)),
       this.syndicateVotes.processExpiredVotes(tickNumber)
         .catch(e => console.error(`[Tick ${tickNumber}] Syndicate votes failed:`, e)),
       this.warehouseRents.processRentals(tickNumber)
@@ -280,6 +288,8 @@ export class TickEngine {
         .catch(e => console.error(`[Tick ${tickNumber}] Extra field rent failed:`, e));
       await this.agro.processSeasonalSoilAndPests(tickNumber)
         .catch(e => console.error(`[Tick ${tickNumber}] Seasonal soil/pests failed:`, e));
+      await this.processCropDiseases(tickNumber)
+        .catch(e => console.error(`[Tick ${tickNumber}] Crop diseases failed:`, e));
     }
 
     // ── 3a1j. B2B + логіст. + інспекції + 8-тічні операції — всі паралельно ──
@@ -1155,6 +1165,160 @@ export class TickEngine {
             body:     `Стадо (${herd.species}) 3 тіки без корму. Здоров'я: ${Math.round(newHealth * 100)}%. Поповніть RM-CORN.`,
           } }).catch(() => {});
         }
+      }
+    }
+  }
+
+  // ── Auto-harvest: перекладає накопичений врожай у інвентар якщо autoHarvest=true ──
+  async processAutoHarvest(): Promise<void> {
+    const FIELD_CROP_SKUS = ['RM-WHEAT', 'RM-SUNFL', 'RM-SUGBEET', 'RM-CORN'];
+
+    const workshops = await this.db.workshop.findMany({
+      where:   { autoHarvest: true, harvestAccumulated: { gt: 1 } },
+      include: {
+        enterprise: { select: { id: true, isOperational: true } },
+        productionOrders: {
+          where:   { status: 'IN_PROGRESS' },
+          include: { recipe: { include: { outputs: { include: { product: { select: { id: true, sku: true } } } } } } },
+        },
+      },
+    });
+
+    for (const ws of workshops) {
+      if (!ws.enterprise.isOperational) continue;
+      const order = ws.productionOrders[0];
+      if (!order) continue;
+      const output = order.recipe.outputs.find(o => FIELD_CROP_SKUS.includes(o.product.sku));
+      if (!output) continue;
+
+      const qty = ws.harvestAccumulated;
+      await this.db.$transaction([
+        this.db.workshop.update({ where: { id: ws.id }, data: { harvestAccumulated: 0 } }),
+        this.db.enterpriseInventory.upsert({
+          where:  { enterpriseId_productId: { enterpriseId: ws.enterprise.id, productId: output.product.id } },
+          update: { quantity: { increment: qty } },
+          create: { enterpriseId: ws.enterprise.id, productId: output.product.id, quantity: qty },
+        }),
+      ]);
+    }
+  }
+
+  // ── Auto-fertilize: застосовує добриво якщо autoFertilize=true і є AG-FERTILIZER ──
+  async processAutoFertilize(): Promise<void> {
+    const fertProduct = await this.db.product.findFirst({ where: { sku: 'AG-FERTILIZER' }, select: { id: true } });
+    if (!fertProduct) return;
+
+    const farms = await this.db.enterprise.findMany({
+      where:   { type: 'AGRO_FARM', isOperational: true },
+      include: {
+        workshops: { where: { autoFertilize: true }, select: { id: true } },
+        landPlot:  { select: { id: true, fertilizerTicksLeft: true } },
+        inventory: { where: { productId: fertProduct.id }, select: { id: true, quantity: true } },
+      },
+    });
+
+    for (const farm of farms) {
+      if (!farm.landPlot || farm.workshops.length === 0) continue;
+      if (farm.landPlot.fertilizerTicksLeft > 0) continue; // вже є ефект
+
+      const fertInv = farm.inventory[0];
+      if (!fertInv || Number(fertInv.quantity) < 50) continue; // потрібно 50 кг
+
+      await this.db.$transaction([
+        this.db.landPlot.update({ where: { id: farm.landPlot.id }, data: { fertilizerTicksLeft: { increment: 90 } } }),
+        this.db.enterpriseInventory.update({ where: { id: fertInv.id }, data: { quantity: { decrement: 50 } } }),
+      ]);
+    }
+  }
+
+  // ── Crop diseases: 8% шанс грибкової/вірусної хвороби щосезону (кожні 30 тіків) ──
+  async processCropDiseases(tickNumber: bigint): Promise<void> {
+    const DISEASE_CHANCE = 0.08;
+    const DISEASE_TYPES  = ['FUNGAL', 'VIRAL'] as const;
+
+    const farms = await this.db.enterprise.findMany({
+      where:   { type: 'AGRO_FARM', isOperational: true, isSeized: false },
+      include: { landPlot: { select: { id: true, cropDiseaseType: true, cropDiseaseSeverity: true } } },
+    });
+
+    for (const farm of farms) {
+      if (!farm.landPlot) continue;
+      const lp = farm.landPlot;
+
+      // Якщо хвороба вже є — посилюємо на 0.1 (max 0.8)
+      if (lp.cropDiseaseType) {
+        const newSeverity = Math.min(0.8, lp.cropDiseaseSeverity + 0.1);
+        await this.db.landPlot.update({ where: { id: lp.id }, data: { cropDiseaseSeverity: newSeverity } });
+        await this.db.notification.create({ data: {
+          playerId: farm.playerId, type: 'WARNING',
+          title: `🦠 Хвороба прогресує`,
+          body:  `${lp.cropDiseaseType === 'FUNGAL' ? 'Грибок' : 'Вірус'} на полі посилюється: −${Math.round(newSeverity * 50)}% врожаю. Застосуйте лікування.`,
+        } }).catch(() => {});
+        continue;
+      }
+
+      // Шанс нової хвороби
+      if (Math.random() < DISEASE_CHANCE) {
+        const type     = DISEASE_TYPES[Math.floor(Math.random() * DISEASE_TYPES.length)];
+        const severity = 0.2 + Math.random() * 0.2; // 0.2–0.4
+        await this.db.landPlot.update({ where: { id: lp.id }, data: { cropDiseaseType: type, cropDiseaseSeverity: severity } });
+        await this.db.notification.create({ data: {
+          playerId: farm.playerId, type: 'WARNING',
+          title: `🦠 ${type === 'FUNGAL' ? 'Грибкова хвороба' : 'Вірусна хвороба'} на полі`,
+          body:  `Поле вражене ${type === 'FUNGAL' ? 'грибком (фунгіцид лікує)' : 'вірусом (потрібен час + пестицид)'}. Втрата врожаю −${Math.round(severity * 50)}%.`,
+        } }).catch(() => {});
+      }
+    }
+  }
+
+  // ── Agro tourism: пасивний дохід якщо agroTourismEnabled ──────────────────
+  async processAgroTourism(tickNumber: bigint): Promise<void> {
+    const farms = await this.db.enterprise.findMany({
+      where:   { type: 'AGRO_FARM', isOperational: true, agroTourismEnabled: true },
+      select:  { id: true, playerId: true, name: true, agroTourismRevenuePerTick: true },
+    });
+
+    for (const farm of farms) {
+      const revenue = Number(farm.agroTourismRevenuePerTick);
+      if (revenue <= 0) continue;
+      const bal = await this.db.player.findUnique({ where: { id: farm.playerId }, select: { cashBalance: true } });
+      const before = Number(bal?.cashBalance ?? 0);
+      await this.db.$transaction([
+        this.db.player.update({ where: { id: farm.playerId }, data: { cashBalance: { increment: revenue } } }),
+        this.db.financialTransaction.create({ data: {
+          playerId: farm.playerId, type: 'STATE_SUBSIDY',
+          amountUah: revenue, balanceBefore: before, balanceAfter: before + revenue,
+          description: `Агротуризм: ${farm.name} (+₴${revenue}/тік)`,
+        } }),
+      ]);
+    }
+  }
+
+  // ── Feed low alert: попередження коли корму < 5 тіків ─────────────────────
+  async processFeedLowAlert(): Promise<void> {
+    const FEED_SKU = 'RM-CORN';
+    const FEED_QTY: Record<string, number> = { CATTLE: 0.05, PIGS: 0.03, POULTRY: 0.01 };
+
+    const feedProduct = await this.db.product.findUnique({ where: { sku: FEED_SKU }, select: { id: true } });
+    if (!feedProduct) return;
+
+    const farms = await this.db.enterprise.findMany({
+      where:   { type: 'AGRO_FARM', isOperational: true },
+      select:  { id: true, playerId: true, name: true, livestockHerds: { select: { species: true, headCount: true } }, inventory: { where: { productId: feedProduct.id }, select: { quantity: true } } },
+    });
+
+    for (const farm of farms) {
+      if (farm.livestockHerds.length === 0) continue;
+      const feedPerTick = farm.livestockHerds.reduce((s, h) => s + (FEED_QTY[h.species] ?? 0.03) * h.headCount, 0);
+      if (feedPerTick <= 0) continue;
+      const stock = Number(farm.inventory[0]?.quantity ?? 0);
+      const ticksLeft = stock / feedPerTick;
+      if (ticksLeft > 0 && ticksLeft < 5) {
+        await this.db.notification.create({ data: {
+          playerId: farm.playerId, type: 'WARNING',
+          title: `🌽 Корм закінчується`,
+          body:  `«${farm.name}»: RM-CORN вистачить на ~${Math.floor(ticksLeft)} тік${ticksLeft < 2 ? '' : 'и'}. Закупіть ${Math.ceil(feedPerTick * 20).toLocaleString('uk-UA')} кг.`,
+        } }).catch(() => {});
       }
     }
   }

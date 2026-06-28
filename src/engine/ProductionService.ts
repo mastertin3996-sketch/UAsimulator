@@ -93,7 +93,7 @@ export class ProductionService {
       where:   { playerId, isOperational: true },
       include: {
         employees: true,
-        landPlot: { select: { id: true, soilQuality: true, lastCropSku: true, cityId: true, fertilizerTicksLeft: true, pestDamageMult: true } },
+        landPlot: { select: { id: true, soilQuality: true, lastCropSku: true, cityId: true, fertilizerTicksLeft: true, pestDamageMult: true, seedQuality: true, cropDiseaseType: true, cropDiseaseSeverity: true } },
         workshops: {
           where:   { isActive: true },
           include: {
@@ -237,6 +237,15 @@ export class ProductionService {
             // Pest damage multiplier
             const pestMult = ent.landPlot?.pestDamageMult ?? 1.0;
 
+            // Seed quality multiplier
+            const SEED_MULT: Record<string, number> = { BASIC: 0.75, STANDARD: 1.0, PREMIUM: 1.30 };
+            const seedMult = FIELD_CROPS.has(cropSku) ? (SEED_MULT[ent.landPlot?.seedQuality ?? 'STANDARD'] ?? 1.0) : 1.0;
+
+            // Crop disease: знижує врожай на severity × 50%
+            const diseaseMult = FIELD_CROPS.has(cropSku) && (ent.landPlot?.cropDiseaseSeverity ?? 0) > 0
+              ? Math.max(0.1, 1 - (ent.landPlot?.cropDiseaseSeverity ?? 0) * 0.5)
+              : 1.0;
+
             // Livestock health multiplier (для RM-MILK, SF-MILK, RM-LIVESTOCK, FG-EGGS)
             const LIVESTOCK_SKUS = new Set(['RM-MILK', 'SF-MILK', 'RM-LIVESTOCK', 'FG-EGGS']);
             let livestockMult = 1.0;
@@ -256,7 +265,7 @@ export class ProductionService {
               if (!hasSunflower) honeyGate = 0.0;
             }
 
-            baseCapacity = ws.footprintM2 * soilMult * seasonMult * rotationMult * droughtMult * irrigationBonus * agronomistMult * plantingBonus * fieldAreaMult * localWeatherMod * tractorBonus * machineryMult * fertBonus * pestMult * livestockMult * honeyGate;
+            baseCapacity = ws.footprintM2 * soilMult * seasonMult * rotationMult * droughtMult * irrigationBonus * agronomistMult * plantingBonus * fieldAreaMult * localWeatherMod * tractorBonus * machineryMult * fertBonus * pestMult * seedMult * diseaseMult * livestockMult * honeyGate;
           } else {
             baseCapacity = ws.maxCapacity;
           }

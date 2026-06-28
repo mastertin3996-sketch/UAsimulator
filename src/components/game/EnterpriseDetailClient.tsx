@@ -73,6 +73,7 @@ interface ProductionOrder {
 interface Workshop {
   id: string; name: string; footprintM2: number; maxCapacity: number;
   currentVolume: number; isActive: boolean; harvestAccumulated: number;
+  autoHarvest: boolean; autoFertilize: boolean;
   equipment: Equipment[];
   productionOrders: ProductionOrder[];
 }
@@ -96,6 +97,11 @@ interface AgroInfo {
   currentSeason:       string;
   seasonIndex:         number;
   tickNumber:          number;
+  seedQuality?:        string;
+  cropDiseaseType?:    string | null;
+  cropDiseaseSeverity?: number;
+  agroTourismEnabled?: boolean;
+  agroTourismRevenuePerTick?: number;
 }
 
 interface EnterpriseLicense {
@@ -819,6 +825,10 @@ function WorkshopsTab({
   const [machinery,     setMachinery]     = useState<any[]>([]);
   const [livestock,     setLivestock]     = useState<any[]>([]);
   const [machRepBusy,   setMachRepBusy]   = useState<string | null>(null);
+  const [autoToggleBusy, setAutoToggleBusy] = useState<string | null>(null);
+  const [seedQualityBusy, setSeedQualityBusy] = useState(false);
+  const [diseaseBusy,   setDiseaseBusy]   = useState(false);
+  const [tourismBusy,   setTourismBusy]   = useState(false);
 
   useEffect(() => {
     if (enterprise.type !== "AGRO_FARM") return;
@@ -911,6 +921,55 @@ function WorkshopsTab({
     setAgroActing(null);
   }
 
+  async function toggleAutoWorkshop(workshopId: string, field: "autoHarvest" | "autoFertilize", current: boolean) {
+    setAutoToggleBusy(workshopId + field);
+    const res = await fetch(`/api/workshops/${workshopId}/auto`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ [field]: !current }),
+    });
+    if (res.ok) onRefresh();
+    setAutoToggleBusy(null);
+  }
+
+  async function doDiseaseTreatment() {
+    setDiseaseBusy(true);
+    setAgroMsg("");
+    const res = await fetch("/api/agro/disease-treatment", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enterpriseId: enterprise.id }),
+    });
+    const d = await res.json();
+    setAgroMsg(res.ok ? `✓ ${d.message}` : `✗ ${d.error}`);
+    if (res.ok) onRefresh();
+    setDiseaseBusy(false);
+  }
+
+  async function changeSeedQuality(seedQuality: string) {
+    setSeedQualityBusy(true);
+    setAgroMsg("");
+    const res = await fetch("/api/agro/seed-quality", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enterpriseId: enterprise.id, seedQuality }),
+    });
+    const d = await res.json();
+    setAgroMsg(res.ok ? `✓ Насіння: ${seedQuality}${d.costPaid ? ` (−₴${d.costPaid.toLocaleString('uk-UA')})` : ''}` : `✗ ${d.error}`);
+    if (res.ok) onRefresh();
+    setSeedQualityBusy(false);
+  }
+
+  async function toggleTourism(enabled: boolean) {
+    setTourismBusy(true);
+    setAgroMsg("");
+    const res = await fetch("/api/agro/tourism", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enterpriseId: enterprise.id, enabled }),
+    });
+    const d = await res.json();
+    setAgroMsg(res.ok ? `✓ ${d.message}` : `✗ ${d.error}`);
+    if (res.ok) onRefresh();
+    setTourismBusy(false);
+  }
+
   const freeArea = enterprise.totalFloorAreaM2 - enterprise.usedFloorAreaM2;
 
   return (
@@ -976,7 +1035,10 @@ function WorkshopsTab({
             );
             const weatherMod    = enterprise.localWeatherMod ?? 1.0;
             const weatherDesc   = enterprise.localWeatherDesc ?? null;
-            const soilTrend     = fertLeft > 0 ? "up" : soilQ <= 5 ? "down" : "stable";
+            const soilTrend        = fertLeft > 0 ? "up" : soilQ <= 5 ? "down" : "stable";
+            const seedQuality      = agroInfo?.seedQuality ?? 'STANDARD';
+            const cropDiseaseType  = agroInfo?.cropDiseaseType ?? null;
+            const cropDiseaseSev   = agroInfo?.cropDiseaseSeverity ?? 0;
 
             return (
               <div key={w.id} className="rounded-xl border border-gray-800 bg-gray-900 overflow-hidden">
@@ -1209,6 +1271,66 @@ function WorkshopsTab({
                     </div>
                   )}
 
+                  {/* Crop disease panel */}
+                  {cropDiseaseType && (
+                    <div className="rounded bg-red-950/40 border border-red-700/30 px-2 py-2 space-y-1 pt-1.5">
+                      <p className="text-[9px] text-gray-500 uppercase tracking-wider">🦠 Хвороба поля</p>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-xs text-red-300 font-medium">
+                            {cropDiseaseType === 'FUNGAL' ? 'Грибок' : 'Вірус'} · −{Math.round(cropDiseaseSev * 50)}% врожаю
+                          </p>
+                          <div className="mt-1 w-24 h-1 rounded-full bg-gray-700">
+                            <div className="h-full rounded-full bg-red-500" style={{ width: `${cropDiseaseSev * 100}%` }} />
+                          </div>
+                        </div>
+                        <button onClick={doDiseaseTreatment} disabled={diseaseBusy}
+                          className="text-xs rounded-lg bg-purple-700 hover:bg-purple-600 text-white px-2.5 py-1.5 font-medium disabled:opacity-40 transition-colors shrink-0">
+                          {diseaseBusy ? <Loader2 size={10} className="animate-spin" /> : "💊 Лікувати"}
+                        </button>
+                      </div>
+                      <p className="text-[9px] text-gray-500">Потрібно 8 кг RM-PESTICIDE</p>
+                    </div>
+                  )}
+
+                  {/* Seed quality + auto toggles */}
+                  <div className="pt-1.5 border-t border-gray-800 space-y-2">
+                    {/* Seed quality selector */}
+                    <div className="flex items-center justify-between">
+                      <p className="text-[9px] text-gray-500 uppercase tracking-wider">Насіння</p>
+                      <div className="flex gap-1">
+                        {(['BASIC','STANDARD','PREMIUM'] as const).map(q => (
+                          <button key={q} disabled={seedQualityBusy || seedQuality === q}
+                            onClick={() => changeSeedQuality(q)}
+                            className={cn("text-[9px] px-1.5 py-0.5 rounded transition-colors",
+                              seedQuality === q ? "bg-emerald-700 text-white" : "bg-gray-800 text-gray-400 hover:bg-gray-700"
+                            )}>
+                            {q === 'BASIC' ? '−25%' : q === 'STANDARD' ? 'Станд.' : '+30% ₴5к'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    {/* Auto-harvest / auto-fertilize toggles */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <button onClick={() => toggleAutoWorkshop(w.id, 'autoHarvest', w.autoHarvest)}
+                        disabled={autoToggleBusy === w.id + 'autoHarvest'}
+                        className={cn("text-[9px] rounded px-2 py-1 transition-colors",
+                          w.autoHarvest ? "bg-amber-700 text-white" : "bg-gray-800 text-gray-400 hover:bg-gray-700"
+                        )}>
+                        {autoToggleBusy === w.id + 'autoHarvest' ? <Loader2 size={8} className="animate-spin inline" /> : null}
+                        {' '}🌾 Авто-збір {w.autoHarvest ? 'ВКЛ' : 'ВИКЛ'}
+                      </button>
+                      <button onClick={() => toggleAutoWorkshop(w.id, 'autoFertilize', w.autoFertilize)}
+                        disabled={autoToggleBusy === w.id + 'autoFertilize'}
+                        className={cn("text-[9px] rounded px-2 py-1 transition-colors",
+                          w.autoFertilize ? "bg-emerald-700 text-white" : "bg-gray-800 text-gray-400 hover:bg-gray-700"
+                        )}>
+                        {autoToggleBusy === w.id + 'autoFertilize' ? <Loader2 size={8} className="animate-spin inline" /> : null}
+                        {' '}🌱 Авто-добриво {w.autoFertilize ? 'ВКЛ' : 'ВИКЛ'}
+                      </button>
+                    </div>
+                  </div>
+
                   {/* Action buttons */}
                   <div className="flex gap-1.5 pt-1.5 border-t border-gray-800 flex-wrap">
                     <button onClick={() => doAgroAction("fertilize")} disabled={!!agroActing || fertLeft > 0}
@@ -1427,6 +1549,36 @@ function WorkshopsTab({
             </div>
           );
         })
+      )}
+
+      {/* Agro Tourism panel (farm-level, below all workshop cards) */}
+      {enterprise.type === "AGRO_FARM" && agroInfo && (
+        <div className="rounded-xl border border-gray-800 bg-gray-900 p-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold text-white">🏡 Агротуризм</p>
+              <p className="text-[10px] text-gray-500 mt-0.5">Пасивний дохід від ферми</p>
+            </div>
+            <div className="flex items-center gap-2">
+              {agroInfo.agroTourismEnabled && (
+                <span className="text-[10px] text-emerald-400 font-mono">+₴{(agroInfo.agroTourismRevenuePerTick ?? 0).toLocaleString('uk-UA')}/тік</span>
+              )}
+              <button
+                onClick={() => toggleTourism(!(agroInfo.agroTourismEnabled))}
+                disabled={tourismBusy}
+                className={cn("text-xs rounded-lg px-3 py-1.5 font-medium transition-colors disabled:opacity-40",
+                  agroInfo.agroTourismEnabled
+                    ? "bg-gray-700 hover:bg-gray-600 text-gray-200"
+                    : "bg-emerald-700 hover:bg-emerald-600 text-white"
+                )}>
+                {tourismBusy ? <Loader2 size={10} className="animate-spin" /> : agroInfo.agroTourismEnabled ? "Вимкнути" : "Увімкнути"}
+              </button>
+            </div>
+          </div>
+          {!agroInfo.agroTourismEnabled && (
+            <p className="text-[9px] text-gray-600 mt-1.5">Потрібен ґрунт ≥ 6. З Organic Cert +30% доходу.</p>
+          )}
+        </div>
       )}
 
       {recipeModal && (

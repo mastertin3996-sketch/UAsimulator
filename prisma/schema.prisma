@@ -217,6 +217,12 @@ enum LicenseType {
   ORGANIC_CERT           // Органічна сертифікація: преміум ×1.8, без хімікатів
 }
 
+enum SeedQuality {
+  BASIC      // -25% врожаю, безкоштовно
+  STANDARD   // базовий множник ×1.0
+  PREMIUM    // +30% врожаю, потребує покупки насіння
+}
+
 enum MachineryType {
   TRACTOR
   COMBINE_HARVESTER
@@ -475,6 +481,10 @@ model LandPlot {
   lastCropSku          String?                  // SKU останньої культури для ротаційного штрафу
   fertilizerTicksLeft  Int     @default(0)      // тіків залишилось ефекту добрива (0 = не внесено)
   pestDamageMult       Float   @default(1.0)    // множник урожаю від шкідників (0.6 = -40%)
+  seedQuality          SeedQuality @default(STANDARD)
+  cropDiseaseType      String?                  // "FUNGAL" | "VIRAL" | null
+  cropDiseaseSeverity  Float   @default(0.0)    // 0.0–1.0; знижує врожай на severity×50%
+  isOwned              Boolean @default(false)  // false=оренда, true=власна земля
   leaseStartDate      DateTime?
   leaseEndDate        DateTime?
   purchasedAt         DateTime?
@@ -567,6 +577,9 @@ model Enterprise {
   // Акумулятор: максимальна ємність та поточний заряд (кВт·год)
   batteryCapacityKwh  Decimal  @default(0) @db.Decimal(10, 2)
   currentBatteryKwh   Decimal  @default(0) @db.Decimal(10, 2)
+  // Агротуризм: пасивний дохід від ферми
+  agroTourismEnabled    Boolean  @default(false)
+  agroTourismRevenuePerTick Decimal @default(0) @db.Decimal(10,2)
   // Енергетична біржа: всього продано кВт·год за все існування підприємства
   energySoldKwhTotal  Float    @default(0)
 
@@ -640,6 +653,8 @@ model Workshop {
 
   // Накопичений врожай польових культур до ручного збору (кг)
   harvestAccumulated Float @default(0)
+  autoHarvest        Boolean @default(false)  // авто-збір коли harvestAccumulated > 1 кг
+  autoFertilize      Boolean @default(false)  // авто-внесення добрива з інвентарю
   // Якщо задано — цех активується не раніше цього тіку (розширення підприємства)
   activatesAtTick BigInt?
 
