@@ -857,6 +857,36 @@ function WorkshopsTab({
     onRefresh();
   }
 
+  const [agroActing, setAgroActing] = useState<string | null>(null);
+  const [agroMsg,    setAgroMsg]    = useState("");
+
+  async function doAgroAction(action: "fertilize" | "pesticide") {
+    setAgroActing(action);
+    setAgroMsg("");
+    const url = action === "fertilize" ? "/api/agro/fertilize" : "/api/agro/pesticide";
+    const res = await fetch(url, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enterpriseId: enterprise.id }),
+    });
+    const d = await res.json();
+    setAgroMsg(res.ok ? `✓ ${d.message}` : `✗ ${d.error}`);
+    if (res.ok) onRefresh();
+    setAgroActing(null);
+  }
+
+  async function harvestField(workshopId: string) {
+    setAgroActing("harvest_" + workshopId);
+    setAgroMsg("");
+    const res = await fetch("/api/agro/harvest", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ workshopId }),
+    });
+    const d = await res.json();
+    setAgroMsg(res.ok ? `✓ Зібрано ${d.harvested?.toFixed(1)} кг → склад` : `✗ ${d.error}`);
+    if (res.ok) onRefresh();
+    setAgroActing(null);
+  }
+
   const freeArea = enterprise.totalFloorAreaM2 - enterprise.usedFloorAreaM2;
 
   return (
@@ -883,6 +913,206 @@ function WorkshopsTab({
           const capacityPct = w.maxCapacity > 0 ? Math.round((vol / w.maxCapacity) * 100) : 0;
           const activeOrder = w.productionOrders[0] ?? null;
 
+          // ── AGRO_FARM: unified field card ──────────────────────────────────────
+          if (enterprise.type === 'AGRO_FARM') {
+            const cropSku    = activeOrder?.recipe?.outputs[0]?.product.sku ?? null;
+            const cropName   = activeOrder?.recipe?.outputs[0]?.product.nameUa ?? null;
+            const cropUnit   = activeOrder?.recipe?.outputs[0]?.product.unit ?? "кг";
+            const soilQ      = agroInfo?.soilQuality ?? 0;
+            const soilMult   = agroInfo ? soilQ / 7.0 : 1.0;
+            const seasonIdx  = agroInfo?.seasonIndex ?? 0;
+            const seasonMult = cropSku ? (AGRO_SEASON_MULTS_UI[cropSku]?.[seasonIdx] ?? 1.0) : 1.0;
+            const SEASON_UA  = ["🌸 Весна", "☀️ Літо", "🍂 Осінь", "❄️ Зима"];
+            const seasonName = SEASON_UA[seasonIdx] ?? "—";
+            const fertLeft   = agroInfo?.fertilizerTicksLeft ?? 0;
+            const pestDmg    = agroInfo?.pestDamageMult ?? 1.0;
+            const activeMach = machinery.filter((m: any) => m.isOperational && m.durability > 0);
+            const machBonus  = activeMach.reduce((s: number, m: any) => s + (MACHINERY_YIELD_BONUS_UI[m.type] ?? 0), 0);
+            const machMult   = 1 + machBonus / 100;
+            const isField    = FIELD_CROPS_UI.has(cropSku ?? '');
+            const estYield   = cropSku && seasonMult > 0 ? w.footprintM2 * soilMult * seasonMult * machMult : 0;
+            const lastCrop   = agroInfo?.lastCropSku ?? null;
+            let rotStatus: 'optimal' | 'mono' | 'neutral' | null = null;
+            if (cropSku && isField) {
+              if (lastCrop === cropSku) rotStatus = 'mono';
+              else if (lastCrop && ROTATION_NEXT_UI[lastCrop] === cropSku) rotStatus = 'optimal';
+              else rotStatus = 'neutral';
+            }
+            const hasHarvest = w.harvestAccumulated >= 0.1 && isField;
+
+            return (
+              <div key={w.id} className="rounded-xl border border-gray-800 bg-gray-900 overflow-hidden">
+                {/* Header */}
+                <div className="px-3 py-2.5 border-b border-gray-800 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-semibold text-white">
+                      {SKU_EMOJI[cropSku ?? ''] ?? "🌿"} {w.name}
+                      <span className="ml-2 text-xs text-gray-500 font-normal">{w.footprintM2} м²</span>
+                    </h3>
+                    <p className="text-[10px] text-gray-500 mt-0.5">
+                      {cropName ? (RECIPE_UA[activeOrder?.recipe?.name ?? ''] ?? cropName) : <span className="text-amber-400">Культуру не призначено</span>}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {brokenCount > 0 && <span className="text-[10px] text-red-400 bg-red-500/10 rounded px-1.5 py-0.5"><Hammer size={9} className="inline mr-0.5" />{brokenCount}</span>}
+                    <span className={cn("text-[10px] rounded-full px-2 py-0.5", w.isActive ? "text-emerald-400 bg-emerald-500/10" : "text-gray-500 bg-gray-800")}>
+                      {w.isActive ? "Активне" : "Зупинено"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="p-3 space-y-2">
+                  {/* Soil + Season row */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="rounded bg-gray-800/50 px-2 py-1.5 space-y-1">
+                      <p className="text-[9px] text-gray-500 uppercase tracking-wider">Ґрунт</p>
+                      <div className="flex items-center gap-1.5">
+                        <div className="flex-1 h-1 rounded-full bg-gray-700">
+                          <div className={cn("h-full rounded-full", soilQ >= 7 ? "bg-emerald-500" : soilQ >= 4 ? "bg-amber-500" : "bg-red-500")}
+                            style={{ width: `${(soilQ / 10) * 100}%` }} />
+                        </div>
+                        <span className={cn("text-xs font-mono", soilQ >= 7 ? "text-emerald-400" : soilQ >= 4 ? "text-amber-400" : "text-red-400")}>{soilQ.toFixed(1)}/10</span>
+                      </div>
+                      {fertLeft > 0
+                        ? <p className="text-[9px] text-emerald-400">🌱 +20% добриво · {Math.ceil(fertLeft / 30)} сез</p>
+                        : <p className="text-[9px] text-gray-600">Без добрива</p>}
+                      {pestDmg < 1.0 && <p className="text-[9px] text-red-400">🐛 Шкідники −{Math.round((1 - pestDmg) * 100)}%</p>}
+                    </div>
+                    <div className="rounded bg-gray-800/50 px-2 py-1.5 space-y-1">
+                      <p className="text-[9px] text-gray-500 uppercase tracking-wider">Сезон</p>
+                      <p className={cn("text-xs font-medium", seasonMult === 0 ? "text-red-400" : seasonMult >= 0.8 ? "text-emerald-400" : "text-amber-400")}>
+                        {seasonName} · {Math.round(seasonMult * 100)}%
+                      </p>
+                      {rotStatus === 'optimal' && <p className="text-[9px] text-emerald-400">✓ Ротація +15%</p>}
+                      {rotStatus === 'mono'    && <p className="text-[9px] text-red-400">✗ Монокультура −15%</p>}
+                      {rotStatus === 'neutral' && lastCrop && <p className="text-[9px] text-gray-500">Рек.: {SKU_EMOJI[ROTATION_NEXT_UI[lastCrop] ?? ''] ?? ''} {ROTATION_NEXT_UI[lastCrop]}</p>}
+                    </div>
+                  </div>
+
+                  {/* Yield formula */}
+                  {cropSku && (
+                    <div className="rounded bg-gray-800/40 px-2 py-1.5 space-y-1">
+                      <div className="flex items-center flex-wrap gap-1 text-[10px]">
+                        <span className="font-mono text-white">{w.footprintM2} м²</span>
+                        <span className="text-gray-600">×</span>
+                        <span className={soilMult >= 0.85 ? "text-emerald-400" : soilMult >= 0.5 ? "text-amber-400" : "text-red-400"}>ґрунт {Math.round(soilMult * 100)}%</span>
+                        <span className="text-gray-600">×</span>
+                        <span className={seasonMult === 0 ? "text-red-400" : seasonMult >= 0.8 ? "text-emerald-400" : "text-amber-400"}>сезон {Math.round(seasonMult * 100)}%</span>
+                        {machBonus > 0 && <>
+                          <span className="text-gray-600">×</span>
+                          <span className="text-emerald-400">техніка ×{machMult.toFixed(2)}</span>
+                        </>}
+                        <span className="text-gray-600">=</span>
+                        <span className={cn("font-semibold", estYield > 0 ? "text-white" : "text-red-400")}>
+                          {estYield > 0 ? `~${estYield.toFixed(1)}/тік` : "0 — позасезонно"}
+                        </span>
+                      </div>
+                      {activeMach.length > 0 && (
+                        <div className="flex gap-1 flex-wrap">
+                          {activeMach.map((m: any) => (
+                            <span key={m.id} className="text-[9px] bg-emerald-900/30 text-emerald-400 px-1 py-0.5 rounded">
+                              {MACHINERY_EMOJI_UI[m.type] ?? "⚙️"} +{MACHINERY_YIELD_BONUS_UI[m.type] ?? 0}%
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {activeMach.length === 0 && <p className="text-[9px] text-amber-600">⚠ Немає активної техніки — додайте у вкладці Техніка</p>}
+                    </div>
+                  )}
+
+                  {/* Harvest */}
+                  {hasHarvest && (
+                    <div className="rounded bg-amber-950/30 border border-amber-800/30 px-3 py-2 flex items-center justify-between">
+                      <div>
+                        <p className="text-xs font-semibold text-amber-300">🌾 Готово до збору</p>
+                        <p className="text-sm font-bold text-white">{w.harvestAccumulated.toFixed(1)} {cropUnit}</p>
+                      </div>
+                      <button
+                        onClick={() => harvestField(w.id)}
+                        disabled={agroActing === "harvest_" + w.id}
+                        className="text-xs bg-amber-600 hover:bg-amber-500 text-white rounded-lg px-3 py-1.5 font-medium transition-colors disabled:opacity-50"
+                      >
+                        {agroActing === "harvest_" + w.id ? <Loader2 size={10} className="animate-spin" /> : "Зібрати →"}
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Recipe / crop */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      {activeOrder?.recipe
+                        ? <p className="text-sm font-medium text-white">{RECIPE_UA[activeOrder.recipe.name] ?? activeOrder.recipe.name}</p>
+                        : <p className="text-sm text-amber-400">Призначте культуру</p>}
+                      {activeOrder && <p className="text-[10px] text-gray-500 mt-0.5">{activeOrder.completedQuantity.toFixed(0)} / {activeOrder.targetQuantity >= 999_000 ? "∞" : activeOrder.targetQuantity} вироблено</p>}
+                    </div>
+                    <div className="flex gap-1.5 shrink-0">
+                      {activeOrder && (
+                        <button onClick={() => cancelOrder(w.id, activeOrder.id)} disabled={cancelSaving === activeOrder.id}
+                          className="text-xs text-red-400 bg-red-500/10 border border-red-500/15 rounded px-2 py-1 hover:text-red-300 transition-colors">
+                          {cancelSaving === activeOrder.id ? <Loader2 size={10} className="animate-spin" /> : "Зупинити"}
+                        </button>
+                      )}
+                      <Button size="sm" variant="outline" onClick={() => setRecipeModal(w)}>
+                        <BookOpen size={11} /> {activeOrder ? "Змінити" : "Призначити"}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Equipment compact */}
+                  <div className="pt-1.5 border-t border-gray-800 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[9px] text-gray-600 uppercase tracking-wider">Обладнання цеху</p>
+                      <button onClick={() => setBuyEquipWs(w)} className="text-[9px] text-emerald-400 hover:text-emerald-300">+ Купити</button>
+                    </div>
+                    {w.equipment.length === 0 && (
+                      <p className="text-[10px] text-amber-500">⚠ Без обладнання — виробництво неможливе</p>
+                    )}
+                    {w.equipment.map(eq => {
+                      const busy = equipBusy === eq.id;
+                      const msg  = equipMsg?.id === eq.id ? equipMsg : null;
+                      return (
+                        <div key={eq.id}>
+                          <div className="flex items-center gap-2 text-[10px]">
+                            <Cpu size={10} className="text-gray-600 shrink-0" />
+                            <span className="flex-1 text-gray-400 truncate">{eq.nameUa ?? eq.name}</span>
+                            <div className="w-12 shrink-0"><WearBar value={eq.wearAndTear} /></div>
+                            <span className={cn("shrink-0", STATUS_COLOR[eq.status] ?? "text-gray-400")}>{STATUS_UA[eq.status] ?? eq.status}</span>
+                            {eq.isBroken ? (
+                              <button onClick={() => doEquipAction(eq.id, "repair")} disabled={busy}
+                                className="shrink-0 text-[9px] px-1.5 py-0.5 rounded bg-red-600 hover:bg-red-500 text-white transition-colors disabled:opacity-50">
+                                {busy ? <Loader2 size={9} className="animate-spin" /> : "Рем."}
+                              </button>
+                            ) : (eq.status === "WORN" || eq.wearAndTear > 0.3) ? (
+                              <button onClick={() => doEquipAction(eq.id, "maintenance")} disabled={busy}
+                                className="shrink-0 text-[9px] px-1.5 py-0.5 rounded bg-amber-600 hover:bg-amber-500 text-white transition-colors disabled:opacity-50">
+                                {busy ? <Loader2 size={9} className="animate-spin" /> : "ТО"}
+                              </button>
+                            ) : null}
+                          </div>
+                          {msg && <p className={cn("text-[9px] mt-0.5 pl-4", msg.ok ? "text-emerald-400" : "text-red-400")}>{msg.text}</p>}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Action buttons */}
+                  <div className="flex gap-1.5 pt-1.5 border-t border-gray-800 flex-wrap">
+                    <button onClick={() => doAgroAction("fertilize")} disabled={!!agroActing || fertLeft > 0}
+                      className="text-xs rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white px-2.5 py-1.5 font-medium disabled:opacity-40 transition-colors">
+                      {agroActing === "fertilize" ? <Loader2 size={10} className="animate-spin" /> : "🌱 Удобрити"}
+                    </button>
+                    <button onClick={() => doAgroAction("pesticide")} disabled={!!agroActing || pestDmg >= 1.0}
+                      className="text-xs rounded-lg bg-orange-700 hover:bg-orange-600 text-white px-2.5 py-1.5 font-medium disabled:opacity-40 transition-colors">
+                      {agroActing === "pesticide" ? <Loader2 size={10} className="animate-spin" /> : "🐛 Пестицид"}
+                    </button>
+                  </div>
+                  {agroMsg && <p className={`text-xs ${agroMsg.startsWith("✓") ? "text-emerald-400" : "text-red-400"}`}>{agroMsg}</p>}
+                </div>
+              </div>
+            );
+          }
+
+          // ── Generic card (non-AGRO_FARM) ────────────────────────────────────────
           return (
             <div key={w.id} className="rounded-xl border border-gray-800 bg-gray-900 overflow-hidden">
               <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
