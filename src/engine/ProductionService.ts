@@ -73,6 +73,15 @@ export class ProductionService {
       where: { sku: 'RM-SUNFL' }, select: { id: true },
     });
 
+    // Pre-fetch players with active ORGANIC_CERT (блокуємо AG-FERTILIZER для органічних ферм)
+    const organicCertRows = await this.prisma.license.findMany({
+      where:  { type: 'ORGANIC_CERT', status: 'ACTIVE' },
+      select: { enterpriseId: true },
+    });
+    const organicEnterpriseIds = new Set<string>(
+      organicCertRows.map(r => r.enterpriseId).filter(Boolean) as string[]
+    );
+
     // Pre-fetch EQ-* product IDs for CapacityService required-equipment checks
     const eqProducts = await this.prisma.product.findMany({
       where:  { sku: { startsWith: 'EQ-' } },
@@ -391,7 +400,9 @@ export class ProductionService {
             let   delta      = isSameCrop ? -0.05 : +0.02;
 
             // AG-FERTILIZER: consume 1 kg → +0.5 soil quality this tick
-            if (fertProduct) {
+            // Заблоковано для ORGANIC_CERT ферм — лише SF-COMPOST дозволено
+            const isOrganic = organicEnterpriseIds.has(ent.id);
+            if (!isOrganic && fertProduct) {
               const fertInv = ent.inventory.find(i => i.productId === fertProduct.id);
               if (fertInv && fertInv.quantity >= 1) {
                 delta += 0.5;

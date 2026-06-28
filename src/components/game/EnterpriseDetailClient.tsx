@@ -13,6 +13,7 @@ import { cn, formatUAH, formatNumber } from "@/lib/utils";
 import { QualityStars } from "@/components/game/QualityBar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import SeasonalPlanner from "@/components/game/SeasonalPlanner";
 
 // ─── Product emoji map ─────────────────────────────────────────────────────────
 
@@ -97,6 +98,10 @@ interface AgroInfo {
   tickNumber:          number;
 }
 
+interface EnterpriseLicense {
+  id: string; type: string; status: string; expiresAtTick: string | null;
+}
+
 interface EnterpriseData {
   id: string; name: string; type: string;
   footprintM2: number; totalFloorAreaM2: number; usedFloorAreaM2: number;
@@ -106,6 +111,7 @@ interface EnterpriseData {
   energySourceType: string; solarCapacityKw: number;
   batteryCapacityKwh: number; currentBatteryKwh: number;
   constructedAt: string | null;
+  licenses: EnterpriseLicense[];
   // AGRO_FARM fields
   extraFieldAreaM2: number;
   localWeatherMod: number | null;
@@ -3310,6 +3316,55 @@ function InfoColumn({
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Licenses */}
+      {enterprise.licenses.length > 0 && (
+        <div className="mx-2 mt-2 rounded-lg border border-gray-800 bg-gray-900/50 p-3 space-y-1.5">
+          <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Ліцензії та сертифікати</p>
+          {enterprise.licenses.map(lic => {
+            const isActive = lic.status === "ACTIVE";
+            const BADGE: Record<string, { label: string; icon: string; color: string }> = {
+              ORGANIC_CERT:    { label: "Органік ×1.8 ціна +15% субсидія", icon: "🌿", color: isActive ? "text-emerald-400 border-emerald-800/40 bg-emerald-950/30" : "text-gray-500 border-gray-800 bg-gray-900" },
+              AGRO_INSURANCE:  { label: "Агрострахування: виплата при НС",  icon: "🛡️", color: isActive ? "text-blue-400 border-blue-800/40 bg-blue-950/30"     : "text-gray-500 border-gray-800 bg-gray-900" },
+              AGRO_PERMIT:     { label: "Агро-дозвіл",                       icon: "📋", color: isActive ? "text-amber-400 border-amber-800/40 bg-amber-950/30"   : "text-gray-500 border-gray-800 bg-gray-900" },
+            };
+            const b = BADGE[lic.type] ?? { label: lic.type, icon: "📄", color: "text-gray-400 border-gray-800 bg-gray-900" };
+            return (
+              <div key={lic.id} className={cn("flex items-center gap-2 rounded-lg border px-2 py-1.5", b.color)}>
+                <span className="text-sm shrink-0">{b.icon}</span>
+                <div className="min-w-0">
+                  <p className="text-[10px] font-medium truncate">{b.label}</p>
+                  <p className="text-[9px] text-gray-600">{isActive ? "Активна" : "Неактивна"}</p>
+                </div>
+              </div>
+            );
+          })}
+          {enterprise.type === "AGRO_FARM" && !enterprise.licenses.some(l => l.type === "ORGANIC_CERT" && l.status === "ACTIVE") && (
+            <a href="/enterprises/licenses" className="block text-[9px] text-gray-600 hover:text-emerald-400 transition-colors">+ Отримати Organic Cert (₴40K)</a>
+          )}
+          {enterprise.type === "AGRO_FARM" && !enterprise.licenses.some(l => l.type === "AGRO_INSURANCE" && l.status === "ACTIVE") && (
+            <a href="/enterprises/licenses" className="block text-[9px] text-gray-600 hover:text-blue-400 transition-colors">+ Оформити страхування (₴5K)</a>
+          )}
+        </div>
+      )}
+      {enterprise.type === "AGRO_FARM" && enterprise.licenses.length === 0 && (
+        <div className="mx-2 mt-2 rounded-lg border border-gray-800 bg-gray-900/50 p-3">
+          <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Ліцензії</p>
+          <p className="text-[10px] text-gray-600">Немає активних ліцензій</p>
+          <a href="/enterprises/licenses" className="text-[9px] text-emerald-500 hover:text-emerald-400 transition-colors">+ Organic Cert / Страхування</a>
+        </div>
+      )}
+
+      {/* Seasonal Planner (AGRO_FARM only) */}
+      {enterprise.type === "AGRO_FARM" && agroInfo && (
+        <div className="mx-2 mt-2">
+          <SeasonalPlanner
+            tickNumber={agroInfo.tickNumber}
+            seasonIndex={agroInfo.seasonIndex}
+            currentCropSku={enterprise.workshops[0]?.productionOrders?.[0]?.recipe?.outputs?.[0]?.product?.sku ?? null}
+          />
         </div>
       )}
 

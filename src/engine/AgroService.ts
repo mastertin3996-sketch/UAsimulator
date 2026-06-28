@@ -48,6 +48,7 @@ export class AgroService {
         id: true, playerId: true, name: true,
         extraFieldAreaM2: true,
         landPlot: { select: { totalAreaM2: true } },
+        licenses: { where: { type: 'ORGANIC_CERT', status: 'ACTIVE' }, select: { id: true } },
       },
     });
 
@@ -56,12 +57,15 @@ export class AgroService {
       const totalArea = (farm.landPlot?.totalAreaM2 ?? 0) + farm.extraFieldAreaM2;
       if (totalArea < 100) continue; // мінімум 100 м² для субсидії
 
-      const amount = Math.round(totalArea * SUBSIDY_PER_M2_PER_MONTH);
+      const hasOrganic   = farm.licenses.length > 0;
+      const subsRate     = SUBSIDY_PER_M2_PER_MONTH * (hasOrganic ? 1.15 : 1.0);
+      const amount       = Math.round(totalArea * subsRate);
       if (amount <= 0) continue;
 
       const balBefore = await this.prisma.player.findUnique({ where: { id: farm.playerId }, select: { cashBalance: true } });
       const balanceBefore = new Decimal(balBefore?.cashBalance?.toString() ?? '0');
       const balanceAfter  = balanceBefore.plus(amount);
+      const organicTag    = hasOrganic ? ' [+15% органік]' : '';
 
       await this.prisma.$transaction([
         this.prisma.player.update({
@@ -75,7 +79,7 @@ export class AgroService {
             amountUah:   new Decimal(amount),
             balanceBefore,
             balanceAfter,
-            description: `Агро-субсидія: ${farm.name} (${Math.round(totalArea)} м²)`,
+            description: `Агро-субсидія: ${farm.name} (${Math.round(totalArea)} м²)${organicTag}`,
           },
         }),
       ]);

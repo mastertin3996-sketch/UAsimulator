@@ -5,6 +5,7 @@ import Sidebar from "./Sidebar";
 import TopBar from "./TopBar";
 import CommandPalette from "./CommandPalette";
 import TutorialModal from "./TutorialModal";
+import ToastAlerts from "./ToastAlerts";
 
 interface GameShellProps {
   children: React.ReactNode;
@@ -108,6 +109,7 @@ export default function GameShell({ children, cashBalance: initCash, balanceUsd:
 
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
       <TutorialModal />
+      <ToastAlerts />
 
       <main className="lg:ml-60 pt-14 min-h-screen">
         <div className="p-4 lg:p-6">{children}</div>
