@@ -785,10 +785,19 @@ const MACHINERY_YIELD_BONUS_UI: Record<string, number> = {
 const MACHINERY_EMOJI_UI: Record<string, string> = {
   TRACTOR: "🚜", COMBINE_HARVESTER: "🌾", SEEDER: "🌱", SPRAYER: "💧",
 };
+const AGRO_SEASON_MULTS_UI: Record<string, [number, number, number, number]> = {
+  'RM-WHEAT':      [1.0, 0.8, 0.15, 0.0],
+  'RM-SUNFL':      [0.2, 1.0, 0.75, 0.0],
+  'RM-SUGBEET':    [0.4, 0.8, 1.0,  0.0],
+  'RM-CORN':       [0.3, 1.0, 0.80, 0.0],
+  'RM-MILK':       [1.0, 0.9, 1.0,  0.75],
+  'RM-LIVESTOCK':  [1.0, 1.0, 1.0,  0.80],
+  'SF-COMPOST':    [1.0, 1.0, 1.0,  1.00],
+};
 
 function WorkshopsTab({
-  enterprise, onRefresh,
-}: { enterprise: EnterpriseData; onRefresh: () => void }) {
+  enterprise, onRefresh, agroInfo,
+}: { enterprise: EnterpriseData; onRefresh: () => void; agroInfo?: AgroInfo | null }) {
   const [recipeModal, setRecipeModal] = useState<Workshop | null>(null);
   const [addModal,    setAddModal]    = useState(false);
   const [savingVolume, setSavingVolume] = useState<string | null>(null);
@@ -925,28 +934,62 @@ function WorkshopsTab({
                   </div>
                   {vol === 0 ? (
                     <p className="text-[10px] text-red-400 mt-1">⛔ Виробництво зупинено (обсяг = 0)</p>
-                  ) : enterprise.type === 'AGRO_FARM' ? (
-                    <div className="mt-1 space-y-0.5">
-                      <p className="text-[10px] text-gray-600">Ліміт {vol} од/тік. Фактичний врожай = площа × ґрунт × сезон × ротація × техніка.</p>
-                      {machinery.length > 0 && (() => {
-                        const active = machinery.filter((m: any) => m.isOperational && m.durability > 0);
-                        const totalBonus = active.reduce((s: number, m: any) => s + (MACHINERY_YIELD_BONUS_UI[m.type] ?? 0), 0);
-                        return active.length > 0 ? (
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="text-[10px] text-gray-500">Техніка:</span>
-                            {active.map((m: any) => (
-                              <span key={m.id} className="text-[10px] bg-emerald-900/30 text-emerald-400 px-1 rounded">
-                                {MACHINERY_EMOJI_UI[m.type]} +{MACHINERY_YIELD_BONUS_UI[m.type] ?? 0}%
-                              </span>
-                            ))}
-                            <span className="text-[10px] text-emerald-400 font-semibold">= +{totalBonus}% разом</span>
+                  ) : enterprise.type === 'AGRO_FARM' ? (() => {
+                    const cropSku   = activeOrder?.recipe?.outputs[0]?.product.sku ?? null;
+                    const soilMult  = agroInfo ? agroInfo.soilQuality / 7.0 : 1.0;
+                    const seasonIdx = agroInfo?.seasonIndex ?? 0;
+                    const seasonMult= cropSku ? (AGRO_SEASON_MULTS_UI[cropSku]?.[seasonIdx] ?? 1.0) : 1.0;
+                    const activeMach= machinery.filter((m: any) => m.isOperational && m.durability > 0);
+                    const machBonus = activeMach.reduce((s: number, m: any) => s + (MACHINERY_YIELD_BONUS_UI[m.type] ?? 0), 0);
+                    const machMult  = 1 + machBonus / 100;
+                    const estYield  = w.footprintM2 * soilMult * seasonMult * machMult;
+                    const isCapped  = vol > 0 && estYield > vol;
+                    return (
+                      <div className="mt-1 space-y-1">
+                        {/* Formula breakdown */}
+                        <div className="rounded bg-gray-800/60 px-2 py-1.5 space-y-1">
+                          <div className="flex items-center gap-1.5 flex-wrap text-[10px]">
+                            <span className="text-gray-500">Площа</span>
+                            <span className="font-mono text-white">{w.footprintM2} м²</span>
+                            <span className="text-gray-600">×</span>
+                            <span className="text-gray-500">Ґрунт</span>
+                            <span className={`font-mono ${soilMult >= 0.85 ? "text-emerald-400" : soilMult >= 0.5 ? "text-amber-400" : "text-red-400"}`}>
+                              {Math.round(soilMult * 100)}%
+                            </span>
+                            <span className="text-gray-600">×</span>
+                            <span className="text-gray-500">Сезон</span>
+                            <span className={`font-mono ${seasonMult === 0 ? "text-red-400" : seasonMult >= 0.8 ? "text-emerald-400" : "text-amber-400"}`}>
+                              {Math.round(seasonMult * 100)}%
+                            </span>
+                            {machBonus > 0 && <>
+                              <span className="text-gray-600">×</span>
+                              <span className="text-gray-500">Техніка</span>
+                              <span className="font-mono text-emerald-400">+{machBonus}%</span>
+                            </>}
+                            <span className="text-gray-600">=</span>
+                            <span className={`font-mono font-semibold ${seasonMult === 0 ? "text-red-400" : "text-white"}`}>
+                              {seasonMult === 0 ? "0 (позасезонно)" : `~${estYield.toFixed(1)} од/тік`}
+                            </span>
                           </div>
-                        ) : (
-                          <p className="text-[10px] text-amber-600">⚠ Немає активної техніки — врожайність знижена</p>
-                        );
-                      })()}
-                    </div>
-                  ) : (
+                          {activeMach.length > 0 && (
+                            <div className="flex items-center gap-1 flex-wrap">
+                              {activeMach.map((m: any) => (
+                                <span key={m.id} className="text-[9px] bg-emerald-900/40 text-emerald-400 px-1 rounded">
+                                  {MACHINERY_EMOJI_UI[m.type] ?? "⚙️"} +{MACHINERY_YIELD_BONUS_UI[m.type] ?? 0}%
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          {activeMach.length === 0 && (
+                            <p className="text-[9px] text-amber-600">⚠ Немає активної техніки</p>
+                          )}
+                        </div>
+                        {isCapped && (
+                          <p className="text-[10px] text-amber-500">⚠ Ліміт {vol} обмежує фактичний врожай {estYield.toFixed(0)} — підвищте ліміт</p>
+                        )}
+                      </div>
+                    );
+                  })() : (
                     <p className="text-[10px] text-gray-600 mt-1">Ліміт {vol} од/тік. Фактичне виробництво = min(ліміт, пропускна здатність обладнання, запас матеріалів).</p>
                   )}
                 </div>
@@ -1726,16 +1769,6 @@ function CreateFieldPlot({ enterpriseId, enterpriseType, freeLandM2, onCreated }
 }
 
 // ─── Fields Tab (AGRO_FARM) ────────────────────────────────────────────────────
-
-const AGRO_SEASON_MULTS_UI: Record<string, [number, number, number, number]> = {
-  'RM-WHEAT':     [1.0, 0.8, 0.15, 0.0],
-  'RM-SUNFL':     [0.2, 1.0, 0.75, 0.0],
-  'RM-SUGBEET':   [0.4, 0.8, 1.0,  0.0],
-  'RM-CORN':      [0.3, 1.0, 0.80, 0.0],
-  'RM-MILK':      [1.0, 0.9, 1.0,  0.75],
-  'RM-LIVESTOCK': [1.0, 1.0, 1.0,  0.80],
-  'SF-COMPOST':   [1.0, 1.0, 1.0,  1.00],
-};
 const ROTATION_NEXT_UI: Record<string, string> = {
   'RM-WHEAT': 'RM-SUNFL', 'RM-SUNFL': 'RM-SUGBEET', 'RM-SUGBEET': 'RM-WHEAT', 'RM-CORN': 'RM-WHEAT',
 };
@@ -3140,7 +3173,7 @@ export default function EnterpriseDetailClient({ enterpriseId, initialTab }: Pro
               <span className="text-[11px] text-gray-600">{freeArea.toFixed(0)} м² вільно</span>
             </div>
             <div className="flex-1 overflow-y-auto p-3">
-              <WorkshopsTab enterprise={enterprise} onRefresh={load} />
+              <WorkshopsTab enterprise={enterprise} onRefresh={load} agroInfo={agroInfo} />
             </div>
           </div>
 
