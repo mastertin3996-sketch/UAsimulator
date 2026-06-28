@@ -145,9 +145,12 @@ export class TickEngine {
     });
 
     const errors: Array<{ playerId: string; error: string }> = [];
+    const T = (label: string) => console.log(`[Tick ${tickNumber}] ⏱ ${label}: ${Date.now() - tickStart}ms`);
+    const tickStart = Date.now();
 
     // ── 1. Expire stale orders ───────────────────────────────────────────
     const ordersExpired = await this.market.expireStaleOrders();
+    T('expireStaleOrders');
 
     // ── 2. Per-player processing ─────────────────────────────────────────
     const players = await this.db.player.findMany({
@@ -197,6 +200,7 @@ export class TickEngine {
         console.error(`[Tick ${tickNumber}] Player ${playerId} failed:`, message);
       }
     }));
+    T('playerTicks');
 
     // ── 2b-2d. Незалежні глобальні операції — паралельно ────────────────
     const [retailSummary, supplyTransfers] = await Promise.all([
@@ -304,6 +308,7 @@ export class TickEngine {
         .catch(e => console.error(`[Tick ${tickNumber}] Price alerts failed:`, e));
     }
 
+    T('globalParallelOps + b2b + market orders');
     // ── 3. Global B2B market matching ────────────────────────────────────
     const trades = await this.market.matchOrders();
 
@@ -337,6 +342,7 @@ export class TickEngine {
       await this.db.notification.createMany({ data: notifRows });
     }
 
+    T('matchOrders');
     // ── 3a2. NPC market buying — скуповує SELL-ордери до referencePrice ──
     const npcMarketUnits = await this.market.matchNpcMarketOrders(tickNumber)
       .catch(e => { console.error(`[Tick ${tickNumber}] NPC market buy failed:`, e); return 0; });
@@ -344,6 +350,7 @@ export class TickEngine {
       console.log(`[Tick ${tickNumber}] NPC market: bought ${npcMarketUnits.toFixed(0)} units.`);
     }
 
+    T('matchNpcMarketOrders');
     // ── 3a3. Dynamic NPC price update — реагує на supply/demand поточного тіку ──
     await this.market.updateNpcMarketPrices()
       .catch(e => console.error(`[Tick ${tickNumber}] NPC price update failed:`, e));
