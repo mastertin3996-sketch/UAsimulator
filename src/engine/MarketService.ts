@@ -982,20 +982,45 @@ export class MarketService {
       select: { id: true },
     });
 
-    // Базові ціни (UAH/т або UAH/од) для сировини та напівфабрикатів
-    // яких немає в NpcDemand (де тільки FG/CM)
+    // Базові ціни (UAH/кг або UAH/од) для сировини та напівфабрикатів
     const FALLBACK_PRICES: Record<string, number> = {
-      'RM-WHEAT':     3_800,
-      'RM-CORN':      3_200,
-      'RM-SUNFL':     6_500,
-      'RM-SUGBEET':   1_400,
-      'SF-FLOUR':     8_500,
-      'SF-SUGAR':    15_000,
-      'SF-STEEL':    42_000,
-      'SF-LUMBER':   12_000,
-      'SF-OIL':      28_000,
-      'AG-FERTILIZER': 9_000,
-      'RM-PESTICIDE':  4_500,
+      // Зернові / польові культури
+      'RM-WHEAT':        3.8,
+      'RM-CORN':         3.2,
+      'RM-SUNFL':        6.5,
+      'RM-SUGBEET':      1.4,
+      'RM-BARLEY':       3.0,
+      // Тваринництво-сировина
+      'RM-MILK':         8.5,
+      // Метали / важка промисловість
+      'RM-IRONORE':      4.2,
+      'RM-COAL':         3.6,
+      // Деревина
+      'RM-LUMBER':      12.0,
+      // Текстиль
+      'RM-COTTON':      28.0,
+      'RM-WOOL':        45.0,
+      // Напівфабрикати харчові
+      'SF-FLOUR':        8.5,
+      'SF-SUGAR':       15.0,
+      'SF-CORN-STARCH': 11.0,
+      'SF-MALT':        18.0,
+      // Напівфабрикати промислові
+      'SF-STEEL':       42.0,
+      'SF-PLANKS':      15.0,
+      'SF-FABRIC':      65.0,
+      'SF-YARN':        55.0,
+      // Агро витратники
+      'AG-FERTILIZER':   9.0,
+      'RM-PESTICIDE':    4.5,
+      // Будівельні матеріали (ціна за одиницю: тонна або шт)
+      'CM-CEMENT':    3_800,
+      'CM-SAND':        450,
+      'CM-GRAVEL':      800,
+      'CM-BRICK':         9,
+      'CM-CONCRETE':  4_500,
+      'CM-REBAR':    42_000,
+      'CM-TIMBER':   12_000,
     };
     const NPC_SELL_SKUS = Object.keys(FALLBACK_PRICES);
 
