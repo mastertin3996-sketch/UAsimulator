@@ -1119,14 +1119,14 @@ export class MarketService {
     }
     if (toCreate.length === 0) return 0;
 
-    // Поповнити інвентар ДержПром одним batch-запитом (upsert у паралелі)
-    await Promise.all(toCreate.map(p =>
-      this.prisma.playerInventory.upsert({
-        where:  { playerId_productId: { playerId: derzhprom.id, productId: p.productId } },
-        update: { quantity: { increment: p.qty } },
-        create: { playerId: derzhprom.id, productId: p.productId, quantity: p.qty, avgQuality: 6 },
-      })
-    ));
+    // Batch inventory upsert via raw SQL (1 query замість 58 upserts)
+    const invValues = toCreate.map(p => `('${derzhprom.id}', '${p.productId}', ${p.qty}, 6.0)`).join(',');
+    await this.prisma.$executeRawUnsafe(`
+      INSERT INTO "PlayerInventory" ("playerId", "productId", "quantity", "avgQuality")
+      VALUES ${invValues}
+      ON CONFLICT ("playerId", "productId")
+      DO UPDATE SET "quantity" = "PlayerInventory"."quantity" + EXCLUDED."quantity"
+    `);
 
     // Один createMany для всіх ордерів
     await this.prisma.marketOrder.createMany({

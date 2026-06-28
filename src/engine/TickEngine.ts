@@ -282,8 +282,9 @@ export class TickEngine {
         .catch(e => console.error(`[Tick ${tickNumber}] Seasonal soil/pests failed:`, e));
     }
 
-    // ── 3a1j. B2B трансфер, логіст. замовлення, інспекції — паралельно ──
-    await Promise.all([
+    // ── 3a1j. B2B + логіст. + інспекції + 8-тічні операції — всі паралельно ──
+    const is8tick = Number(tickNumber) % 8 === 0;
+    const [stateOrderCount, npcSellCount] = await Promise.all([
       this.b2bTransfer.processTransfers(tickNumber)
         .catch(e => console.error(`[Tick ${tickNumber}] B2B transfer failed:`, e)),
       this.freightSvc.processCompletedOrders(tickNumber)
@@ -293,21 +294,20 @@ export class TickEngine {
       Number(tickNumber) % 5 === 0
         ? this.freightSvc.generateNpcOrders(tickNumber).catch(e => console.error(`[Tick ${tickNumber}] Freight NPC orders failed:`, e))
         : Promise.resolve(),
+      // 8-тічні: держзамовлення + NPC sells + цінові сповіщення — паралельно з B2B
+      is8tick
+        ? this.market.generateStateOrders().catch(e => { console.error(`[Tick ${tickNumber}] State orders failed:`, e); return 0; })
+        : Promise.resolve(0),
+      is8tick
+        ? this.market.generateNpcSellOrders().catch(e => { console.error(`[Tick ${tickNumber}] NPC sell orders failed:`, e); return 0; })
+        : Promise.resolve(0),
+      is8tick
+        ? this.market.processPriceAlerts().catch(e => console.error(`[Tick ${tickNumber}] Price alerts failed:`, e))
+        : Promise.resolve(),
     ]);
-
-    // ── 3a1b. Держзамовлення — нові BUY-ордери з премією кожні 8 тіків ──
-    // Виконується ДО matchOrders щоб нові ордери одразу потрапляли в матчинг
-    if (Number(tickNumber) % 8 === 0) {
-      const count = await this.market.generateStateOrders()
-        .catch(e => { console.error(`[Tick ${tickNumber}] State orders failed:`, e); return 0; });
-      if (count > 0) console.log(`[Tick ${tickNumber}] Держзамовлення: ${count} нових ордерів.`);
-
-      const npcSells = await this.market.generateNpcSellOrders()
-        .catch(e => { console.error(`[Tick ${tickNumber}] NPC sell orders failed:`, e); return 0; });
-      if (npcSells > 0) console.log(`[Tick ${tickNumber}] NPC продаж: ${npcSells} ордерів.`);
-
-      await this.market.processPriceAlerts()
-        .catch(e => console.error(`[Tick ${tickNumber}] Price alerts failed:`, e));
+    if (is8tick) {
+      if ((stateOrderCount as unknown as number) > 0) console.log(`[Tick ${tickNumber}] Держзамовлення: ${stateOrderCount}.`);
+      if ((npcSellCount as unknown as number) > 0) console.log(`[Tick ${tickNumber}] NPC продаж: ${npcSellCount} ордерів.`);
     }
 
     T('globalParallelOps + b2b + market orders');
