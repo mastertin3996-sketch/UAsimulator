@@ -103,6 +103,10 @@ export class ProductionService {
           },
         },
         inventory: true,
+        farmMachinery: {
+          where:  { isOperational: true },
+          select: { machineryType: true, durability: true },
+        },
       },
     });
 
@@ -207,13 +211,21 @@ export class ProductionService {
             );
             const tractorBonus = hasTractor ? 1.30 : 1.0;
 
+            // FarmMachinery bonuses: enterprise-level agro machines (Технiка вкладка)
+            const MACHINERY_YIELD_BONUS: Record<string, number> = {
+              TRACTOR: 0.20, COMBINE_HARVESTER: 0.30, SEEDER: 0.10, SPRAYER: 0.05,
+            };
+            const machineryMult = 1 + (ent.farmMachinery ?? [])
+              .filter(m => m.durability > 0)
+              .reduce((sum, m) => sum + (MACHINERY_YIELD_BONUS[m.machineryType] ?? 0), 0);
+
             // Fertilizer: +20% yield if fertilizerTicksLeft > 0
             const fertBonus = (ent.landPlot?.fertilizerTicksLeft ?? 0) > 0 ? 1.20 : 1.0;
 
             // Pest damage multiplier
             const pestMult = ent.landPlot?.pestDamageMult ?? 1.0;
 
-            baseCapacity = ws.footprintM2 * soilMult * seasonMult * rotationMult * droughtMult * irrigationBonus * agronomistMult * plantingBonus * fieldAreaMult * localWeatherMod * tractorBonus * fertBonus * pestMult;
+            baseCapacity = ws.footprintM2 * soilMult * seasonMult * rotationMult * droughtMult * irrigationBonus * agronomistMult * plantingBonus * fieldAreaMult * localWeatherMod * tractorBonus * machineryMult * fertBonus * pestMult;
           } else {
             baseCapacity = ws.maxCapacity;
           }

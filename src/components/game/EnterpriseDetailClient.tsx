@@ -779,6 +779,13 @@ function BuyEquipmentModal({
   );
 }
 
+const MACHINERY_YIELD_BONUS_UI: Record<string, number> = {
+  TRACTOR: 20, COMBINE_HARVESTER: 30, SEEDER: 10, SPRAYER: 5,
+};
+const MACHINERY_EMOJI_UI: Record<string, string> = {
+  TRACTOR: "🚜", COMBINE_HARVESTER: "🌾", SEEDER: "🌱", SPRAYER: "💧",
+};
+
 function WorkshopsTab({
   enterprise, onRefresh,
 }: { enterprise: EnterpriseData; onRefresh: () => void }) {
@@ -794,6 +801,15 @@ function WorkshopsTab({
   const [equipBusy,     setEquipBusy]     = useState<string | null>(null);
   const [equipMsg,      setEquipMsg]      = useState<{ id: string; ok: boolean; text: string } | null>(null);
   const [buyEquipWs,    setBuyEquipWs]    = useState<Workshop | null>(null);
+  const [machinery,     setMachinery]     = useState<any[]>([]);
+
+  useEffect(() => {
+    if (enterprise.type !== "AGRO_FARM") return;
+    fetch(`/api/enterprises/${enterprise.id}/machinery`)
+      .then(r => r.json())
+      .then(d => setMachinery(d.machinery ?? []))
+      .catch(() => {});
+  }, [enterprise.id, enterprise.type]);
 
   async function doEquipAction(eqId: string, action: "maintenance" | "repair") {
     setEquipBusy(eqId);
@@ -910,7 +926,26 @@ function WorkshopsTab({
                   {vol === 0 ? (
                     <p className="text-[10px] text-red-400 mt-1">⛔ Виробництво зупинено (обсяг = 0)</p>
                   ) : enterprise.type === 'AGRO_FARM' ? (
-                    <p className="text-[10px] text-gray-600 mt-1">Ліміт {vol} од/тік. Фактичний врожай = площа × ґрунт × сезон × ротація.</p>
+                    <div className="mt-1 space-y-0.5">
+                      <p className="text-[10px] text-gray-600">Ліміт {vol} од/тік. Фактичний врожай = площа × ґрунт × сезон × ротація × техніка.</p>
+                      {machinery.length > 0 && (() => {
+                        const active = machinery.filter((m: any) => m.isOperational && m.durability > 0);
+                        const totalBonus = active.reduce((s: number, m: any) => s + (MACHINERY_YIELD_BONUS_UI[m.type] ?? 0), 0);
+                        return active.length > 0 ? (
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-[10px] text-gray-500">Техніка:</span>
+                            {active.map((m: any) => (
+                              <span key={m.id} className="text-[10px] bg-emerald-900/30 text-emerald-400 px-1 rounded">
+                                {MACHINERY_EMOJI_UI[m.type]} +{MACHINERY_YIELD_BONUS_UI[m.type] ?? 0}%
+                              </span>
+                            ))}
+                            <span className="text-[10px] text-emerald-400 font-semibold">= +{totalBonus}% разом</span>
+                          </div>
+                        ) : (
+                          <p className="text-[10px] text-amber-600">⚠ Немає активної техніки — врожайність знижена</p>
+                        );
+                      })()}
+                    </div>
                   ) : (
                     <p className="text-[10px] text-gray-600 mt-1">Ліміт {vol} од/тік. Фактичне виробництво = min(ліміт, пропускна здатність обладнання, запас матеріалів).</p>
                   )}
@@ -2471,11 +2506,44 @@ function MachineryTab({ enterpriseId }: { enterpriseId: string }) {
 
   const durColor = (d: number) => d > 0.6 ? "text-emerald-400" : d > 0.3 ? "text-amber-400" : "text-red-400";
 
+  const MACHINERY_BONUS: Record<string, number> = {
+    TRACTOR: 20, COMBINE_HARVESTER: 30, SEEDER: 10, SPRAYER: 5,
+  };
+  const MACHINERY_EMOJI: Record<string, string> = {
+    TRACTOR: "🚜", COMBINE_HARVESTER: "🌾", SEEDER: "🌱", SPRAYER: "💧",
+  };
+
+  const activeMachinery = (data?.machinery ?? []).filter((m: any) => m.isOperational && m.durability > 0);
+  const totalBonus = activeMachinery.reduce((sum: number, m: any) => sum + (MACHINERY_BONUS[m.type] ?? 0), 0);
+
   if (loading) return <p className="text-gray-500 text-sm">Завантаження...</p>;
 
   return (
     <div className="space-y-4">
       {msg && <p className={`text-xs ${msg.startsWith("✓") ? "text-emerald-400" : "text-red-400"}`}>{msg}</p>}
+
+      {/* Production impact summary */}
+      <div className="rounded-xl border border-emerald-800/40 bg-emerald-950/30 p-3">
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-xs font-semibold text-emerald-300 uppercase tracking-wider">Вплив на виробництво</p>
+          <span className={`text-sm font-bold ${totalBonus > 0 ? "text-emerald-400" : "text-gray-500"}`}>
+            {totalBonus > 0 ? `+${totalBonus}% врожайність` : "Немає активної техніки"}
+          </span>
+        </div>
+        {activeMachinery.length > 0 ? (
+          <div className="space-y-1">
+            {activeMachinery.map((m: any) => (
+              <div key={m.id} className="flex items-center justify-between text-xs">
+                <span className="text-gray-300">{MACHINERY_EMOJI[m.type] ?? "⚙️"} {m.name}</span>
+                <span className="text-emerald-400 font-medium">+{MACHINERY_BONUS[m.type] ?? 0}%</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-gray-600">Придбайте або орендуйте техніку щоб збільшити врожайність усіх цехів.</p>
+        )}
+        <p className="text-[10px] text-gray-600 mt-2">Застосовується до всіх агро-цехів підприємства кожен тік.</p>
+      </div>
 
       {/* Existing machinery */}
       {data?.machinery && data.machinery.length > 0 && (
@@ -2483,10 +2551,14 @@ function MachineryTab({ enterpriseId }: { enterpriseId: string }) {
           {data.machinery.map((m: any) => (
             <div key={m.id} className="rounded-lg border border-gray-800 bg-gray-900 p-3 flex items-center gap-4">
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-white">{m.name}
-                  {m.isRented && <span className="ml-2 text-[10px] bg-amber-900/50 text-amber-400 px-1.5 py-0.5 rounded">ОРЕНДА</span>}
-                  {!m.isOperational && <span className="ml-2 text-[10px] bg-red-900/50 text-red-400 px-1.5 py-0.5 rounded">ЗЛАМАНА</span>}
-                </p>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-sm font-semibold text-white">{MACHINERY_EMOJI[m.type] ?? "⚙️"} {m.name}</p>
+                  {m.isRented && <span className="text-[10px] bg-amber-900/50 text-amber-400 px-1.5 py-0.5 rounded">ОРЕНДА</span>}
+                  {!m.isOperational && <span className="text-[10px] bg-red-900/50 text-red-400 px-1.5 py-0.5 rounded">ЗЛАМАНА</span>}
+                  {m.isOperational && m.durability > 0 && (
+                    <span className="text-[10px] bg-emerald-900/40 text-emerald-400 px-1.5 py-0.5 rounded">+{MACHINERY_BONUS[m.type] ?? 0}% врожаю</span>
+                  )}
+                </div>
                 <div className="flex items-center gap-2 mt-1">
                   <div className="flex-1 h-1.5 rounded-full bg-gray-700">
                     <div className={`h-full rounded-full ${durColor(m.durability)}`} style={{ width: `${m.durability * 100}%`, backgroundColor: "currentColor" }} />
@@ -2512,8 +2584,11 @@ function MachineryTab({ enterpriseId }: { enterpriseId: string }) {
           {data?.catalog?.map((item: any) => (
             <div key={item.type} className="flex items-center gap-3 rounded-lg bg-gray-800 px-3 py-2">
               <div className="flex-1 min-w-0">
-                <p className="text-sm text-white">{item.nameUa}</p>
-                <p className="text-xs text-gray-500">Купити: ₴{item.price.toLocaleString("uk-UA")} · Оренда: ₴{item.rentPerTick.toLocaleString("uk-UA")}/тік · +{Math.round(item.yieldBonus * 100)}% врожаю</p>
+                <p className="text-sm text-white">{MACHINERY_EMOJI[item.type] ?? "⚙️"} {item.nameUa}</p>
+                <p className="text-xs text-gray-500">
+                  Купити: ₴{item.price.toLocaleString("uk-UA")} · Оренда: ₴{item.rentPerTick.toLocaleString("uk-UA")}/тік
+                  <span className="ml-1 text-emerald-500">· +{Math.round(item.yieldBonus * 100)}% врожаю всіх цехів</span>
+                </p>
               </div>
               <div className="flex gap-1.5 shrink-0">
                 <button onClick={() => act(item.type, { machineryType: item.type })} disabled={!!acting}
