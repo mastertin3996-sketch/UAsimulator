@@ -11,9 +11,9 @@ export class MarketService {
   private async getDerzhpromId(): Promise<string> {
     if (!this._derzhpromId) {
       const dp = await this.prisma.player.findFirst({ where: { username: 'derzhprom' }, select: { id: true } });
-      this._derzhpromId = dp?.id ?? '';
+      if (dp?.id) this._derzhpromId = dp.id; // cache only when found; retry next tick if not yet created
     }
-    return this._derzhpromId;
+    return this._derzhpromId ?? '';
   }
 
   /** Переводить прострочені ринкові ордери у статус EXPIRED.
@@ -667,17 +667,17 @@ export class MarketService {
       this.prisma.npcDemand.groupBy({ by: ['productId'], _sum: { baseUnitsPerDay: true }, _avg: { referencePrice: true } }),
       this.prisma.product.findMany({ select: { id: true, sku: true } }),
       this.getOrganicCertPlayers(),
-      // Exclude ДержПром SELL orders — NPC should not buy from itself
+      // Exclude NPC SELL orders — NPC should not buy from itself
       this.prisma.marketOrder.findMany({
         where: {
-          type:         'SELL',
-          status:       { in: ['OPEN', 'PARTIALLY_FILLED'] },
-          NOT:          { playerId: derzhpromId },
+          type:   'SELL',
+          status: { in: ['OPEN', 'PARTIALLY_FILLED'] },
+          player: { isNpcSeller: false },  // only real player sell orders
         },
         orderBy: [{ pricePerUnit: 'asc' }, { createdAt: 'asc' }],
         select: { id: true, playerId: true, productId: true, quantityTotal: true, quantityFilled: true, pricePerUnit: true, quality: true, createdAt: true },
       }),
-      this.prisma.player.findMany({ where: { NOT: { username: 'derzhprom' } }, select: { id: true, cashBalance: true } }),
+      this.prisma.player.findMany({ where: { isNpcSeller: false }, select: { id: true, cashBalance: true } }),
     ]);
 
     if (allPlayerSells.length === 0) return 0;
