@@ -1354,7 +1354,7 @@ function ShowcaseTab({ enterpriseId, onGoToSupply }: { enterpriseId: string; onG
             )}
             <div className="flex gap-1.5 mt-3" onClick={e => e.stopPropagation()}>
               <Link
-                href={`/market?product=${item.productId}`}
+                href={`/market?product=${item.productId}&from=/enterprises/${enterpriseId}`}
                 className="flex-1 text-center text-xs px-2 py-1 rounded-lg bg-blue-600/20 border border-blue-500/30 hover:bg-blue-600/30 text-blue-400 transition-colors"
               >
                 🛒 Ринок
@@ -1417,7 +1417,7 @@ function ShowcaseTab({ enterpriseId, onGoToSupply }: { enterpriseId: string; onG
 
           <div className="flex flex-wrap gap-2 pt-1">
             <Link
-              href={`/market?product=${selected.productId}`}
+              href={`/market?product=${selected.productId}&from=/enterprises/${enterpriseId}`}
               className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-600/20 border border-blue-500/30 hover:bg-blue-600/30 text-blue-400 text-xs font-medium transition-colors"
             >
               🛒 Ринок

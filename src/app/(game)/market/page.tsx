@@ -482,7 +482,7 @@ function OrderBookPanel() {
 
 // ─── Offers tab ───────────────────────────────────────────────────────────────
 
-function OffersTab({ preselectId }: { preselectId?: string | null }) {
+function OffersTab({ preselectId, fromUrl }: { preselectId?: string | null; fromUrl?: string }) {
   const router = useRouter();
   const [offers,           setOffers]           = useState<Offer[]>([]);
   const [isAccredited,     setIsAccredited]     = useState(false);
@@ -775,7 +775,7 @@ function OffersTab({ preselectId }: { preselectId?: string | null }) {
                 <div className="flex items-center gap-2 text-emerald-400 text-sm bg-emerald-950/40 border border-emerald-800/40 rounded-xl px-4 py-3">
                   <CheckCircle2 size={15} />{buySuccess}
                 </div>
-                <Button variant="outline" className="w-full" onClick={() => router.back()}>
+                <Button variant="outline" className="w-full" onClick={() => fromUrl ? router.push(fromUrl) : router.back()}>
                   ← Повернутись назад
                 </Button>
               </div>
@@ -1342,6 +1342,7 @@ type MarketTab = "offers" | "orderbook" | "myorders" | "stateorders" | "autocont
 function MarketPageInner() {
   const searchParams = useSearchParams();
   const preselectId = searchParams.get("product");
+  const fromUrl     = searchParams.get("from") ?? undefined;
   const [tab, setTab] = useState<MarketTab>("offers");
 
   const TABS: { key: MarketTab; label: string; icon?: React.ElementType; emoji?: string }[] = [
@@ -1379,7 +1380,7 @@ function MarketPageInner() {
         ))}
       </div>
 
-      {tab === "offers"       && <OffersTab preselectId={preselectId} />}
+      {tab === "offers"       && <OffersTab preselectId={preselectId} fromUrl={fromUrl} />}
       {tab === "stateorders"  && <StateOrdersTab />}
       {tab === "orderbook"    && <OrderBookPanel />}
       {tab === "myorders"     && <MyOrdersTab />}
