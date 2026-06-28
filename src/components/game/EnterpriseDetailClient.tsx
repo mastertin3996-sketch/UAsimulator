@@ -71,7 +71,7 @@ interface ProductionOrder {
 
 interface Workshop {
   id: string; name: string; footprintM2: number; maxCapacity: number;
-  currentVolume: number; isActive: boolean;
+  currentVolume: number; isActive: boolean; harvestAccumulated: number;
   equipment: Equipment[];
   productionOrders: ProductionOrder[];
 }
@@ -87,12 +87,14 @@ interface FinancialLog {
 }
 
 interface AgroInfo {
-  soilQuality:        number;
-  lastCropSku:        string | null;
-  recommendedCropSku: string | null;
-  currentSeason:      string;
-  seasonIndex:        number;
-  tickNumber:         number;
+  soilQuality:         number;
+  lastCropSku:         string | null;
+  fertilizerTicksLeft: number;
+  pestDamageMult:      number;
+  recommendedCropSku:  string | null;
+  currentSeason:       string;
+  seasonIndex:         number;
+  tickNumber:          number;
 }
 
 interface EnterpriseData {
@@ -1715,6 +1717,48 @@ function FieldsTab({ enterprise, agroInfo, onRefresh }: { enterprise: Enterprise
   const [fairMsg, setFairMsg] = useState<string | null>(null);
   const [sellingFair, setSellingFair] = useState(false);
 
+  // Добрива / шкідники / збір врожаю
+  const [fertBusy,     setFertBusy]     = useState(false);
+  const [pestBusy,     setPestBusy]     = useState(false);
+  const [harvestBusy,  setHarvestBusy]  = useState<string | null>(null);
+  const [agroActionMsg, setAgroActionMsg] = useState<string | null>(null);
+
+  async function applyFertilizer() {
+    setFertBusy(true); setAgroActionMsg(null);
+    const res = await fetch("/api/agro/fertilize", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enterpriseId: enterprise.id }),
+    });
+    const d = await res.json();
+    setFertBusy(false);
+    setAgroActionMsg(res.ok ? `✓ ${d.message}` : `✗ ${d.error}`);
+    if (res.ok) onRefresh();
+  }
+
+  async function applyPesticide() {
+    setPestBusy(true); setAgroActionMsg(null);
+    const res = await fetch("/api/agro/pesticide", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enterpriseId: enterprise.id }),
+    });
+    const d = await res.json();
+    setPestBusy(false);
+    setAgroActionMsg(res.ok ? `✓ ${d.message}` : `✗ ${d.error}`);
+    if (res.ok) onRefresh();
+  }
+
+  async function harvestWorkshop(workshopId: string) {
+    setHarvestBusy(workshopId); setAgroActionMsg(null);
+    const res = await fetch("/api/agro/harvest", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ workshopId }),
+    });
+    const d = await res.json();
+    setHarvestBusy(null);
+    setAgroActionMsg(res.ok ? `✓ Зібрано ${d.harvested?.toFixed(1)} кг → склад` : `✗ ${d.error}`);
+    if (res.ok) onRefresh();
+  }
+
   // Аграрний кредит
   const [loanContractId, setLoanContractId] = useState("");
   const [loanAmount, setLoanAmount] = useState("");
@@ -1852,6 +1896,40 @@ function FieldsTab({ enterprise, agroInfo, onRefresh }: { enterprise: Enterprise
         </div>
       )}
 
+      {/* Панель стану ґрунту — добриво та шкідники */}
+      {agroInfo && (
+        <div className="flex flex-wrap gap-2 items-center">
+          {agroInfo.pestDamageMult < 1.0 && (
+            <div className="flex items-center gap-2 bg-red-950/50 border border-red-800/50 rounded-lg px-3 py-2 text-xs text-red-300">
+              <span>🐛 Шкідники −{Math.round((1 - agroInfo.pestDamageMult) * 100)}% врожаю</span>
+              <button
+                onClick={applyPesticide} disabled={pestBusy}
+                className="ml-1 px-2 py-0.5 rounded bg-red-700 hover:bg-red-600 text-white text-[10px] font-medium disabled:opacity-50"
+              >
+                {pestBusy ? "..." : "Пестицид (5 кг)"}
+              </button>
+            </div>
+          )}
+          <div className={cn("flex items-center gap-2 rounded-lg px-3 py-2 text-xs border",
+            agroInfo.fertilizerTicksLeft > 0
+              ? "bg-emerald-950/40 border-emerald-800/50 text-emerald-300"
+              : "bg-gray-900 border-gray-800 text-gray-500")}>
+            {agroInfo.fertilizerTicksLeft > 0
+              ? <span>🌱 Добриво: ще {Math.ceil(agroInfo.fertilizerTicksLeft / 30)} сезони (+20%)</span>
+              : <span>Добриво не внесено</span>}
+            <button
+              onClick={applyFertilizer} disabled={fertBusy}
+              className="ml-1 px-2 py-0.5 rounded bg-emerald-700 hover:bg-emerald-600 text-white text-[10px] font-medium disabled:opacity-50"
+            >
+              {fertBusy ? "..." : "Внести (50 кг)"}
+            </button>
+          </div>
+          {agroActionMsg && (
+            <p className={cn("text-xs", agroActionMsg.startsWith("✓") ? "text-emerald-400" : "text-red-400")}>{agroActionMsg}</p>
+          )}
+        </div>
+      )}
+
       {/* Ділянки — що засівати (ПЕРШОЧЕРГОВО) */}
       {(() => {
         const totalLandM2 = fieldInfo ? fieldInfo.baseLandAreaM2 + fieldInfo.extraFieldAreaM2 : null;
@@ -1962,6 +2040,20 @@ function FieldsTab({ enterprise, agroInfo, onRefresh }: { enterprise: Enterprise
                             <span className="text-gray-600 ml-1">({ws.footprintM2} м² · ґрунт {(soilMult * 100).toFixed(0)}%)</span>
                           </p>
                         )}
+                      </div>
+                    )}
+                    {ws.harvestAccumulated >= 0.1 && FIELD_CROPS_UI.has(cropSku ?? '') && (
+                      <div className="mt-1.5 border-t border-amber-900/40 pt-1.5 flex items-center justify-between">
+                        <p className="text-[10px] text-amber-300">
+                          🌾 Готово до збору: <span className="font-mono font-bold">{ws.harvestAccumulated.toFixed(1)}</span> {cropUnit ?? "кг"}
+                        </p>
+                        <button
+                          onClick={() => harvestWorkshop(ws.id)}
+                          disabled={harvestBusy === ws.id}
+                          className="px-2 py-0.5 text-[10px] rounded bg-amber-600 hover:bg-amber-500 text-white font-medium disabled:opacity-50"
+                        >
+                          {harvestBusy === ws.id ? "..." : "Зібрати →"}
+                        </button>
                       </div>
                     )}
                     <button onClick={() => setRecipeModal(ws)} className="text-[10px] text-blue-400 hover:text-blue-300 underline underline-offset-2">

@@ -304,6 +304,8 @@ export class TickEngine {
       if (subsidyCount > 0) console.log(`[Tick ${tickNumber}] Агро-субсидії: ${subsidyCount} фермерів.`);
       await this.agro.chargeExtraFieldRents(tickNumber)
         .catch(e => console.error(`[Tick ${tickNumber}] Extra field rent failed:`, e));
+      await this.agro.processSeasonalSoilAndPests(tickNumber)
+        .catch(e => console.error(`[Tick ${tickNumber}] Seasonal soil/pests failed:`, e));
     }
 
     // ── 3a1j. Phase 28: B2B трансфер, логіст. замовлення, інспекції, кредитний рейтинг ──

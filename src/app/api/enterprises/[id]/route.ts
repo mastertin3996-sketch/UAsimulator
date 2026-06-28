@@ -27,7 +27,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
         select: {
           id: true, cadastralNumber: true, totalAreaM2: true, usedAreaM2: true,
           status: true, monthlyLeaseCostUah: true, purchasePriceUah: true,
-          soilQuality: true, lastCropSku: true,
+          soilQuality: true, lastCropSku: true, fertilizerTicksLeft: true, pestDamageMult: true,
           city: { select: { id: true, name: true, nameUa: true, region: true, energyTariffUah: true } },
         },
       },
@@ -44,7 +44,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
         orderBy: { name: "asc" },
         select: {
           id: true, name: true, footprintM2: true, maxCapacity: true,
-          currentVolume: true, isActive: true, basePowerKwhPerTick: true,
+          currentVolume: true, isActive: true, basePowerKwhPerTick: true, harvestAccumulated: true,
           equipment: {
             select: {
               id: true, name: true, status: true, wearAndTear: true,
@@ -108,8 +108,10 @@ export async function GET(_req: NextRequest, { params }: Params) {
     'RM-WHEAT': 'RM-SUNFL', 'RM-SUNFL': 'RM-SUGBEET', 'RM-SUGBEET': 'RM-WHEAT', 'RM-CORN': 'RM-WHEAT',
   };
   const agroInfo = enterprise.type === "AGRO_FARM" ? {
-    soilQuality:        enterprise.landPlot.soilQuality,
-    lastCropSku:        enterprise.landPlot.lastCropSku,
+    soilQuality:         enterprise.landPlot.soilQuality,
+    lastCropSku:         enterprise.landPlot.lastCropSku,
+    fertilizerTicksLeft: enterprise.landPlot.fertilizerTicksLeft,
+    pestDamageMult:      enterprise.landPlot.pestDamageMult,
     recommendedCropSku: enterprise.landPlot.lastCropSku
       ? (ROTATION_NEXT[enterprise.landPlot.lastCropSku] ?? null)
       : 'RM-WHEAT',

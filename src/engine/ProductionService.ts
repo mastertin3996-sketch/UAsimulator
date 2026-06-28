@@ -84,7 +84,7 @@ export class ProductionService {
       where:   { playerId, isOperational: true },
       include: {
         employees: true,
-        landPlot: { select: { id: true, soilQuality: true, lastCropSku: true, cityId: true } },
+        landPlot: { select: { id: true, soilQuality: true, lastCropSku: true, cityId: true, fertilizerTicksLeft: true, pestDamageMult: true } },
         workshops: {
           where:   { isActive: true },
           include: {
@@ -201,7 +201,19 @@ export class ProductionService {
             // Local weather modifier (заморозки/град)
             const localWeatherMod = ent.localWeatherMod ?? 1.0;
 
-            baseCapacity = ws.footprintM2 * soilMult * seasonMult * rotationMult * droughtMult * irrigationBonus * agronomistMult * plantingBonus * fieldAreaMult * localWeatherMod;
+            // EQ-TRACTOR: +30% yield if operational tractor is installed
+            const hasTractor = ws.equipment.some(eq =>
+              (productIdToSku.get(eq.catalogProductId) ?? '') === 'EQ-TRACTOR' && !eq.isBroken && eq.wearAndTear < 1.0
+            );
+            const tractorBonus = hasTractor ? 1.30 : 1.0;
+
+            // Fertilizer: +20% yield if fertilizerTicksLeft > 0
+            const fertBonus = (ent.landPlot?.fertilizerTicksLeft ?? 0) > 0 ? 1.20 : 1.0;
+
+            // Pest damage multiplier
+            const pestMult = ent.landPlot?.pestDamageMult ?? 1.0;
+
+            baseCapacity = ws.footprintM2 * soilMult * seasonMult * rotationMult * droughtMult * irrigationBonus * agronomistMult * plantingBonus * fieldAreaMult * localWeatherMod * tractorBonus * fertBonus * pestMult;
           } else {
             baseCapacity = ws.maxCapacity;
           }
@@ -284,33 +296,45 @@ export class ProductionService {
             invRow.quantity = newQty;
           }
 
-          // ── Credit outputs to enterprise inventory ────────────────────
-          for (const output of recipe.outputs) {
-            const produced = output.quantityPerUnit * unitsThisTick;
-            const existing = ent.inventory.find(i => i.productId === output.productId);
+          // ── Credit outputs ────────────────────────────────────────────
+          // Field crops accumulate for manual harvest; other outputs go directly to inventory
+          const FIELD_CROP_SKUS = new Set(['RM-WHEAT', 'RM-SUNFL', 'RM-SUGBEET', 'RM-CORN']);
+          const isFieldCrop = ent.type === 'AGRO_FARM' && recipe.outputs.some(o => FIELD_CROP_SKUS.has(o.product.sku));
 
-            if (existing) {
-              const newQty = existing.quantity + produced;
-              const newAvgQ = weightedAvgQuality([
-                { quantity: existing.quantity, quality: existing.avgQuality },
-                { quantity: produced,          quality: outputQuality },
-              ]);
-              await this.prisma.enterpriseInventory.update({
-                where: { id: existing.id },
-                data:  { quantity: newQty, avgQuality: newAvgQ },
-              });
-              existing.quantity   = newQty;
-              existing.avgQuality = newAvgQ;
-            } else {
-              const created = await this.prisma.enterpriseInventory.create({
-                data: {
-                  enterpriseId: ent.id,
-                  productId:    output.productId,
-                  quantity:     produced,
-                  avgQuality:   outputQuality,
-                },
-              });
-              ent.inventory.push(created);
+          if (isFieldCrop) {
+            const produced = recipe.outputs.reduce((s, o) => s + o.quantityPerUnit * unitsThisTick, 0);
+            await this.prisma.workshop.update({
+              where: { id: ws.id },
+              data:  { harvestAccumulated: { increment: produced } },
+            });
+          } else {
+            for (const output of recipe.outputs) {
+              const produced = output.quantityPerUnit * unitsThisTick;
+              const existing = ent.inventory.find(i => i.productId === output.productId);
+
+              if (existing) {
+                const newQty = existing.quantity + produced;
+                const newAvgQ = weightedAvgQuality([
+                  { quantity: existing.quantity, quality: existing.avgQuality },
+                  { quantity: produced,          quality: outputQuality },
+                ]);
+                await this.prisma.enterpriseInventory.update({
+                  where: { id: existing.id },
+                  data:  { quantity: newQty, avgQuality: newAvgQ },
+                });
+                existing.quantity   = newQty;
+                existing.avgQuality = newAvgQ;
+              } else {
+                const created = await this.prisma.enterpriseInventory.create({
+                  data: {
+                    enterpriseId: ent.id,
+                    productId:    output.productId,
+                    quantity:     produced,
+                    avgQuality:   outputQuality,
+                  },
+                });
+                ent.inventory.push(created);
+              }
             }
           }
 

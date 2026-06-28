@@ -361,6 +361,81 @@ export class AgroService {
     return { soldUnits: actualQty, revenueUah: revenue };
   }
 
+  // ── Сезонна обробка: ґрунт, добриво, шкідники, гниття врожаю ───────────────
+  /**
+   * Викликається кожні 30 тіків (раз на сезон).
+   * 1. Ґрунт деградує −0.1 без добрива, покращується +0.2 з добривом
+   * 2. fertilizerTicksLeft зменшується на 30
+   * 3. 12% шанс появи шкідників (pestDamageMult = 0.6)
+   * 4. Незібраний врожай польових культур гниє (harvestAccumulated → 0)
+   */
+  async processSeasonalSoilAndPests(tickNumber: bigint): Promise<void> {
+    const PEST_CHANCE      = 0.12;
+    const PEST_MULT        = 0.6;
+
+    const farms = await this.prisma.enterprise.findMany({
+      where:  { type: 'AGRO_FARM', isOperational: true, isSeized: false },
+      select: {
+        id: true, playerId: true, name: true,
+        landPlot: { select: { id: true, soilQuality: true, fertilizerTicksLeft: true, pestDamageMult: true } },
+        workshops: { select: { id: true, harvestAccumulated: true } },
+      },
+    });
+
+    for (const farm of farms) {
+      const lp = farm.landPlot;
+      if (!lp) continue;
+
+      // 1+2. Soil & fertilizer
+      const hasFert       = lp.fertilizerTicksLeft > 0;
+      const soilDelta     = hasFert ? 0.2 : -0.1;
+      const newSoil       = Math.max(1.0, Math.min(10.0, lp.soilQuality + soilDelta));
+      const newFertTicks  = Math.max(0, lp.fertilizerTicksLeft - 30);
+
+      // 3. Pests — spawn only if no active damage
+      let newPestMult = lp.pestDamageMult;
+      const pestSpawns = lp.pestDamageMult >= 1.0 && Math.random() < PEST_CHANCE;
+      if (pestSpawns) newPestMult = PEST_MULT;
+
+      await this.prisma.landPlot.update({
+        where: { id: lp.id },
+        data:  { soilQuality: newSoil, fertilizerTicksLeft: newFertTicks, pestDamageMult: newPestMult },
+      });
+
+      // Notifications
+      if (pestSpawns && farm.playerId) {
+        await this.prisma.notification.create({
+          data: {
+            playerId: farm.playerId,
+            type:     'WARNING',
+            title:    `Шкідники на фермі «${farm.name}»`,
+            body:     'Нашестя попелиці! Врожайність −40%. Застосуйте пестицид у вкладці Поля.',
+          },
+        }).catch(() => {});
+      }
+
+      // 4. Harvest rot — clear accumulated field crops
+      for (const ws of farm.workshops) {
+        if (ws.harvestAccumulated >= 1) {
+          await this.prisma.workshop.update({
+            where: { id: ws.id },
+            data:  { harvestAccumulated: 0 },
+          });
+          if (farm.playerId) {
+            await this.prisma.notification.create({
+              data: {
+                playerId: farm.playerId,
+                type:     'WARNING',
+                title:    `Врожай згнив у «${farm.name}»`,
+                body:     `${ws.harvestAccumulated.toFixed(0)} кг врожаю не зібрано до кінця сезону і згнило. Збирайте вчасно!`,
+              },
+            }).catch(() => {});
+          }
+        }
+      }
+    }
+  }
+
   // ── Допоміжні: розширення поля (викликається з API) ─────────────────────────
   static calcExtraFieldRent(areaM2: number): number {
     return Math.round(areaM2 * EXTRA_FIELD_RENT_PER_M2);
