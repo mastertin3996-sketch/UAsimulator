@@ -962,6 +962,132 @@ export class MarketService {
     return created;
   }
 
+  /**
+   * Генерує SELL-ордери від ДержПром для сировини та напівфабрикатів.
+   * Ціна = referencePrice × 1.05 (+5% markup), обсяг 300–1500 од.
+   * Викликається кожні 8 тіків разом із generateStateOrders().
+   */
+  async generateNpcSellOrders(): Promise<number> {
+    const derzhprom = await this.prisma.player.findFirst({
+      where: { username: 'derzhprom', isNpcSeller: true },
+      select: { id: true },
+    });
+    if (!derzhprom) return 0;
+
+    const NPC_SELL_SKUS = [
+      'RM-WHEAT', 'RM-CORN', 'RM-SUNFL', 'RM-SUGBEET',
+      'SF-FLOUR', 'SF-SUGAR', 'SF-STEEL', 'SF-LUMBER', 'SF-OIL',
+      'AG-FERTILIZER', 'RM-PESTICIDE',
+    ];
+
+    // Скасувати старі NPC sell-ордери
+    await this.prisma.marketOrder.updateMany({
+      where: {
+        playerId:      derzhprom.id,
+        type:          'SELL',
+        isStateOrder:  false,
+        status:        { in: ['OPEN', 'PARTIALLY_FILLED'] },
+      },
+      data: { status: 'CANCELLED' },
+    });
+
+    const products = await this.prisma.product.findMany({
+      where:  { sku: { in: NPC_SELL_SKUS } },
+      select: { id: true, sku: true },
+    });
+
+    const npcPrices = await this.prisma.npcDemand.groupBy({
+      by: ['productId'],
+      where: { productId: { in: products.map(p => p.id) } },
+      _avg: { referencePrice: true },
+    });
+    const priceMap = new Map(npcPrices.map(n => [n.productId, Number(n._avg.referencePrice ?? 0)]));
+
+    const expiresAt = new Date(Date.now() + 8 * 60 * 60 * 1000); // ~8 тіків
+    let created = 0;
+
+    for (const product of products) {
+      const ref = priceMap.get(product.id) ?? 0;
+      if (ref === 0) continue;
+      const price = +(ref * 1.05).toFixed(2);
+      const qty   = Math.round(300 + Math.random() * 1200);
+
+      // Поповнити інвентар ДержПром щоб було що продавати
+      await this.prisma.playerInventory.upsert({
+        where:  { playerId_productId: { playerId: derzhprom.id, productId: product.id } },
+        update: { quantity: { increment: qty } },
+        create: { playerId: derzhprom.id, productId: product.id, quantity: qty, avgQuality: 6 },
+      });
+
+      await this.prisma.marketOrder.create({
+        data: {
+          playerId:       derzhprom.id,
+          productId:      product.id,
+          resourceType:   product.sku,
+          type:           'SELL',
+          status:         'OPEN',
+          pricePerUnit:   price,
+          quality:        6.0,
+          quantityTotal:  qty,
+          quantityFilled: 0,
+          isStateOrder:   false,
+          expiresAt,
+        },
+      });
+      created++;
+    }
+
+    return created;
+  }
+
+  /** Перевіряє цінові сповіщення та надсилає нотифікації гравцям. */
+  async processPriceAlerts(): Promise<void> {
+    const alerts = await this.prisma.priceAlert.findMany({
+      where: { isActive: true },
+      select: { id: true, playerId: true, productSku: true, alertBelow: true, alertAbove: true },
+    });
+    if (alerts.length === 0) return;
+
+    const skus = [...new Set(alerts.map(a => a.productSku))];
+    const products = await this.prisma.product.findMany({
+      where: { sku: { in: skus } },
+      select: { id: true, sku: true, nameUa: true },
+    });
+    const priceRows = await this.prisma.npcDemand.groupBy({
+      by: ['productId'],
+      where: { productId: { in: products.map(p => p.id) } },
+      _avg: { referencePrice: true },
+    });
+    const priceMap = new Map(products.map(p => {
+      const row = priceRows.find(r => r.productId === p.id);
+      return [p.sku, { price: Number(row?._avg.referencePrice ?? 0), nameUa: p.nameUa }];
+    }));
+
+    for (const alert of alerts) {
+      const info  = priceMap.get(alert.productSku);
+      if (!info || info.price === 0) continue;
+      const below = alert.alertBelow ? Number(alert.alertBelow) : null;
+      const above = alert.alertAbove ? Number(alert.alertAbove) : null;
+      const fired = (below !== null && info.price <= below) || (above !== null && info.price >= above);
+      if (!fired) continue;
+
+      const dir  = below !== null && info.price <= below ? `впала до ${info.price.toFixed(2)} ₴ (ціль ≤ ${below})` : `зросла до ${info.price.toFixed(2)} ₴ (ціль ≥ ${above})`;
+      await this.prisma.notification.create({
+        data: {
+          playerId: alert.playerId,
+          type:     'INFO',
+          title:    `Цінове сповіщення: ${info.nameUa}`,
+          body:     `Ціна ${dir}`,
+        },
+      }).catch(() => {});
+
+      await this.prisma.priceAlert.update({
+        where: { id: alert.id },
+        data:  { isActive: false, firedAt: new Date() },
+      });
+    }
+  }
+
   // Returns playerIds who have active ORGANIC_CERT license AND at least one AGRO_FARM with soilQuality ≥ 8
   private async getOrganicCertPlayers(): Promise<Set<string>> {
     const licensed = await this.prisma.license.findMany({

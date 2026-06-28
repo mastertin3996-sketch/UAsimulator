@@ -326,6 +326,13 @@ export class TickEngine {
       const count = await this.market.generateStateOrders()
         .catch(e => { console.error(`[Tick ${tickNumber}] State orders failed:`, e); return 0; });
       if (count > 0) console.log(`[Tick ${tickNumber}] Держзамовлення: ${count} нових ордерів.`);
+
+      const npcSells = await this.market.generateNpcSellOrders()
+        .catch(e => { console.error(`[Tick ${tickNumber}] NPC sell orders failed:`, e); return 0; });
+      if (npcSells > 0) console.log(`[Tick ${tickNumber}] NPC продаж: ${npcSells} ордерів.`);
+
+      await this.market.processPriceAlerts()
+        .catch(e => console.error(`[Tick ${tickNumber}] Price alerts failed:`, e));
     }
 
     // ── 3. Global B2B market matching ────────────────────────────────────

@@ -1054,9 +1054,290 @@ function StateOrdersTab() {
   );
 }
 
+// ─── AutoContractTab ──────────────────────────────────────────────────────────
+
+type AC = { id: string; resourceType: string; productName: string; productUnit: string; quantityPerTick: number; maxPricePerUnit: number; minQuality: number; isActive: boolean; lastFilledQty: number; lastTickSpentUah: number; totalSpentUah: number };
+
+function AutoContractTab() {
+  const [contracts, setContracts] = useState<AC[]>([]);
+  const [balance,   setBalance]   = useState(0);
+  const [committed, setCommitted] = useState(0);
+  const [form, setForm] = useState({ sku: "", maxPrice: "", qty: "", minQuality: "0" });
+  const [msg,  setMsg]  = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [products, setProducts] = useState<{ sku: string; nameUa: string; unit: string }[]>([]);
+
+  const load = useCallback(async () => {
+    const [r, rp] = await Promise.all([
+      fetch("/api/auto-contract"),
+      fetch("/api/products?take=200"),
+    ]);
+    if (r.ok) { const d = await r.json(); setContracts(d.contracts); setBalance(d.cashBalance); setCommitted(d.committedPerTick); }
+    if (rp.ok) { const d = await rp.json(); setProducts(d.products ?? []); }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function create() {
+    if (!form.sku || !form.maxPrice || !form.qty) { setMsg("Заповніть усі поля"); return; }
+    setBusy(true); setMsg(null);
+    const res = await fetch("/api/auto-contract", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ resourceType: form.sku, maxPricePerUnit: +form.maxPrice, quantityPerTick: +form.qty, minQuality: +form.minQuality }),
+    });
+    const d = await res.json();
+    setBusy(false);
+    setMsg(res.ok ? "✓ Контракт створено" : `✗ ${d.error}`);
+    if (res.ok) { setForm({ sku: "", maxPrice: "", qty: "", minQuality: "0" }); load(); }
+  }
+
+  async function toggle(id: string, active: boolean) {
+    await fetch(`/api/auto-contract/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ isActive: !active }) });
+    load();
+  }
+  async function remove(id: string) {
+    await fetch(`/api/auto-contract/${id}`, { method: "DELETE" });
+    load();
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center gap-4 text-sm text-gray-400">
+        <span>Баланс: <span className="text-white font-mono">₴{balance.toLocaleString("uk")}</span></span>
+        <span>Зобов&apos;язання/тік: <span className="text-amber-400 font-mono">~₴{committed.toFixed(0)}</span></span>
+      </div>
+
+      <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 space-y-3">
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Новий авто-контракт</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <select value={form.sku} onChange={e => setForm(f => ({ ...f, sku: e.target.value }))}
+            className="col-span-2 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white">
+            <option value="">— Оберіть товар —</option>
+            {products.map(p => <option key={p.sku} value={p.sku}>{p.nameUa} ({p.sku})</option>)}
+          </select>
+          <input type="number" placeholder="Макс. ціна ₴" value={form.maxPrice} onChange={e => setForm(f => ({ ...f, maxPrice: e.target.value }))}
+            className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white" />
+          <input type="number" placeholder="К-ть/тік" value={form.qty} onChange={e => setForm(f => ({ ...f, qty: e.target.value }))}
+            className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white" />
+        </div>
+        <div className="flex items-center gap-3">
+          <label className="text-xs text-gray-500">Мін. якість: <input type="number" min={0} max={10} step={0.5} value={form.minQuality} onChange={e => setForm(f => ({ ...f, minQuality: e.target.value }))}
+            className="w-16 ml-1 bg-gray-800 border border-gray-700 rounded px-2 py-0.5 text-white text-xs" /></label>
+          <button onClick={create} disabled={busy} className="ml-auto px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm rounded-lg font-medium disabled:opacity-50">
+            {busy ? <Loader2 size={14} className="animate-spin" /> : "Створити"}
+          </button>
+        </div>
+        {msg && <p className={cn("text-xs", msg.startsWith("✓") ? "text-emerald-400" : "text-red-400")}>{msg}</p>}
+      </div>
+
+      <div className="space-y-2">
+        {contracts.length === 0 && <p className="text-sm text-gray-500 text-center py-6">Немає авто-контрактів</p>}
+        {contracts.map(c => (
+          <div key={c.id} className={cn("bg-gray-900 border rounded-xl px-4 py-3 flex items-center gap-4", c.isActive ? "border-gray-800" : "border-gray-800/40 opacity-60")}>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-white">{c.productName} <span className="text-gray-500 text-xs">({c.resourceType})</span></p>
+              <p className="text-xs text-gray-500 mt-0.5">{c.quantityPerTick} {c.productUnit}/тік · макс ₴{c.maxPricePerUnit} · якість ≥{c.minQuality}</p>
+            </div>
+            <div className="text-right text-xs text-gray-400 shrink-0">
+              <p>Виконано: <span className="text-white">{c.lastFilledQty.toFixed(1)}</span></p>
+              <p>Витрати: <span className="text-white">₴{c.totalSpentUah.toFixed(0)}</span></p>
+            </div>
+            <button onClick={() => toggle(c.id, c.isActive)} className={cn("text-[10px] px-2 py-1 rounded font-medium", c.isActive ? "bg-amber-700 text-amber-100 hover:bg-amber-600" : "bg-gray-700 text-gray-300 hover:bg-gray-600")}>
+              {c.isActive ? "Пауза" : "Увімкнути"}
+            </button>
+            <button onClick={() => remove(c.id)} className="text-red-500 hover:text-red-400"><X size={14} /></button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── SupplyOffersTab ──────────────────────────────────────────────────────────
+
+type SO = { id: string; productSku: string; productName: string; unit: string; pricePerUnit: number; quantityPerTick: number; minQuality: number; description: string; acceptedByCount: number; sellerName: string; sellerRep: number; sellerId: string; isOwn: boolean };
+
+function SupplyOffersTab() {
+  const [offers,   setOffers]   = useState<SO[]>([]);
+  const [form,     setForm]     = useState({ sku: "", price: "", qty: "", minQuality: "0", desc: "" });
+  const [msg,      setMsg]      = useState<string | null>(null);
+  const [busy,     setBusy]     = useState(false);
+  const [accepting, setAccepting] = useState<string | null>(null);
+  const [products, setProducts] = useState<{ sku: string; nameUa: string; unit: string }[]>([]);
+
+  const load = useCallback(async () => {
+    const [r, rp] = await Promise.all([fetch("/api/market/supply-offers"), fetch("/api/products?take=200")]);
+    if (r.ok)  { const d = await r.json();  setOffers(d.offers); }
+    if (rp.ok) { const d = await rp.json(); setProducts(d.products ?? []); }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  async function post() {
+    if (!form.sku || !form.price || !form.qty) { setMsg("Заповніть усі поля"); return; }
+    setBusy(true); setMsg(null);
+    const res = await fetch("/api/market/supply-offers", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ productSku: form.sku, pricePerUnit: +form.price, quantityPerTick: +form.qty, minQuality: +form.minQuality, description: form.desc }),
+    });
+    const d = await res.json();
+    setBusy(false);
+    setMsg(res.ok ? "✓ Пропозицію виставлено" : `✗ ${d.error}`);
+    if (res.ok) { setForm({ sku: "", price: "", qty: "", minQuality: "0", desc: "" }); load(); }
+  }
+
+  async function accept(offerId: string) {
+    setAccepting(offerId); setMsg(null);
+    const res = await fetch("/api/market/supply-offers/accept", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ offerId }),
+    });
+    const d = await res.json();
+    setAccepting(null);
+    setMsg(res.ok ? "✓ Контракт підписано → Авто-закупівля активна" : `✗ ${d.error}`);
+    if (res.ok) load();
+  }
+
+  async function withdraw(id: string) {
+    await fetch("/api/market/supply-offers", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
+    load();
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 space-y-3">
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Виставити пропозицію постачання</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <select value={form.sku} onChange={e => setForm(f => ({ ...f, sku: e.target.value }))}
+            className="col-span-2 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white">
+            <option value="">— Товар —</option>
+            {products.map(p => <option key={p.sku} value={p.sku}>{p.nameUa}</option>)}
+          </select>
+          <input type="number" placeholder="Ціна ₴/од" value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))}
+            className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white" />
+          <input type="number" placeholder="К-ть/тік" value={form.qty} onChange={e => setForm(f => ({ ...f, qty: e.target.value }))}
+            className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white" />
+        </div>
+        <div className="flex items-center gap-3">
+          <input type="text" placeholder="Опис (необов'язково)" value={form.desc} onChange={e => setForm(f => ({ ...f, desc: e.target.value }))}
+            className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white" />
+          <button onClick={post} disabled={busy} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded-lg font-medium disabled:opacity-50">
+            {busy ? <Loader2 size={14} className="animate-spin" /> : "Виставити"}
+          </button>
+        </div>
+        {msg && <p className={cn("text-xs", msg.startsWith("✓") ? "text-emerald-400" : "text-red-400")}>{msg}</p>}
+      </div>
+
+      <div className="space-y-2">
+        {offers.length === 0 && <p className="text-sm text-gray-500 text-center py-6">Поки немає пропозицій постачання</p>}
+        {offers.map(o => (
+          <div key={o.id} className="bg-gray-900 border border-gray-800 rounded-xl px-4 py-3 flex items-center gap-4">
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-white">{o.productName} <span className="text-gray-500 text-xs">({o.productSku})</span></p>
+              <p className="text-xs text-gray-500 mt-0.5">{o.quantityPerTick} {o.unit}/тік · ₴{o.pricePerUnit}/од · якість ≥{o.minQuality}</p>
+              {o.description && <p className="text-[10px] text-gray-600 mt-0.5 italic">{o.description}</p>}
+            </div>
+            <div className="text-right text-xs text-gray-400 shrink-0">
+              <p className="text-white font-medium">{o.sellerName}</p>
+              <p>Репутація {o.sellerRep.toFixed(1)} · Прийнято: {o.acceptedByCount}</p>
+            </div>
+            {o.isOwn ? (
+              <button onClick={() => withdraw(o.id)} className="text-[10px] px-2 py-1 rounded bg-red-900/50 text-red-300 hover:bg-red-800/60">Зняти</button>
+            ) : (
+              <button onClick={() => accept(o.id)} disabled={accepting === o.id}
+                className="text-[10px] px-3 py-1.5 rounded bg-emerald-700 hover:bg-emerald-600 text-white font-medium disabled:opacity-50">
+                {accepting === o.id ? "..." : "Підписати"}
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── PriceAlertsTab ───────────────────────────────────────────────────────────
+
+type PA = { id: string; productSku: string; productName: string; unit: string; alertBelow: number | null; alertAbove: number | null; isActive: boolean; firedAt: string | null; currentPrice: number };
+
+function PriceAlertsTab() {
+  const [alerts,   setAlerts]   = useState<PA[]>([]);
+  const [form,     setForm]     = useState({ sku: "", below: "", above: "" });
+  const [msg,      setMsg]      = useState<string | null>(null);
+  const [busy,     setBusy]     = useState(false);
+  const [products, setProducts] = useState<{ sku: string; nameUa: string; unit: string }[]>([]);
+
+  const load = useCallback(async () => {
+    const [r, rp] = await Promise.all([fetch("/api/market/price-alerts"), fetch("/api/products?take=200")]);
+    if (r.ok)  { const d = await r.json();  setAlerts(d.alerts); }
+    if (rp.ok) { const d = await rp.json(); setProducts(d.products ?? []); }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  async function create() {
+    if (!form.sku || (!form.below && !form.above)) { setMsg("Оберіть товар і вкажіть хоча б одну ціль"); return; }
+    setBusy(true); setMsg(null);
+    const res = await fetch("/api/market/price-alerts", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ productSku: form.sku, alertBelow: form.below ? +form.below : undefined, alertAbove: form.above ? +form.above : undefined }),
+    });
+    const d = await res.json();
+    setBusy(false);
+    setMsg(res.ok ? "✓ Сповіщення додано" : `✗ ${d.error}`);
+    if (res.ok) { setForm({ sku: "", below: "", above: "" }); load(); }
+  }
+
+  async function remove(id: string) {
+    await fetch("/api/market/price-alerts", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
+    load();
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 space-y-3">
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Нове сповіщення</p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <select value={form.sku} onChange={e => setForm(f => ({ ...f, sku: e.target.value }))}
+            className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white">
+            <option value="">— Товар —</option>
+            {products.map(p => <option key={p.sku} value={p.sku}>{p.nameUa}</option>)}
+          </select>
+          <input type="number" placeholder="Повідом якщо ≤ ₴" value={form.below} onChange={e => setForm(f => ({ ...f, below: e.target.value }))}
+            className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white" />
+          <input type="number" placeholder="Повідом якщо ≥ ₴" value={form.above} onChange={e => setForm(f => ({ ...f, above: e.target.value }))}
+            className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white" />
+        </div>
+        <div className="flex justify-end gap-3">
+          {msg && <p className={cn("text-xs self-center", msg.startsWith("✓") ? "text-emerald-400" : "text-red-400")}>{msg}</p>}
+          <button onClick={create} disabled={busy} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded-lg font-medium disabled:opacity-50">
+            {busy ? <Loader2 size={14} className="animate-spin" /> : "Додати"}
+          </button>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        {alerts.length === 0 && <p className="text-sm text-gray-500 text-center py-6">Немає активних сповіщень</p>}
+        {alerts.map(a => (
+          <div key={a.id} className={cn("bg-gray-900 border rounded-xl px-4 py-3 flex items-center gap-4", a.isActive ? "border-gray-800" : "border-gray-800/40 opacity-50")}>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-white">{a.productName} <span className="text-gray-500 text-xs">({a.productSku})</span></p>
+              <p className="text-xs text-gray-500 mt-0.5">
+                {a.alertBelow != null && <span>Ціна ≤ ₴{a.alertBelow} </span>}
+                {a.alertAbove != null && <span>Ціна ≥ ₴{a.alertAbove} </span>}
+                · Зараз: <span className="text-white">₴{a.currentPrice.toFixed(2)}</span>
+              </p>
+              {!a.isActive && a.firedAt && <p className="text-[10px] text-amber-400 mt-0.5">Спрацювало {new Date(a.firedAt).toLocaleDateString("uk")}</p>}
+            </div>
+            <button onClick={() => remove(a.id)} className="text-red-500 hover:text-red-400"><X size={14} /></button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-type MarketTab = "offers" | "orderbook" | "myorders" | "stateorders";
+type MarketTab = "offers" | "orderbook" | "myorders" | "stateorders" | "autocontract" | "supplyoffers" | "pricealerts";
 
 function MarketPageInner() {
   const searchParams = useSearchParams();
@@ -1064,10 +1345,13 @@ function MarketPageInner() {
   const [tab, setTab] = useState<MarketTab>("offers");
 
   const TABS: { key: MarketTab; label: string; icon?: React.ElementType; emoji?: string }[] = [
-    { key: "offers",      label: "Пропозиції",       icon: ShoppingCart },
-    { key: "stateorders", label: "Держзамовлення",   emoji: "🏛️"        },
-    { key: "orderbook",   label: "Order Book",        icon: BookOpen     },
-    { key: "myorders",    label: "Мої ордери",        icon: ListOrdered  },
+    { key: "offers",       label: "Пропозиції",       icon: ShoppingCart },
+    { key: "stateorders",  label: "Держзамовлення",   emoji: "🏛️"        },
+    { key: "orderbook",    label: "Order Book",        icon: BookOpen     },
+    { key: "myorders",     label: "Мої ордери",        icon: ListOrdered  },
+    { key: "autocontract", label: "Авто-закупівля",   emoji: "🔄"        },
+    { key: "supplyoffers", label: "Контракти",         emoji: "🤝"        },
+    { key: "pricealerts",  label: "Сповіщення",        emoji: "🔔"        },
   ];
 
   return (
@@ -1095,10 +1379,13 @@ function MarketPageInner() {
         ))}
       </div>
 
-      {tab === "offers"      && <OffersTab preselectId={preselectId} />}
-      {tab === "stateorders" && <StateOrdersTab />}
-      {tab === "orderbook"   && <OrderBookPanel />}
-      {tab === "myorders"    && <MyOrdersTab />}
+      {tab === "offers"       && <OffersTab preselectId={preselectId} />}
+      {tab === "stateorders"  && <StateOrdersTab />}
+      {tab === "orderbook"    && <OrderBookPanel />}
+      {tab === "myorders"     && <MyOrdersTab />}
+      {tab === "autocontract" && <AutoContractTab />}
+      {tab === "supplyoffers" && <SupplyOffersTab />}
+      {tab === "pricealerts"  && <PriceAlertsTab />}
     </div>
   );
 }

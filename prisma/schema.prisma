@@ -398,6 +398,8 @@ model Player {
   freightOrdersCarried    LogisticsFreightOrder[] @relation("FreightCarrier")
   b2bAgreements           B2bTransferAgreement[]
   regulatoryInspections   RegulatoryInspection[]
+  priceAlerts             PriceAlert[]
+  supplyOffers            SupplyOffer[]
 
   @@index([username])
 }
@@ -2206,4 +2208,46 @@ model RegulatoryInspection {
 
   @@index([playerId, isPaid])
   @@index([conductedAtTick])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PRICE ALERTS — сповіщення про зміну ціни
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model PriceAlert {
+  id          String    @id @default(uuid())
+  playerId    String
+  productSku  String
+  alertBelow  Decimal?  @db.Decimal(12, 4) // спрацьовує коли ціна ≤ цього значення
+  alertAbove  Decimal?  @db.Decimal(12, 4) // спрацьовує коли ціна ≥ цього значення
+  isActive    Boolean   @default(true)
+  firedAt     DateTime?
+  createdAt   DateTime  @default(now())
+
+  player Player @relation(fields: [playerId], references: [id])
+
+  @@index([playerId, isActive])
+  @@index([productSku, isActive])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SUPPLY OFFERS — пропозиції постачання від продавців
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model SupplyOffer {
+  id              String   @id @default(uuid())
+  sellerId        String
+  productSku      String
+  pricePerUnit    Decimal  @db.Decimal(12, 4)
+  quantityPerTick Float
+  minQuality      Float    @default(0)
+  description     String   @default("")
+  isActive        Boolean  @default(true)
+  acceptedByCount Int      @default(0)
+  createdAt       DateTime @default(now())
+
+  seller Player @relation(fields: [sellerId], references: [id])
+
+  @@index([sellerId, isActive])
+  @@index([productSku, isActive])
 }
