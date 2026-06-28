@@ -515,99 +515,48 @@ export class TickEngine {
     const { results: productionResults, utilisationByWorkshop, overworkedEnterpriseIds } =
       await this.production.processProduction(playerId, tickNumber);
 
-    // ── c. NPC retail sales — handled globally after player loop ────────
+    // ── d-i. Незалежні операції після продакшену — паралельно ────────────
+    const [degradationResults, hrResults, rdResult] = await Promise.all([
+      this.equipment.processDegradation(playerId, utilisationByWorkshop),
+      this.hr.processTick(playerId, tickNumber, overworkedEnterpriseIds),
+      this.rd.processResearchTick(playerId, tickNumber),
+      this.energy.calculateAndBillEnergy(playerId, tickNumber, utilisationByWorkshop),
+      this.loans.checkOverdueLoans(playerId, tickNumber),
+      this.creditScore.tickPassiveGrowth(playerId)
+        .catch(e => console.error(`[Tick ${tickNumber}] CreditScore failed for ${playerId}:`, e)),
+      this.analytics.recordProductionResults(playerId, productionResults, tickNumber),
+      this.processAutoSell(playerId)
+        .catch(e => console.error(`[Tick ${tickNumber}] Auto-sell failed for ${playerId}:`, e)),
+      this.processAutoReplenish(playerId)
+        .catch(e => console.error(`[Tick ${tickNumber}] Auto-replenish failed for ${playerId}:`, e)),
+    ]);
 
-    // ── c2. Auto-sell: place SELL orders for inventory exceeding threshold ─
-    await this.processAutoSell(playerId).catch(e =>
-      console.error(`[Tick ${tickNumber}] Auto-sell failed for ${playerId}:`, e)
-    );
+    // ── Notification batch ────────────────────────────────────────────────
+    const notifRows: { playerId: string; type: string; title: string; body: string; entityId: string | null }[] = [];
+    const broken = (degradationResults as Awaited<ReturnType<typeof this.equipment.processDegradation>>).filter(r => r.statusBefore !== 'BROKEN' && r.statusAfter === 'BROKEN');
+    const worn   = (degradationResults as Awaited<ReturnType<typeof this.equipment.processDegradation>>).filter(r => r.statusBefore === 'NEW' && r.statusAfter === 'WORN');
+    if (broken.length > 0) notifRows.push({ playerId, type: 'EQUIPMENT_BROKEN', title: 'Обладнання зламалось', body: `${broken.length} од. обладнання вийшло з ладу. Потрібен аварійний ремонт.`, entityId: null });
+    if (worn.length > 0)   notifRows.push({ playerId, type: 'EQUIPMENT_WORN',   title: 'Обладнання зношується', body: `${worn.length} од. обладнання у стані "Зношено". Проведіть техобслуговування.`, entityId: null });
 
-    // ── c3. Auto-replenish: place BUY orders when stock falls below min ────
-    await this.processAutoReplenish(playerId).catch(e =>
-      console.error(`[Tick ${tickNumber}] Auto-replenish failed for ${playerId}:`, e)
-    );
+    const strikers = (hrResults as Awaited<ReturnType<typeof this.hr.processTick>>).filter(r => r.wentOnStrike);
+    const resolved = (hrResults as Awaited<ReturnType<typeof this.hr.processTick>>).filter(r => r.strikeResolved);
+    if (strikers.length > 0) notifRows.push({ playerId, type: 'STRIKE', title: 'Страйк на підприємстві', body: `${strikers.length} ${strikers.length === 1 ? 'працівник оголосив' : 'працівників оголосили'} страйк.`, entityId: null });
+    if (resolved.length > 0) notifRows.push({ playerId, type: 'STRIKE_RESOLVED', title: 'Страйк завершено', body: `${resolved.length} ${resolved.length === 1 ? 'працівник вийшов' : 'працівників вийшли'} з страйку.`, entityId: null });
 
-    // ── d. Energy billing ────────────────────────────────────────────────
-    await this.energy.calculateAndBillEnergy(playerId, tickNumber, utilisationByWorkshop);
-
-    // ── e. Equipment degradation ─────────────────────────────────────────
-    const degradationResults = await this.equipment.processDegradation(playerId, utilisationByWorkshop);
-    {
-      const newlyBroken = degradationResults.filter(r => r.statusBefore !== 'BROKEN' && r.statusAfter === 'BROKEN');
-      const newlyWorn   = degradationResults.filter(r => r.statusBefore === 'NEW' && r.statusAfter === 'WORN');
-      const equipNotifs: { playerId: string; type: string; title: string; body: string; entityId: string | null }[] = [];
-      if (newlyBroken.length > 0) {
-        equipNotifs.push({
-          playerId, type: 'EQUIPMENT_BROKEN',
-          title: 'Обладнання зламалось',
-          body:  `${newlyBroken.length} од. обладнання вийшло з ладу. Потрібен аварійний ремонт.`,
-          entityId: null,
-        });
-      }
-      if (newlyWorn.length > 0) {
-        equipNotifs.push({
-          playerId, type: 'EQUIPMENT_WORN',
-          title: 'Обладнання зношується',
-          body:  `${newlyWorn.length} од. обладнання у стані "Зношено". Проведіть техобслуговування.`,
-          entityId: null,
-        });
-      }
-      if (equipNotifs.length > 0) {
-        await this.db.notification.createMany({ data: equipNotifs }).catch(() => {});
-      }
+    if ((rdResult as Awaited<ReturnType<typeof this.rd.processResearchTick>>).justUnlocked) {
+      notifRows.push({ playerId, type: 'RESEARCH_COMPLETE', title: 'Дослідження завершено', body: `Технологія "${(rdResult as any).activeResearchCode}" успішно розроблена!`, entityId: null });
     }
 
-    // ── f. HR tick ───────────────────────────────────────────────────────
-    const hrResults = await this.hr.processTick(playerId, tickNumber, overworkedEnterpriseIds);
-    const strikers  = hrResults.filter(r => r.wentOnStrike);
-    const resolved  = hrResults.filter(r => r.strikeResolved);
-    if (strikers.length > 0) {
-      await this.db.notification.create({ data: {
-        playerId,
-        type:    'STRIKE',
-        title:   'Страйк на підприємстві',
-        body:    `${strikers.length} ${strikers.length === 1 ? 'працівник оголосив' : 'працівників оголосили'} страйк. Перевірте рівень зарплат та настрій.`,
-        entityId: null,
-      }}).catch(() => {});
-    }
-    if (resolved.length > 0) {
-      await this.db.notification.create({ data: {
-        playerId,
-        type:    'STRIKE_RESOLVED',
-        title:   'Страйк завершено',
-        body:    `${resolved.length} ${resolved.length === 1 ? 'працівник вийшов' : 'працівників вийшли'} з страйку. Виробництво відновлено.`,
-        entityId: null,
-      }}).catch(() => {});
+    if (notifRows.length > 0) {
+      await this.db.notification.createMany({ data: notifRows }).catch(() => {});
     }
 
-    // ── g. Перевірка прострочених кредитів (щотіково) ───────────────────
-    await this.loans.checkOverdueLoans(playerId, tickNumber);
-
-    // ── g2. Credit score passive growth ─────────────────────────────────
-    await this.creditScore.tickPassiveGrowth(playerId)
-      .catch(e => console.error(`[Tick ${tickNumber}] CreditScore failed for ${playerId}:`, e));
-
-    // ── i. R&D — generate research points for RD_LABORATORY enterprises ──
-    const rdResult = await this.rd.processResearchTick(playerId, tickNumber);
-    if (rdResult.justUnlocked) {
-      await this.db.notification.create({ data: {
-        playerId,
-        type:    'RESEARCH_COMPLETE',
-        title:   'Дослідження завершено',
-        body:    `Технологія "${rdResult.activeResearchCode}" успішно розроблена!`,
-        entityId: null,
-      }}).catch(() => {});
-    }
-
-    // ── j. Analytics: record production output + weekly snapshot ─────────
-    await this.analytics.recordProductionResults(playerId, productionResults, tickNumber);
+    // ── Snapshot + Monthly (conditional) ─────────────────────────────────
     if (tickNumber % TICKS_PER_SNAPSHOT === 0n) {
       await this.analytics.populateDailySnapshot(playerId, tickNumber).catch(e =>
         console.error(`[Tick ${tickNumber}] Snapshot failed for ${playerId}:`, e),
       );
     }
-
-    // ── h. Monthly obligations ───────────────────────────────────────────
     if (tickNumber % TICKS_PER_MONTH === 0n) {
       await this.processMonthlyObligations(playerId, tickNumber, gameDay);
     }
