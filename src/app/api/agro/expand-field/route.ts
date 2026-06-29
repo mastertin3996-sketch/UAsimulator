@@ -11,7 +11,7 @@ import { AgroService } from "@/engine/AgroService";
 import { Decimal } from "@prisma/client/runtime/library";
 
 const SETUP_COST_PER_M2 = 100; // одноразово ₴/м²
-const MAX_EXTRA_AREA    = 5000; // максимальне розширення
+const MAX_EXTRA_AREA    = 200_000; // максимальне розширення
 
 export async function POST(req: NextRequest) {
   const session = await auth();

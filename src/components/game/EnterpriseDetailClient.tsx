@@ -3049,8 +3049,8 @@ function FieldsTab({ enterprise, agroInfo, onRefresh }: { enterprise: Enterprise
           <div className="flex gap-2 items-end">
             <div className="flex-1">
               <label className="block text-[10px] text-gray-500 mb-1">Додати поле (м²) · ₴{fieldInfo.setupCostPerM2}/м² разово + ₴{fieldInfo.rentPerM2PerMonth}/м²/міс</label>
-              <input type="number" min="100" step="100" value={expandArea} onChange={e => setExpandArea(e.target.value)}
-                placeholder="напр. 500"
+              <input type="number" min="100" max="200000" step="100" value={expandArea} onChange={e => setExpandArea(e.target.value)}
+                placeholder="напр. 10000"
                 className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-green-500" />
             </div>
             <button onClick={handleExpand} disabled={expanding || !expandArea}
