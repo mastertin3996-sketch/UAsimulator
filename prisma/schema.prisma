@@ -485,6 +485,9 @@ model LandPlot {
   cropDiseaseType      String?                  // "FUNGAL" | "VIRAL" | null
   cropDiseaseSeverity  Float   @default(0.0)    // 0.0–1.0; знижує врожай на severity×50%
   isOwned              Boolean @default(false)  // false=оренда, true=власна земля
+  // Польові роботи (контракт або власна техніка): bitmask скидається щосезону
+  // bit0=Оранка, bit1=Культивація, bit2=Посів, bit3=Добрива, bit4=Збір
+  fieldOpsMask         Int     @default(0)
   leaseStartDate      DateTime?
   leaseEndDate        DateTime?
   purchasedAt         DateTime?

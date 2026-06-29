@@ -29,7 +29,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
           id: true, cadastralNumber: true, totalAreaM2: true, usedAreaM2: true,
           status: true, monthlyLeaseCostUah: true, purchasePriceUah: true,
           soilQuality: true, lastCropSku: true, fertilizerTicksLeft: true, pestDamageMult: true,
-          seedQuality: true, cropDiseaseType: true, cropDiseaseSeverity: true,
+          seedQuality: true, cropDiseaseType: true, cropDiseaseSeverity: true, fieldOpsMask: true,
           city: { select: { id: true, name: true, nameUa: true, region: true, energyTariffUah: true } },
         },
       },
@@ -118,6 +118,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
     seedQuality:         enterprise.landPlot.seedQuality,
     cropDiseaseType:     enterprise.landPlot.cropDiseaseType,
     cropDiseaseSeverity: enterprise.landPlot.cropDiseaseSeverity,
+    fieldOpsMask:        enterprise.landPlot.fieldOpsMask,
     agroTourismEnabled:  enterprise.agroTourismEnabled,
     agroTourismRevenuePerTick: Number(enterprise.agroTourismRevenuePerTick),
     recommendedCropSku: enterprise.landPlot.lastCropSku

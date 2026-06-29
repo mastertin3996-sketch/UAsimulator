@@ -403,7 +403,8 @@ export class AgroService {
 
       await this.prisma.landPlot.update({
         where: { id: lp.id },
-        data:  { soilQuality: newSoil, fertilizerTicksLeft: newFertTicks, pestDamageMult: newPestMult },
+        // fieldOpsMask скидається щосезону — операції треба повторювати
+        data:  { soilQuality: newSoil, fertilizerTicksLeft: newFertTicks, pestDamageMult: newPestMult, fieldOpsMask: 0 },
       });
 
       // Notifications

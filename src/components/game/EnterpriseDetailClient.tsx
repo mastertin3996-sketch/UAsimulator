@@ -102,6 +102,7 @@ interface AgroInfo {
   cropDiseaseSeverity?: number;
   agroTourismEnabled?: boolean;
   agroTourismRevenuePerTick?: number;
+  fieldOpsMask?:       number;
 }
 
 interface EnterpriseLicense {
@@ -829,6 +830,7 @@ function WorkshopsTab({
   const [seedQualityBusy, setSeedQualityBusy] = useState(false);
   const [diseaseBusy,   setDiseaseBusy]   = useState(false);
   const [tourismBusy,   setTourismBusy]   = useState(false);
+  const [fieldOpBusy,   setFieldOpBusy]   = useState<string | null>(null);
 
   useEffect(() => {
     if (enterprise.type !== "AGRO_FARM") return;
@@ -960,6 +962,19 @@ function WorkshopsTab({
     setSeedQualityBusy(false);
   }
 
+  async function doFieldOp(workshopId: string, op: string) {
+    setFieldOpBusy(workshopId + op);
+    setAgroMsg("");
+    const res = await fetch("/api/agro/field-ops", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ workshopId, op }),
+    });
+    const d = await res.json();
+    setAgroMsg(res.ok ? `✓ ${d.message}` : `✗ ${d.error}`);
+    if (res.ok) onRefresh();
+    setFieldOpBusy(null);
+  }
+
   async function toggleTourism(enabled: boolean) {
     setTourismBusy(true);
     setAgroMsg("");
@@ -1042,6 +1057,8 @@ function WorkshopsTab({
             const seedQuality      = agroInfo?.seedQuality ?? 'STANDARD';
             const cropDiseaseType  = agroInfo?.cropDiseaseType ?? null;
             const cropDiseaseSev   = agroInfo?.cropDiseaseSeverity ?? 0;
+            const fieldOpsMask     = agroInfo?.fieldOpsMask ?? 0;
+            const opCost           = Math.ceil(w.footprintM2); // ₴1/м²
 
             return (
               <div key={w.id} className="rounded-xl border border-gray-800 bg-gray-900 overflow-hidden">
@@ -1293,6 +1310,53 @@ function WorkshopsTab({
                         </button>
                       </div>
                       <p className="text-[9px] text-gray-500">Потрібно 8 кг RM-PESTICIDE</p>
+                    </div>
+                  )}
+
+                  {/* ── Польові роботи ── */}
+                  {isField && (
+                    <div className="pt-1.5 border-t border-gray-800 space-y-1.5">
+                      <p className="text-[9px] text-gray-500 uppercase tracking-wider">📋 Польові роботи · ₴1/м²</p>
+                      {([
+                        { op: 'PLOW',      bit: 1,  icon: '🚜', label: 'Оранка',          bonus: '+8%'  },
+                        { op: 'CULTIVATE', bit: 2,  icon: '🌾', label: 'Культивація',     bonus: '+6%'  },
+                        { op: 'SOW',       bit: 4,  icon: '🌱', label: 'Посів',           bonus: '+5%'  },
+                        { op: 'FERTILIZE', bit: 8,  icon: '💧', label: 'Внесення добрив', bonus: '+20%' },
+                        { op: 'HARVEST',   bit: 16, icon: '📦', label: 'Збір врожаю',     bonus: null   },
+                      ] as const).map(({ op, bit, icon, label, bonus }) => {
+                        const done  = (fieldOpsMask & bit) !== 0;
+                        const busy  = fieldOpBusy === w.id + op;
+                        const skipHarvest = op === 'HARVEST' && w.harvestAccumulated < 0.1;
+                        return (
+                          <div key={op} className={cn(
+                            "flex items-center gap-2 rounded px-2 py-1.5 text-[10px] transition-colors",
+                            done ? "bg-emerald-950/30 border border-emerald-800/20" : "bg-gray-800/40"
+                          )}>
+                            <span className="shrink-0 w-4">{done ? '✅' : '⬜'}</span>
+                            <span className="shrink-0">{icon}</span>
+                            <span className={cn("flex-1", done ? "text-emerald-300" : "text-gray-300")}>{label}</span>
+                            {bonus && (
+                              <span className={cn("text-[9px] font-mono shrink-0", done ? "text-emerald-400" : "text-gray-600")}>
+                                {bonus}
+                              </span>
+                            )}
+                            {!done && !skipHarvest && (
+                              <button
+                                onClick={() => doFieldOp(w.id, op)}
+                                disabled={!!fieldOpBusy}
+                                className="shrink-0 text-[9px] bg-blue-700 hover:bg-blue-600 text-white rounded px-2 py-0.5 disabled:opacity-40 transition-colors"
+                              >
+                                {busy ? <Loader2 size={8} className="animate-spin inline" /> : `₴${opCost.toLocaleString('uk-UA')}`}
+                              </button>
+                            )}
+                            {done && op !== 'HARVEST' && (
+                              <span className="text-[9px] text-emerald-500 shrink-0">✓ виконано</span>
+                            )}
+                            {skipHarvest && <span className="text-[9px] text-gray-600 shrink-0">немає врожаю</span>}
+                          </div>
+                        );
+                      })}
+                      <p className="text-[9px] text-gray-600">Скидається щосезону. Бонуси множаться до врожаю.</p>
                     </div>
                   )}
 

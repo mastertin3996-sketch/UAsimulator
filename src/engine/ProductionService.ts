@@ -93,7 +93,7 @@ export class ProductionService {
       where:   { playerId, isOperational: true },
       include: {
         employees: true,
-        landPlot: { select: { id: true, soilQuality: true, lastCropSku: true, cityId: true, fertilizerTicksLeft: true, pestDamageMult: true, seedQuality: true, cropDiseaseType: true, cropDiseaseSeverity: true } },
+        landPlot: { select: { id: true, soilQuality: true, lastCropSku: true, cityId: true, fertilizerTicksLeft: true, pestDamageMult: true, seedQuality: true, cropDiseaseType: true, cropDiseaseSeverity: true, fieldOpsMask: true } },
         workshops: {
           where:   { isActive: true },
           include: {
@@ -231,8 +231,13 @@ export class ProductionService {
               .filter(m => m.durability > 0)
               .reduce((sum, m) => sum + (MACHINERY_YIELD_BONUS[m.machineryType] ?? 0), 0);
 
-            // Fertilizer: +20% yield if fertilizerTicksLeft > 0
-            const fertBonus = (ent.landPlot?.fertilizerTicksLeft ?? 0) > 0 ? 1.20 : 1.0;
+            // Польові операції: бонуси за виконані підрядні/власні роботи
+            const fieldMask     = ent.landPlot?.fieldOpsMask ?? 0;
+            const plowBonus     = FIELD_CROPS.has(cropSku) && (fieldMask & 1)  ? 1.08 : 1.0; // Оранка +8%
+            const cultivateBonus= FIELD_CROPS.has(cropSku) && (fieldMask & 2)  ? 1.06 : 1.0; // Культивація +6%
+            const sowBonus      = FIELD_CROPS.has(cropSku) && (fieldMask & 4)  ? 1.05 : 1.0; // Посів +5%
+            // Fertilizer: +20% — або через добриво (fertLeft>0) або через підрядне внесення (bit3)
+            const fertBonus = ((ent.landPlot?.fertilizerTicksLeft ?? 0) > 0 || (fieldMask & 8)) ? 1.20 : 1.0;
 
             // Pest damage multiplier
             const pestMult = ent.landPlot?.pestDamageMult ?? 1.0;
@@ -265,7 +270,7 @@ export class ProductionService {
               if (!hasSunflower) honeyGate = 0.0;
             }
 
-            baseCapacity = ws.footprintM2 * soilMult * seasonMult * rotationMult * droughtMult * irrigationBonus * agronomistMult * plantingBonus * fieldAreaMult * localWeatherMod * tractorBonus * machineryMult * fertBonus * pestMult * seedMult * diseaseMult * livestockMult * honeyGate;
+            baseCapacity = ws.footprintM2 * soilMult * seasonMult * rotationMult * droughtMult * irrigationBonus * agronomistMult * plantingBonus * fieldAreaMult * localWeatherMod * tractorBonus * machineryMult * fertBonus * pestMult * seedMult * diseaseMult * plowBonus * cultivateBonus * sowBonus * livestockMult * honeyGate;
           } else {
             baseCapacity = ws.maxCapacity;
           }
