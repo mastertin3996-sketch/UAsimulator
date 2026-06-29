@@ -262,9 +262,11 @@ export class ProductionService {
               : 1.0;
             const irrigationBonus = (hasIrrigation && season === 1) ? 1.10 : 1.0;
 
-            // AGRONOMIST: +8% per agronomist (max 2 give bonus)
+            // AGRONOMIST: без агронома польові культури дають -40% (не hard zero, але значний штраф)
             const agronomists    = ent.employees.filter(e => e.profession === 'AGRONOMIST').length;
-            const agronomistMult = 1 + Math.min(agronomists, 2) * 0.08;
+            const agronomistMult = FIELD_CROPS.has(cropSku)
+              ? (agronomists > 0 ? 1 + Math.min(agronomists, 2) * 0.08 : 0.60)
+              : 1.0;
 
             // COMBINE_OPERATOR: +15% при збиранні FIELD_CROPS
             const combineOps  = ent.employees.filter(e => e.profession === 'COMBINE_OPERATOR').length;
@@ -298,6 +300,10 @@ export class ProductionService {
               (productIdToSku.get(eq.catalogProductId) ?? '') === 'EQ-TRACTOR' && !eq.isBroken && eq.wearAndTear < 1.0
             );
             const tractorBonus = hasTractor ? 1.30 : 1.0;
+
+            // TRACTOR_OPERATOR: обов'язковий для польових культур — без нього 0 виробництва
+            const tractorOperators = ent.employees.filter(e => e.profession === 'TRACTOR_OPERATOR').length;
+            const tractorOperatorGate = FIELD_CROPS.has(cropSku) ? (tractorOperators > 0 ? 1.0 : 0.0) : 1.0;
 
             // FarmMachinery bonuses: enterprise-level agro machines (Технiка вкладка)
             const MACHINERY_YIELD_BONUS: Record<string, number> = {
@@ -378,7 +384,7 @@ export class ProductionService {
               if (!hasSunflower) honeyGate = 0.0;
             }
 
-            baseCapacity = ws.footprintM2 * soilMult * seasonMult * rotationMult * droughtMult * irrigationBonus * agronomistMult * plantingBonus * fieldAreaMult * localWeatherMod * tractorBonus * machineryMult * fertBonus * pestMult * seedMult * diseaseMult * plowBonus * cultivateBonus * sowBonus * npkMult * moistureMult * growthStageMult * intercroppingMult * combineBonus * fieldWorkerMult * beekeeperMult * irrigatorMult * livestockMult * honeyGate;
+            baseCapacity = ws.footprintM2 * soilMult * seasonMult * rotationMult * droughtMult * irrigationBonus * agronomistMult * plantingBonus * fieldAreaMult * localWeatherMod * tractorBonus * tractorOperatorGate * machineryMult * fertBonus * pestMult * seedMult * diseaseMult * plowBonus * cultivateBonus * sowBonus * npkMult * moistureMult * growthStageMult * intercroppingMult * combineBonus * fieldWorkerMult * beekeeperMult * irrigatorMult * livestockMult * honeyGate;
           } else {
             baseCapacity = ws.maxCapacity;
           }

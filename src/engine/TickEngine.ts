@@ -1112,7 +1112,7 @@ export class TickEngine {
     if (!feedProduct) return;
 
     const OUTPUT: Record<string, { sku: string; qtyPerHead: number }> = {
-      CATTLE:  { sku: 'SF-MILK',  qtyPerHead: 10  },
+      CATTLE:  { sku: 'SF-MILK',  qtyPerHead: 20  },
       POULTRY: { sku: 'FG-EGGS',  qtyPerHead: 0.5 },
     };
     const FEED_QTY: Record<string, number> = { CATTLE: 0.05, PIGS: 0.03, POULTRY: 0.01 };
@@ -1120,6 +1120,17 @@ export class TickEngine {
     for (const herd of herds) {
       if (!herd.enterprise.isOperational) continue;
       const eid = herd.enterprise.id;
+
+      // FARM_WORKER gate: без різнороба — голодування та відсутність виходу
+      const allEmployees = (herd.enterprise as unknown as { employees?: { profession: string }[] }).employees ?? [];
+      const farmWorkers = allEmployees.filter(e => e.profession === 'FARM_WORKER').length;
+      if (farmWorkers === 0) {
+        await this.db.livestockHerd.update({
+          where: { id: herd.id },
+          data: { health: Math.max(0.1, herd.health - 0.03), feedSkippedTicks: herd.feedSkippedTicks + 1 },
+        });
+        continue;
+      }
 
       // Check feed availability
       const feedInv = await this.db.enterpriseInventory.findUnique({
@@ -1136,9 +1147,8 @@ export class TickEngine {
           data:  { quantity: { decrement: feedNeeded } },
         });
         // VETERINARIAN: +5% health recovery per vet (max 2) + LIVESTOCK_WORKER: +8%
-        const employees = (herd.enterprise as unknown as { employees?: { profession: string }[] }).employees ?? [];
-        const vets      = employees.filter(e => e.profession === 'VETERINARIAN').length;
-        const lwWorkers = employees.filter(e => e.profession === 'LIVESTOCK_WORKER').length;
+        const vets      = allEmployees.filter(e => e.profession === 'VETERINARIAN').length;
+        const lwWorkers = allEmployees.filter(e => e.profession === 'LIVESTOCK_WORKER').length;
         const vetBonus  = Math.min(vets, 2) * 0.05 + Math.min(lwWorkers, 3) * 0.08;
 
         // Restore health if needed
@@ -1150,15 +1160,43 @@ export class TickEngine {
 
         // Produce output (CATTLE → milk, POULTRY → eggs)
         const out = OUTPUT[herd.species];
-        if (out && herd.health >= 0.5) {
+
+        // Age gates: CATTLE milk від ageInTicks >= 500, POULTRY eggs від ageInTicks >= 60
+        const isProductionAge = (
+          (herd.species === 'CATTLE'  && herd.ageInTicks >= 500) ||
+          (herd.species === 'POULTRY' && herd.ageInTicks >= 60)  ||
+          herd.species === 'PIGS' // свині — без обмежень за молоком/яйцями
+        );
+
+        if (out && herd.health >= 0.5 && isProductionAge) {
           const outProduct = await this.db.product.findUnique({ where: { sku: out.sku }, select: { id: true } });
           if (outProduct) {
             const qty = out.qtyPerHead * herd.headCount * herd.health;
-            await this.db.enterpriseInventory.upsert({
-              where:  { enterpriseId_productId: { enterpriseId: eid, productId: outProduct.id } },
-              update: { quantity: { increment: qty } },
-              create: { enterpriseId: eid, productId: outProduct.id, quantity: qty },
-            });
+
+            if (herd.species === 'CATTLE') {
+              // Milkmaid: ручне доїння, 250 л/тік на особу
+              // MILKING_OPERATOR: 2400 л/тік на оператора (доїльна станція)
+              const milkmaids   = allEmployees.filter(e => e.profession === 'MILKMAID').length;
+              const milkingOps  = allEmployees.filter(e => e.profession === 'MILKING_OPERATOR').length;
+              const manualCap   = milkmaids * 250;
+              const stationCap  = milkingOps * 2400;
+              const milkCap     = manualCap + stationCap;
+
+              if (milkCap === 0) continue; // нема кому доїти — пропускаємо запис молока
+
+              const cappedQty = Math.min(qty, milkCap);
+              await this.db.enterpriseInventory.upsert({
+                where:  { enterpriseId_productId: { enterpriseId: eid, productId: outProduct.id } },
+                update: { quantity: { increment: cappedQty } },
+                create: { enterpriseId: eid, productId: outProduct.id, quantity: cappedQty },
+              });
+            } else {
+              await this.db.enterpriseInventory.upsert({
+                where:  { enterpriseId_productId: { enterpriseId: eid, productId: outProduct.id } },
+                update: { quantity: { increment: qty } },
+                create: { enterpriseId: eid, productId: outProduct.id, quantity: qty },
+              });
+            }
           }
         }
       } else {

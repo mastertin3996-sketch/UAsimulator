@@ -58,26 +58,10 @@ export async function POST(req: NextRequest, { params }: Params) {
   const body = await req.json().catch(() => ({})) as { species?: LivestockSpecies; headCount?: number; action?: "slaughter"; herdId?: string };
 
   if (body.action === "slaughter") {
-    const herd = await prisma.livestockHerd.findFirst({ where: { id: body.herdId, enterpriseId } });
-    if (!herd) return NextResponse.json({ error: "Стадо не знайдено" }, { status: 404 });
-
-    // Slaughter: remove herd, put meat/animals into inventory
-    const outputSkus: Record<LivestockSpecies, string> = { CATTLE: "RM-CATTLE", PIGS: "RM-PIGS", POULTRY: "RM-POULTRY" };
-    const slaughterQty: Record<LivestockSpecies, number> = { CATTLE: 1, PIGS: 1, POULTRY: 1 };
-    const sku = outputSkus[herd.species];
-    const product = await prisma.product.findUnique({ where: { sku } });
-    if (!product) return NextResponse.json({ error: "Продукт не знайдено" }, { status: 500 });
-
-    const qty = herd.headCount * slaughterQty[herd.species];
-    await prisma.$transaction([
-      prisma.livestockHerd.delete({ where: { id: herd.id } }),
-      prisma.enterpriseInventory.upsert({
-        where:  { enterpriseId_productId: { enterpriseId, productId: product.id } },
-        update: { quantity: { increment: qty } },
-        create: { enterpriseId, productId: product.id, quantity: qty },
-      }),
-    ]);
-    return NextResponse.json({ ok: true, message: `Забито ${herd.headCount} голів. ${qty} одиниць на складі.` });
+    return NextResponse.json(
+      { error: "Використовуй /api/agro/slaughter для забою. Потрібне спеціальне обладнання." },
+      { status: 400 },
+    );
   }
 
   if (!body.species || !(body.species in LIVESTOCK_CONFIG) || !body.headCount || body.headCount < 1) {

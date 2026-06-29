@@ -121,6 +121,38 @@ const FACTORY_SPECS: Record<string, EquipmentSpec> = {
     footprintM2:         4,
     basePriceUah:        8_000,
   },
+  'EQ-MILKING_STATION': {
+    nameUa:              'Доїльний апарат',
+    energyConsumptionKw: 4.0,  // vacuum pump + pulsators ~3–5 kW
+    wearRatePerTick:     0.006, // rubber liners, hoses, pump — moderate wear
+    baseQualityModifier: 1.00,
+    footprintM2:         15,
+    basePriceUah:        320_000,
+  },
+  'EQ-SLAUGHTER_POULTRY': {
+    nameUa:              'Міні-цех забою птиці',
+    energyConsumptionKw: 8.0,  // scalder + plucker + evisceration line ~6–10 kW
+    wearRatePerTick:     0.007, // blades and conveyor belts — regular wear
+    baseQualityModifier: 0.95,
+    footprintM2:         50,
+    basePriceUah:        500_000,
+  },
+  'EQ-SLAUGHTER_PIGS': {
+    nameUa:              'Модуль забою свиней',
+    energyConsumptionKw: 15.0, // stunning device + dehairing + overhead rail ~12–18 kW
+    wearRatePerTick:     0.006,
+    baseQualityModifier: 0.95,
+    footprintM2:         80,
+    basePriceUah:        750_000,
+  },
+  'EQ-SLAUGHTER_CATTLE': {
+    nameUa:              'Проф. модуль забою ВРХ з холодильником',
+    energyConsumptionKw: 35.0, // stunning + overhead rail + refrigeration compressor ~30–40 kW
+    wearRatePerTick:     0.005, // heavy-duty construction, slower wear
+    baseQualityModifier: 0.98,
+    footprintM2:         150,
+    basePriceUah:        3_000_000,
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

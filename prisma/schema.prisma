@@ -33,13 +33,19 @@ enum Profession {
   CASHIER          // RETAIL_STORE: касир
   SALES_ASSISTANT  // RETAIL_STORE: продавець-консультант
   MERCHANDISER     // RETAIL_STORE: мерчандайзер
-  VETERINARIAN     // AGRO_FARM: покращує здоров'я худоби (+5% health/tick)
-  COMBINE_OPERATOR // AGRO_FARM: оператор комбайна (+15% збір врожаю)
-  FIELD_WORKER     // AGRO_FARM: польовий робітник (базова ефективність польових робіт)
-  GRAIN_SPECIALIST // AGRO_FARM: фахівець зерна (+1 клас зерна при сушінні, -2% вологи зерна/сезон)
-  BEEKEEPER        // AGRO_FARM: пасічник (+25% продуктивність вуликів)
-  LIVESTOCK_WORKER // AGRO_FARM: тваринник (+8% health худоби/тік)
-  IRRIGATOR        // AGRO_FARM: іригатор (-30% втрати вологи ґрунту/тік, +moisture)
+  VETERINARIAN       // AGRO_FARM: покращує здоров'я худоби (+5% health/tick)
+  COMBINE_OPERATOR   // AGRO_FARM: оператор комбайна (+15% збір врожаю)
+  FIELD_WORKER       // AGRO_FARM: польовий робітник (базова ефективність польових робіт)
+  GRAIN_SPECIALIST   // AGRO_FARM: фахівець зерна (+1 клас зерна при сушінні, -2% вологи зерна/сезон)
+  BEEKEEPER          // AGRO_FARM: пасічник (+25% продуктивність вуликів)
+  LIVESTOCK_WORKER   // AGRO_FARM: тваринник (+8% health худоби/тік)
+  IRRIGATOR          // AGRO_FARM: іригатор (-30% втрати вологи ґрунту/тік, +moisture)
+  TRACTOR_OPERATOR   // AGRO_FARM: тракторист — обов'язковий для польових робіт (без нього 0 врожаю)
+  FARM_WORKER        // AGRO_FARM: різнороб — обов'язковий для скотарства та збору яєць
+  MILKMAID           // AGRO_FARM: доярка — ручне доїння до 250 л/тік на особу
+  MILKING_OPERATOR   // AGRO_FARM: оператор доїльної станції — до 2400 л/тік з EQ-MILKING_STATION
+  DEBONER            // AGRO_FARM: обвалювальник — обов'язковий для будь-якого цеху забою
+  SLAUGHTER_TECH     // AGRO_FARM: технік цеху забою — обов'язковий для цеху забою
 }
 
 enum EnterpriseType {

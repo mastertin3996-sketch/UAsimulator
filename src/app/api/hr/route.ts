@@ -15,6 +15,9 @@ const PROF_UA: Record<Profession, string> = {
   VETERINARIAN: "Ветеринар", COMBINE_OPERATOR: "Оператор комбайна",
   FIELD_WORKER: "Польовий робітник", GRAIN_SPECIALIST: "Фахівець із зерна",
   BEEKEEPER: "Пасічник", LIVESTOCK_WORKER: "Тваринник", IRRIGATOR: "Іригатор",
+  TRACTOR_OPERATOR: "Тракторист", FARM_WORKER: "Різнороб",
+  MILKMAID: "Доярка", MILKING_OPERATOR: "Оператор доїльної станції",
+  DEBONER: "Обвалювальник", SLAUGHTER_TECH: "Технік цеху забою",
 };
 
 const TYPE_NAME: Record<EnterpriseType, string> = {
