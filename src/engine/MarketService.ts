@@ -1046,8 +1046,6 @@ export class MarketService {
       // Органічні культури (ціна за тонну)
       'RM-WHEAT-ORG':  9_500,
       'RM-CORN-ORG':   7_200,
-      // Компост
-      'SF-COMPOST':        3.0,
       // Готові товари (FG) — ціна з NpcDemand, тут fallback
       'FG-BREAD':         32,
       'FG-SUNOIL':        75,
@@ -1072,7 +1070,8 @@ export class MarketService {
       'FG-CHICKEN':      125,
       'FG-EGGS':          58,
       // Агро витратники
-      'AG-FERTILIZER':   9.0,
+      'AG-FERTILIZER':  200.0,  // концентрат мінеральний, ₴/кг
+      'SF-COMPOST':       1.3,  // органічний компост, ₴/кг
       'RM-PESTICIDE':    4.5,
       // Будівельні матеріали (ціна за одиницю: тонна або шт)
       'CM-CEMENT':    3_800,

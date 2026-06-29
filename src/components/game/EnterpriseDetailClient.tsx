@@ -894,13 +894,16 @@ function WorkshopsTab({
   const [agroActing, setAgroActing] = useState<string | null>(null);
   const [agroMsg,    setAgroMsg]    = useState("");
 
-  async function doAgroAction(action: "fertilize" | "pesticide") {
+  async function doAgroAction(action: "fertilize" | "fertilize_organic" | "pesticide") {
     setAgroActing(action);
     setAgroMsg("");
-    const url = action === "fertilize" ? "/api/agro/fertilize" : "/api/agro/pesticide";
+    let url  = "/api/agro/pesticide";
+    let body: Record<string, unknown> = { enterpriseId: enterprise.id };
+    if (action === "fertilize")         { url = "/api/agro/fertilize"; body.fertilizerType = "CONCENTRATE"; }
+    if (action === "fertilize_organic") { url = "/api/agro/fertilize"; body.fertilizerType = "ORGANIC"; }
     const res = await fetch(url, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ enterpriseId: enterprise.id }),
+      body: JSON.stringify(body),
     });
     const d = await res.json();
     setAgroMsg(res.ok ? `✓ ${d.message}` : `✗ ${d.error}`);
@@ -1333,14 +1336,41 @@ function WorkshopsTab({
 
                   {/* Action buttons */}
                   <div className="flex gap-1.5 pt-1.5 border-t border-gray-800 flex-wrap">
-                    <button onClick={() => doAgroAction("fertilize")} disabled={!!agroActing || fertLeft > 0}
-                      className="text-xs rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white px-2.5 py-1.5 font-medium disabled:opacity-40 transition-colors">
-                      {agroActing === "fertilize" ? <Loader2 size={10} className="animate-spin" /> : "🌱 Удобрити"}
-                    </button>
-                    <button onClick={() => doAgroAction("pesticide")} disabled={!!agroActing || pestDmg >= 1.0}
-                      className="text-xs rounded-lg bg-orange-700 hover:bg-orange-600 text-white px-2.5 py-1.5 font-medium disabled:opacity-40 transition-colors">
-                      {agroActing === "pesticide" ? <Loader2 size={10} className="animate-spin" /> : "🐛 Пестицид"}
-                    </button>
+                    {/* Concentrate fertilizer: 0.03 kg/m² × area, ₴200/kg */}
+                    {(() => {
+                      const area          = enterprise.footprintM2;
+                      const concKg        = Math.ceil(0.03 * area);
+                      const concCost      = concKg * 200;
+                      const compostKg     = Math.ceil(4 * area);
+                      const compostCost   = (compostKg * 1.3).toFixed(0);
+                      const fertDisabled  = !!agroActing || fertLeft > 0;
+                      return (
+                        <>
+                          <button onClick={() => doAgroAction("fertilize")} disabled={fertDisabled}
+                            className="text-xs rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white px-2.5 py-1.5 font-medium disabled:opacity-40 transition-colors flex flex-col items-start leading-tight">
+                            {agroActing === "fertilize" ? <Loader2 size={10} className="animate-spin" /> : (
+                              <>
+                                <span>🧪 Концентрат</span>
+                                <span className="text-[9px] opacity-75">{concKg} кг · ₴{concCost.toLocaleString('uk-UA')}</span>
+                              </>
+                            )}
+                          </button>
+                          <button onClick={() => doAgroAction("fertilize_organic")} disabled={fertDisabled}
+                            className="text-xs rounded-lg bg-teal-800 hover:bg-teal-700 text-white px-2.5 py-1.5 font-medium disabled:opacity-40 transition-colors flex flex-col items-start leading-tight">
+                            {agroActing === "fertilize_organic" ? <Loader2 size={10} className="animate-spin" /> : (
+                              <>
+                                <span>🌿 Компост</span>
+                                <span className="text-[9px] opacity-75">{compostKg.toLocaleString('uk-UA')} кг · ₴{Number(compostCost).toLocaleString('uk-UA')}</span>
+                              </>
+                            )}
+                          </button>
+                          <button onClick={() => doAgroAction("pesticide")} disabled={!!agroActing || pestDmg >= 1.0}
+                            className="text-xs rounded-lg bg-orange-700 hover:bg-orange-600 text-white px-2.5 py-1.5 font-medium disabled:opacity-40 transition-colors">
+                            {agroActing === "pesticide" ? <Loader2 size={10} className="animate-spin" /> : "🐛 Пестицид"}
+                          </button>
+                        </>
+                      );
+                    })()}
                   </div>
                   {agroMsg && <p className={`text-xs ${agroMsg.startsWith("✓") ? "text-emerald-400" : "text-red-400"}`}>{agroMsg}</p>}
                 </div>

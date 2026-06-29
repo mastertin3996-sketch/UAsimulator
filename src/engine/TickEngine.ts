@@ -1203,8 +1203,9 @@ export class TickEngine {
     }
   }
 
-  // ── Auto-fertilize: застосовує добриво якщо autoFertilize=true і є AG-FERTILIZER ──
+  // ── Auto-fertilize: застосовує концентрат якщо autoFertilize=true (0.03 кг/м²) ──
   async processAutoFertilize(): Promise<void> {
+    const CONCENTRATE_KG_PER_M2 = 0.03; // AG-FERTILIZER
     const fertProduct = await this.db.product.findFirst({ where: { sku: 'AG-FERTILIZER' }, select: { id: true } });
     if (!fertProduct) return;
 
@@ -1219,14 +1220,15 @@ export class TickEngine {
 
     for (const farm of farms) {
       if (!farm.landPlot || farm.workshops.length === 0) continue;
-      if (farm.landPlot.fertilizerTicksLeft > 0) continue; // вже є ефект
+      if (farm.landPlot.fertilizerTicksLeft > 0) continue;
 
+      const needed  = Math.ceil(CONCENTRATE_KG_PER_M2 * farm.footprintM2);
       const fertInv = farm.inventory[0];
-      if (!fertInv || Number(fertInv.quantity) < 50) continue; // потрібно 50 кг
+      if (!fertInv || Number(fertInv.quantity) < needed) continue;
 
       await this.db.$transaction([
         this.db.landPlot.update({ where: { id: farm.landPlot.id }, data: { fertilizerTicksLeft: { increment: 90 } } }),
-        this.db.enterpriseInventory.update({ where: { id: fertInv.id }, data: { quantity: { decrement: 50 } } }),
+        this.db.enterpriseInventory.update({ where: { id: fertInv.id }, data: { quantity: { decrement: needed } } }),
       ]);
     }
   }
