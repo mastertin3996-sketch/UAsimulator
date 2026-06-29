@@ -169,6 +169,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
       })),
       workshops: enterprise.workshops.map((w) => ({
         ...w,
+        plantedSeasonTick: w.plantedSeasonTick != null ? Number(w.plantedSeasonTick) : null,
         equipment: w.equipment.map((eq) => ({
           ...eq,
           nameUa: eq.catalogProduct?.nameUa ?? null,
