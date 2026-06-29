@@ -103,6 +103,13 @@ interface AgroInfo {
   agroTourismEnabled?: boolean;
   agroTourismRevenuePerTick?: number;
   fieldOpsMask?:       number;
+  nitrogenLevel?:      number;
+  phosphorusLevel?:    number;
+  potassiumLevel?:     number;
+  moistureLevel?:      number;
+  grainQualityClass?:  number;
+  grainMoisturePct?:   number;
+  plantedSeasonTick?:  number;
 }
 
 interface EnterpriseLicense {
@@ -1357,6 +1364,111 @@ function WorkshopsTab({
                         );
                       })}
                       <p className="text-[9px] text-gray-600">Скидається щосезону. Бонуси множаться до врожаю.</p>
+                    </div>
+                  )}
+
+                  {/* NPK Panel */}
+                  {isField && (agroInfo?.nitrogenLevel !== undefined) && (
+                    <div className="pt-1.5 border-t border-gray-800 space-y-1.5">
+                      <p className="text-[9px] text-gray-500 uppercase tracking-wider">🧪 NPK ґрунту</p>
+                      {[
+                        { label: 'N Азот',    val: agroInfo?.nitrogenLevel ?? 70,   color: 'bg-blue-500'   },
+                        { label: 'P Фосфор',  val: agroInfo?.phosphorusLevel ?? 70, color: 'bg-orange-500' },
+                        { label: 'K Калій',   val: agroInfo?.potassiumLevel ?? 70,  color: 'bg-purple-500' },
+                      ].map(({ label, val, color }) => (
+                        <div key={label} className="flex items-center gap-2 text-[10px]">
+                          <span className="w-16 text-gray-400 shrink-0">{label}</span>
+                          <div className="flex-1 h-1.5 rounded-full bg-gray-700">
+                            <div className={cn("h-full rounded-full transition-all", color,
+                              val < 40 ? "opacity-50" : val < 60 ? "opacity-75" : "opacity-100"
+                            )} style={{ width: `${val}%` }} />
+                          </div>
+                          <span className={cn("text-[9px] font-mono w-8 text-right shrink-0",
+                            val < 40 ? "text-red-400" : val < 60 ? "text-amber-400" : "text-emerald-400"
+                          )}>{val.toFixed(0)}%</span>
+                        </div>
+                      ))}
+                      {((agroInfo?.nitrogenLevel ?? 70) < 40 || (agroInfo?.phosphorusLevel ?? 70) < 40 || (agroInfo?.potassiumLevel ?? 70) < 40) && (
+                        <p className="text-[9px] text-amber-500">⚠ Нутрієнти низькі — внесіть добриво для відновлення NPK</p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Moisture + Growth Stage Panel */}
+                  {isField && (
+                    <div className="pt-1.5 border-t border-gray-800 space-y-1.5">
+                      {/* Волога */}
+                      <div className="flex items-center gap-2">
+                        <p className="text-[9px] text-gray-500 uppercase tracking-wider w-20 shrink-0">💧 Волога</p>
+                        <div className="flex-1 h-1.5 rounded-full bg-gray-700">
+                          {(() => {
+                            const m = agroInfo?.moistureLevel ?? 60;
+                            const pct = Math.min(100, m);
+                            const barColor = m < 25 ? 'bg-red-500' : m < 45 ? 'bg-amber-500' : m <= 75 ? 'bg-blue-500' : 'bg-blue-300';
+                            return <div className={cn("h-full rounded-full transition-all", barColor)} style={{ width: `${pct}%` }} />;
+                          })()}
+                        </div>
+                        {(() => {
+                          const m = agroInfo?.moistureLevel ?? 60;
+                          return (
+                            <span className={cn("text-[9px] font-mono w-8 text-right shrink-0",
+                              m < 25 ? "text-red-400" : m < 45 ? "text-amber-400" : m <= 75 ? "text-blue-400" : "text-blue-300"
+                            )}>{m.toFixed(0)}%</span>
+                          );
+                        })()}
+                      </div>
+                      {(agroInfo?.moistureLevel ?? 60) < 30 && <p className="text-[9px] text-red-400">🌵 Посуха! Встановіть зрошення або замовте польову роботу.</p>}
+                      {(agroInfo?.moistureLevel ?? 60) > 80 && <p className="text-[9px] text-blue-400">🌊 Перезволоження — зменшить врожайність</p>}
+
+                      {/* Стадія росту */}
+                      {cropSku && agroInfo?.plantedSeasonTick !== undefined && (() => {
+                        const ticksGrown = Math.max(0, (agroInfo?.tickNumber ?? 0) - (agroInfo?.plantedSeasonTick ?? 0));
+                        const stage =
+                          ticksGrown < 5  ? { name: '🌱 Проростання', pct: 10,  color: 'bg-gray-500' } :
+                          ticksGrown < 15 ? { name: '🌿 Сіянець',      pct: 35,  color: 'bg-green-700' } :
+                          ticksGrown < 25 ? { name: '🌳 Вегетація',    pct: 65,  color: 'bg-green-500' } :
+                          ticksGrown < 35 ? { name: '🌸 Цвітіння',     pct: 85,  color: 'bg-emerald-400' } :
+                                            { name: '🌾 Дозрівання',    pct: 100, color: 'bg-amber-400' };
+                        return (
+                          <div className="space-y-0.5">
+                            <div className="flex items-center justify-between text-[9px]">
+                              <span className="text-gray-500 uppercase tracking-wider">Стадія росту</span>
+                              <span className="text-white font-medium">{stage.name}</span>
+                            </div>
+                            <div className="h-1.5 rounded-full bg-gray-700">
+                              <div className={cn("h-full rounded-full transition-all", stage.color)} style={{ width: `${stage.pct}%` }} />
+                            </div>
+                            <p className="text-[9px] text-gray-600">{ticksGrown} тіків з посіву</p>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+
+                  {/* Grain Quality + Moisture Panel */}
+                  {isField && cropSku && (
+                    <div className="rounded bg-gray-800/40 px-2 py-1.5 space-y-1">
+                      <p className="text-[9px] text-gray-500 uppercase tracking-wider">🌾 Якість зерна</p>
+                      <div className="flex items-center justify-between">
+                        {(() => {
+                          const cls = agroInfo?.grainQualityClass ?? 2;
+                          const label = cls === 1 ? '⭐ Клас 1 — Преміум' : cls === 2 ? '📦 Клас 2 — Стандарт' : '🐄 Клас 3 — Фураж';
+                          const mult  = cls === 1 ? '×1.3 ціна' : cls === 2 ? '×1.0 ціна' : '×0.8 ціна';
+                          const color = cls === 1 ? 'text-amber-300' : cls === 2 ? 'text-gray-300' : 'text-red-400';
+                          return (
+                            <>
+                              <span className={cn("text-[10px] font-medium", color)}>{label}</span>
+                              <span className={cn("text-[9px] font-mono", color)}>{mult}</span>
+                            </>
+                          );
+                        })()}
+                      </div>
+                      {(agroInfo?.grainMoisturePct ?? 14) > 17 && (
+                        <p className="text-[9px] text-amber-500">💧 Вологість зерна {(agroInfo?.grainMoisturePct ?? 14).toFixed(1)}% — потрібне сушіння (норма ≤14%)</p>
+                      )}
+                      {(agroInfo?.grainMoisturePct ?? 14) <= 14 && (
+                        <p className="text-[9px] text-emerald-500">✓ Вологість {(agroInfo?.grainMoisturePct ?? 14).toFixed(1)}% — норма</p>
+                      )}
                     </div>
                   )}
 

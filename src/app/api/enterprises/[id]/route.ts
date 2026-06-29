@@ -30,6 +30,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
           status: true, monthlyLeaseCostUah: true, purchasePriceUah: true,
           soilQuality: true, lastCropSku: true, fertilizerTicksLeft: true, pestDamageMult: true,
           seedQuality: true, cropDiseaseType: true, cropDiseaseSeverity: true, fieldOpsMask: true,
+          nitrogenLevel: true, phosphorusLevel: true, potassiumLevel: true, moistureLevel: true, grainQualityClass: true,
           city: { select: { id: true, name: true, nameUa: true, region: true, energyTariffUah: true } },
         },
       },
@@ -47,7 +48,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
         select: {
           id: true, name: true, footprintM2: true, maxCapacity: true,
           currentVolume: true, isActive: true, basePowerKwhPerTick: true, harvestAccumulated: true,
-          autoHarvest: true, autoFertilize: true,
+          autoHarvest: true, autoFertilize: true, plantedSeasonTick: true, grainMoisturePct: true,
           equipment: {
             select: {
               id: true, name: true, status: true, wearAndTear: true,
@@ -119,6 +120,13 @@ export async function GET(_req: NextRequest, { params }: Params) {
     cropDiseaseType:     enterprise.landPlot.cropDiseaseType,
     cropDiseaseSeverity: enterprise.landPlot.cropDiseaseSeverity,
     fieldOpsMask:        enterprise.landPlot.fieldOpsMask,
+    nitrogenLevel:       enterprise.landPlot.nitrogenLevel,
+    phosphorusLevel:     enterprise.landPlot.phosphorusLevel,
+    potassiumLevel:      enterprise.landPlot.potassiumLevel,
+    moistureLevel:       enterprise.landPlot.moistureLevel,
+    grainQualityClass:   enterprise.landPlot.grainQualityClass,
+    grainMoisturePct:    enterprise.workshops?.[0]?.grainMoisturePct ?? 14.0,
+    plantedSeasonTick:   enterprise.workshops?.[0]?.plantedSeasonTick ? Number(enterprise.workshops[0].plantedSeasonTick) : undefined,
     agroTourismEnabled:  enterprise.agroTourismEnabled,
     agroTourismRevenuePerTick: Number(enterprise.agroTourismRevenuePerTick),
     recommendedCropSku: enterprise.landPlot.lastCropSku

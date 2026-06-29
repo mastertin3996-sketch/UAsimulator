@@ -488,6 +488,14 @@ model LandPlot {
   // Польові роботи (контракт або власна техніка): bitmask скидається щосезону
   // bit0=Оранка, bit1=Культивація, bit2=Посів, bit3=Добрива, bit4=Збір
   fieldOpsMask         Int     @default(0)
+  // ── NPK система ────────────────────────────────────────────────────────────
+  nitrogenLevel        Float   @default(70.0)   // N: 0–100; ідеал 60–90
+  phosphorusLevel      Float   @default(70.0)   // P: 0–100
+  potassiumLevel       Float   @default(70.0)   // K: 0–100
+  // ── Волога ґрунту ──────────────────────────────────────────────────────────
+  moistureLevel        Float   @default(60.0)   // 0–100%; ідеал 50–70%; посуха <30%
+  // ── Якість зерна ───────────────────────────────────────────────────────────
+  grainQualityClass    Int     @default(2)      // 1=Преміум(×1.3) 2=Стандарт(×1.0) 3=Фураж(×0.8)
   leaseStartDate      DateTime?
   leaseEndDate        DateTime?
   purchasedAt         DateTime?
@@ -658,6 +666,9 @@ model Workshop {
   harvestAccumulated Float @default(0)
   autoHarvest        Boolean @default(false)  // авто-збір коли harvestAccumulated > 1 кг
   autoFertilize      Boolean @default(false)  // авто-внесення добрива з інвентарю
+  // Стадія росту культури (відлік від початку сезону)
+  plantedSeasonTick  BigInt?                  // Тік коли починався посів (для стадій)
+  grainMoisturePct   Float   @default(14.0)  // % вологи зерна: 14=норма, >18=знижка ціни
   // Якщо задано — цех активується не раніше цього тіку (розширення підприємства)
   activatesAtTick BigInt?
 

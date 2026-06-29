@@ -93,7 +93,7 @@ export class ProductionService {
       where:   { playerId, isOperational: true },
       include: {
         employees: true,
-        landPlot: { select: { id: true, soilQuality: true, lastCropSku: true, cityId: true, fertilizerTicksLeft: true, pestDamageMult: true, seedQuality: true, cropDiseaseType: true, cropDiseaseSeverity: true, fieldOpsMask: true } },
+        landPlot: { select: { id: true, soilQuality: true, lastCropSku: true, cityId: true, fertilizerTicksLeft: true, pestDamageMult: true, seedQuality: true, cropDiseaseType: true, cropDiseaseSeverity: true, fieldOpsMask: true, nitrogenLevel: true, phosphorusLevel: true, potassiumLevel: true, moistureLevel: true, grainQualityClass: true } },
         workshops: {
           where:   { isActive: true },
           include: {
@@ -236,6 +236,38 @@ export class ProductionService {
             const plowBonus     = FIELD_CROPS.has(cropSku) && (fieldMask & 1)  ? 1.08 : 1.0; // Оранка +8%
             const cultivateBonus= FIELD_CROPS.has(cropSku) && (fieldMask & 2)  ? 1.06 : 1.0; // Культивація +6%
             const sowBonus      = FIELD_CROPS.has(cropSku) && (fieldMask & 4)  ? 1.05 : 1.0; // Посів +5%
+
+            // NPK мультиплікатор: кожен нутрієнт дає до +15%/+10%/+10%
+            const npkMult = FIELD_CROPS.has(cropSku) ? (() => {
+              const n = ent.landPlot?.nitrogenLevel ?? 70;
+              const p = ent.landPlot?.phosphorusLevel ?? 70;
+              const k = ent.landPlot?.potassiumLevel ?? 70;
+              const nBonus = Math.min(0.15, (n / 100) * 0.15);
+              const pBonus = Math.min(0.10, (p / 100) * 0.10);
+              const kBonus = Math.min(0.10, (k / 100) * 0.10);
+              return (1 + nBonus) * (1 + pBonus) * (1 + kBonus);
+            })() : 1.0;
+
+            // Волога ґрунту: ідеал 50-70%, посуха <30% = штраф
+            const moistureMult = FIELD_CROPS.has(cropSku) ? (() => {
+              const m = ent.landPlot?.moistureLevel ?? 60;
+              if (m < 20) return 0.5;
+              if (m < 35) return 0.7 + (m - 20) / 100;
+              if (m <= 75) return 0.95 + (m - 35) / 400; // плавний пік на 60%
+              return Math.max(0.85, 1.1 - (m - 75) / 100); // перезволоження
+            })() : 1.0;
+
+            // Стадія росту культури
+            const growthStageMult = (() => {
+              if (!FIELD_CROPS.has(cropSku) || !ws.plantedSeasonTick) return 1.0;
+              const ticksGrown = Number(BigInt(tickNumber ?? 0n) - (ws.plantedSeasonTick ?? 0n));
+              if (ticksGrown < 5)  return 0.05; // Проростання
+              if (ticksGrown < 15) return 0.40; // Сіянець
+              if (ticksGrown < 25) return 0.80; // Вегетація
+              if (ticksGrown < 35) return 1.00; // Цвітіння — повний врожай
+              return 1.0; // Дозрівання і далі
+            })();
+
             // Fertilizer: +20% — або через добриво (fertLeft>0) або через підрядне внесення (bit3)
             const fertBonus = ((ent.landPlot?.fertilizerTicksLeft ?? 0) > 0 || (fieldMask & 8)) ? 1.20 : 1.0;
 
@@ -270,7 +302,7 @@ export class ProductionService {
               if (!hasSunflower) honeyGate = 0.0;
             }
 
-            baseCapacity = ws.footprintM2 * soilMult * seasonMult * rotationMult * droughtMult * irrigationBonus * agronomistMult * plantingBonus * fieldAreaMult * localWeatherMod * tractorBonus * machineryMult * fertBonus * pestMult * seedMult * diseaseMult * plowBonus * cultivateBonus * sowBonus * livestockMult * honeyGate;
+            baseCapacity = ws.footprintM2 * soilMult * seasonMult * rotationMult * droughtMult * irrigationBonus * agronomistMult * plantingBonus * fieldAreaMult * localWeatherMod * tractorBonus * machineryMult * fertBonus * pestMult * seedMult * diseaseMult * plowBonus * cultivateBonus * sowBonus * npkMult * moistureMult * growthStageMult * livestockMult * honeyGate;
           } else {
             baseCapacity = ws.maxCapacity;
           }

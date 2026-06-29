@@ -801,7 +801,18 @@ export class MarketService {
    *  - Інакше: випадковий дрейф ±0.5%
    *  - Обмеження: не більше ±4% за тік; абсолютний поріг ≥1 UAH
    */
-  async updateNpcMarketPrices(): Promise<void> {
+  // Сезонні коригування цін: [Весна, Літо, Осінь, Зима]
+  private static readonly SEASONAL_PRICE_FACTORS: Record<string, [number,number,number,number]> = {
+    'RM-WHEAT':   [1.15, 1.00, 0.85, 1.05],
+    'RM-CORN':    [1.10, 1.05, 0.88, 1.10],
+    'RM-SUNFL':   [1.08, 1.00, 0.85, 1.12],
+    'RM-SUGBEET': [1.05, 1.00, 0.88, 1.05],
+    'FG-SUNOIL':  [1.05, 1.00, 0.90, 1.08],
+    'FG-BREAD':   [1.08, 1.00, 0.95, 1.10],
+  };
+
+  async updateNpcMarketPrices(tickNumber?: bigint): Promise<void> {
+    const seasonIdx = tickNumber ? Math.floor((Number(tickNumber) % 120) / 30) : 0;
     // Batch fetch: demands + all SELL order supply grouped by product (excluding ДержПром)
     const derzhpromId = await this.getDerzhpromId();
     const [demands, supplyGroups] = await Promise.all([
@@ -814,6 +825,14 @@ export class MarketService {
     ]);
 
     const supplyMap = new Map(supplyGroups.map(s => [s.productId, Number(s._sum.quantityTotal ?? 0)]));
+
+    // Завантажуємо SKU продуктів для сезонного коригування
+    const allProductIds = demands.map(d => d.productId);
+    const productSkuRows = await this.prisma.product.findMany({
+      where:  { id: { in: allProductIds } },
+      select: { id: true, sku: true },
+    });
+    const skuById = new Map(productSkuRows.map(p => [p.id, p.sku]));
 
     const updates: { productId: string; newRef: number }[] = [];
     for (const d of demands) {
@@ -834,7 +853,11 @@ export class MarketService {
 
       const noise     = (Math.random() - 0.5) * 0.01;
       const pctChange = Math.max(-0.04, Math.min(0.04, drift + noise));
-      const newRef    = Math.max(1, currentRef * (1 + pctChange));
+      // Сезонний множник для аграрних товарів
+      const sku           = skuById.get(d.productId) ?? '';
+      const seasonFactors = MarketService.SEASONAL_PRICE_FACTORS[sku];
+      const seasonMult    = seasonFactors ? seasonFactors[seasonIdx] : 1.0;
+      const newRef        = Math.max(1, currentRef * (1 + pctChange) * seasonMult);
 
       if (Math.abs(newRef - currentRef) >= 0.001) {
         updates.push({ productId: d.productId, newRef });

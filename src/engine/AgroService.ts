@@ -381,10 +381,36 @@ export class AgroService {
       where:  { type: 'AGRO_FARM', isOperational: true, isSeized: false },
       select: {
         id: true, playerId: true, name: true,
-        landPlot: { select: { id: true, soilQuality: true, fertilizerTicksLeft: true, pestDamageMult: true } },
-        workshops: { select: { id: true, harvestAccumulated: true } },
+        localWeatherMod: true,
+        landPlot: {
+          select: {
+            id: true, soilQuality: true, fertilizerTicksLeft: true, pestDamageMult: true,
+            nitrogenLevel: true, phosphorusLevel: true, potassiumLevel: true,
+            moistureLevel: true, grainQualityClass: true,
+          },
+        },
+        workshops: {
+          select: {
+            id: true,
+            harvestAccumulated: true,
+            equipment: { select: { name: true } },
+            productionOrders: {
+              where: { status: 'IN_PROGRESS' },
+              select: { recipe: { select: { outputs: { select: { product: { select: { sku: true } } } } } } },
+            },
+          },
+        },
       },
     });
+
+    const NPK_DECAY: Record<string, [number, number, number]> = {
+      'RM-WHEAT':   [1.5, 0.5, 0.3],
+      'RM-SUNFL':   [0.8, 1.2, 1.5],
+      'RM-SUGBEET': [1.0, 0.8, 2.0],
+      'RM-CORN':    [2.0, 1.0, 0.5],
+    };
+    const FIELD_CROPS = new Set(['RM-WHEAT', 'RM-SUNFL', 'RM-SUGBEET', 'RM-CORN']);
+    const seasonIdx = Math.floor((Number(tickNumber) % 120) / 30); // 0=Весна,1=Літо,2=Осінь,3=Зима
 
     for (const farm of farms) {
       const lp = farm.landPlot;
@@ -401,10 +427,53 @@ export class AgroService {
       const pestSpawns = lp.pestDamageMult >= 1.0 && Math.random() < PEST_CHANCE;
       if (pestSpawns) newPestMult = PEST_MULT;
 
+      // NPK decay — знаходимо активну польову культуру
+      const activeCropSku = farm.workshops
+        .flatMap(ws => ws.productionOrders)
+        .flatMap(po => po.recipe?.outputs ?? [])
+        .map(o => o.product.sku)
+        .find(sku => FIELD_CROPS.has(sku));
+
+      const [decayN, decayP, decayK] = activeCropSku
+        ? NPK_DECAY[activeCropSku]
+        : [0.3, 0.2, 0.2]; // природне виснаження без культури
+
+      const newN = Math.max(10.0, lp.nitrogenLevel - decayN);
+      const newP = Math.max(10.0, lp.phosphorusLevel - decayP);
+      const newK = Math.max(10.0, lp.potassiumLevel - decayK);
+
+      // Moisture seasonal update
+      const hasIrrigation = farm.workshops.some(ws =>
+        ws.equipment.some(eq => eq.name.includes('EQ-IRRIGATION'))
+      );
+      const localWeatherMod = farm.localWeatherMod ?? 1.0;
+      const isDrought = localWeatherMod < 0.8;
+      const seasonMoistureDelta = [15, -10, 5, 20][seasonIdx]; // Весна/Літо/Осінь/Зима
+      let newMoisture = lp.moistureLevel + seasonMoistureDelta;
+      if (hasIrrigation) newMoisture = Math.min(75, newMoisture + 10);
+      if (isDrought) newMoisture -= 20;
+      newMoisture = Math.max(5, Math.min(95, newMoisture));
+
+      // Grain quality class
+      const avgNPK = (newN + newP + newK) / 3;
+      const newGrainClass =
+        (newSoil >= 8 && avgNPK >= 65 && newMoisture >= 45 && newMoisture <= 75) ? 1 :
+        (newSoil >= 4 && avgNPK >= 40) ? 2 : 3;
+
       await this.prisma.landPlot.update({
         where: { id: lp.id },
         // fieldOpsMask скидається щосезону — операції треба повторювати
-        data:  { soilQuality: newSoil, fertilizerTicksLeft: newFertTicks, pestDamageMult: newPestMult, fieldOpsMask: 0 },
+        data: {
+          soilQuality: newSoil,
+          fertilizerTicksLeft: newFertTicks,
+          pestDamageMult: newPestMult,
+          fieldOpsMask: 0,
+          nitrogenLevel: newN,
+          phosphorusLevel: newP,
+          potassiumLevel: newK,
+          moistureLevel: newMoisture,
+          grainQualityClass: newGrainClass,
+        },
       });
 
       // Notifications
@@ -448,5 +517,139 @@ export class AgroService {
 
   static calcForwardCancelPenalty(quantity: number, pricePerUnit: number): number {
     return Math.round(quantity * pricePerUnit * FORWARD_CANCEL_PENALTY_RATE);
+  }
+
+  // ── 7. Вологість ґрунту кожен тік ────────────────────────────────────────────
+  /**
+   * Невеликі зміни вологи кожен тік залежно від погоди, сезону та зрошення.
+   */
+  async processMoistureTick(tickNumber: bigint): Promise<void> {
+    const seasonIdx = Math.floor((Number(tickNumber) % 120) / 30);
+    const baseEvap = [0.2, 0.4, 0.2, 0.1][seasonIdx]; // Весна/Літо/Осінь/Зима
+
+    const farms = await this.prisma.enterprise.findMany({
+      where: { type: 'AGRO_FARM', isOperational: true },
+      select: {
+        id: true,
+        localWeatherMod: true,
+        landPlot: { select: { id: true, moistureLevel: true } },
+        workshops: { select: { equipment: { select: { name: true } } } },
+      },
+    });
+
+    for (const farm of farms) {
+      const lp = farm.landPlot;
+      if (!lp) continue;
+
+      const localWeatherMod = farm.localWeatherMod ?? 1.0;
+      const hasIrrigation = farm.workshops.some(ws =>
+        ws.equipment.some(eq => eq.name.includes('EQ-IRRIGATION'))
+      );
+
+      let delta = -baseEvap;
+      if (localWeatherMod < 0.7) delta -= 1.5;       // посуха
+      else if (localWeatherMod > 1.1) delta += 1.0;  // дощ
+      if (hasIrrigation) delta += 0.8;
+
+      const newMoisture = Math.max(5, Math.min(95, lp.moistureLevel + delta));
+
+      await this.prisma.landPlot.update({
+        where: { id: lp.id },
+        data: { moistureLevel: newMoisture },
+      });
+    }
+  }
+
+  // ── 8. Відстеження посіву (plantedSeasonTick) ─────────────────────────────────
+  /**
+   * Для активних воркшопів AGRO_FARM з польовими культурами:
+   * встановлює plantedSeasonTick при новому посіві, скидає при зміні сезону.
+   */
+  async updatePlantedSeasonTick(tickNumber: bigint): Promise<void> {
+    const currentSeasonIdx = Math.floor((Number(tickNumber) % 120) / 30);
+    const FIELD_CROPS = new Set(['RM-WHEAT', 'RM-SUNFL', 'RM-SUGBEET', 'RM-CORN']);
+
+    const workshops = await this.prisma.workshop.findMany({
+      where: { isActive: true, enterprise: { type: 'AGRO_FARM', isOperational: true } },
+      select: {
+        id: true,
+        plantedSeasonTick: true,
+        productionOrders: {
+          where: { status: 'IN_PROGRESS' },
+          select: { recipe: { select: { outputs: { select: { product: { select: { sku: true } } } } } } },
+        },
+      },
+    });
+
+    for (const ws of workshops) {
+      const cropSku = ws.productionOrders[0]?.recipe?.outputs
+        ?.find(o => FIELD_CROPS.has(o.product.sku))?.product.sku;
+      if (!cropSku) continue;
+
+      if (!ws.plantedSeasonTick) {
+        await this.prisma.workshop.update({
+          where: { id: ws.id },
+          data: { plantedSeasonTick: tickNumber },
+        });
+      } else {
+        const plantedSeasonIdx = Math.floor((Number(ws.plantedSeasonTick) % 120) / 30);
+        if (plantedSeasonIdx !== currentSeasonIdx) {
+          // Новий сезон — фіксуємо новий посів
+          await this.prisma.workshop.update({
+            where: { id: ws.id },
+            data: { plantedSeasonTick: tickNumber },
+          });
+        }
+      }
+    }
+  }
+
+  // ── 9. Вологість зерна при збиранні ─────────────────────────────────────────
+  /**
+   * Встановлює grainMoisturePct для воркшопів з активними польовими культурами
+   * залежно від сезону та погоди.
+   */
+  async processGrainMoisture(tickNumber: bigint): Promise<void> {
+    const seasonIdx = Math.floor((Number(tickNumber) % 120) / 30);
+    const BASE_MOISTURE: Record<number, number> = { 0: 15, 1: 13, 2: 18, 3: 15 };
+    const FIELD_CROPS = new Set(['RM-WHEAT', 'RM-SUNFL', 'RM-SUGBEET', 'RM-CORN']);
+
+    const farms = await this.prisma.enterprise.findMany({
+      where: { type: 'AGRO_FARM', isOperational: true },
+      select: {
+        id: true,
+        localWeatherMod: true,
+        workshops: {
+          where: { isActive: true },
+          select: {
+            id: true,
+            productionOrders: {
+              where: { status: 'IN_PROGRESS' },
+              select: { recipe: { select: { outputs: { select: { product: { select: { sku: true } } } } } } },
+            },
+          },
+        },
+      },
+    });
+
+    for (const farm of farms) {
+      const localWeatherMod = farm.localWeatherMod ?? 1.0;
+      const rainBonus = localWeatherMod > 1.1 ? 2 : 0;
+
+      for (const ws of farm.workshops) {
+        const hasCrop = ws.productionOrders
+          .flatMap(po => po.recipe?.outputs ?? [])
+          .some(o => FIELD_CROPS.has(o.product.sku));
+        if (!hasCrop) continue;
+
+        const randomJitter = (Math.random() * 2) - 1; // -1..+1
+        const grainMoisturePct = BASE_MOISTURE[seasonIdx] + rainBonus + randomJitter;
+
+        await this.prisma.workshop.update({
+          where: { id: ws.id },
+          data: { grainMoisturePct },
+        });
+      }
+    }
   }
 }

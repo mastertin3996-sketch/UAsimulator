@@ -234,6 +234,12 @@ export class TickEngine {
         .catch(e => console.error(`[Tick ${tickNumber}] Forward contracts failed:`, e)),
       this.agro.processGrainQualityDegradation()
         .catch(e => console.error(`[Tick ${tickNumber}] Grain quality degradation failed:`, e)),
+      this.agro.processMoistureTick(tickNumber)
+        .catch(e => console.error(`[Tick ${tickNumber}] Moisture tick failed:`, e)),
+      this.agro.processGrainMoisture(tickNumber)
+        .catch(e => console.error(`[Tick ${tickNumber}] Grain moisture failed:`, e)),
+      this.agro.updatePlantedSeasonTick(tickNumber)
+        .catch(e => console.error(`[Tick ${tickNumber}] Planted season tick failed:`, e)),
       this.db.retailListing.updateMany({
         where: { promotionActive: true, promotionEndTick: { lte: tickNumber } },
         data:  { promotionActive: false, promotionEndTick: null },
@@ -364,7 +370,7 @@ export class TickEngine {
 
     T('matchNpcMarketOrders');
     // ── 3a3. Dynamic NPC price update — реагує на supply/demand поточного тіку ──
-    await this.market.updateNpcMarketPrices()
+    await this.market.updateNpcMarketPrices(tickNumber)
       .catch(e => console.error(`[Tick ${tickNumber}] NPC price update failed:`, e));
 
     // ── 3b–3i. Independent global services in parallel ───────────────────

@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
     select: {
       id: true,
       footprintM2: true,
-      landPlot: { select: { id: true, fertilizerTicksLeft: true } },
+      landPlot: { select: { id: true, fertilizerTicksLeft: true, nitrogenLevel: true, phosphorusLevel: true, potassiumLevel: true } },
       inventory: { select: { id: true, quantity: true, product: { select: { sku: true } } } },
     },
   });
@@ -49,6 +49,13 @@ export async function POST(req: NextRequest) {
     }, { status: 400 });
   }
 
+  // NPK відновлення: концентрат — N+20/P+8/K+5; компост — N+10/P+12/K+15 (збалансованіше)
+  const lp = enterprise.landPlot;
+  const clamp = (v: number) => Math.min(100, Math.max(0, v));
+  const npkUpdate = isOrg
+    ? { nitrogenLevel: clamp((lp.nitrogenLevel ?? 70) + 10), phosphorusLevel: clamp((lp.phosphorusLevel ?? 70) + 12), potassiumLevel: clamp((lp.potassiumLevel ?? 70) + 15) }
+    : { nitrogenLevel: clamp((lp.nitrogenLevel ?? 70) + 20), phosphorusLevel: clamp((lp.phosphorusLevel ?? 70) + 8),  potassiumLevel: clamp((lp.potassiumLevel ?? 70) + 5)  };
+
   await prisma.$transaction([
     prisma.enterpriseInventory.update({
       where: { id: inv.id },
@@ -56,7 +63,7 @@ export async function POST(req: NextRequest) {
     }),
     prisma.landPlot.update({
       where: { id: enterprise.landPlot.id },
-      data:  { fertilizerTicksLeft: { increment: FERT_DURATION } },
+      data:  { fertilizerTicksLeft: { increment: FERT_DURATION }, ...npkUpdate },
     }),
   ]);
 
