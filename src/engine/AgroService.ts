@@ -639,6 +639,7 @@ export class AgroService {
         localWeatherMod: true,
         landPlot: { select: { id: true, moistureLevel: true } },
         workshops: { select: { equipment: { select: { name: true } } } },
+        employees: { select: { profession: true } },
       },
     });
 
@@ -650,11 +651,14 @@ export class AgroService {
       const hasIrrigation = farm.workshops.some(ws =>
         ws.equipment.some(eq => eq.name.includes('EQ-IRRIGATION'))
       );
+      const irrigators = farm.employees.filter(e => e.profession === 'IRRIGATOR').length;
 
       let delta = -baseEvap;
       if (localWeatherMod < 0.7) delta -= 1.5;       // посуха
       else if (localWeatherMod > 1.1) delta += 1.0;  // дощ
       if (hasIrrigation) delta += 0.8;
+      // IRRIGATOR: кожен зменшує випаровування на 15% (до 2 осіб)
+      if (delta < 0 && irrigators > 0) delta *= (1 - Math.min(irrigators, 2) * 0.15);
 
       const newMoisture = Math.max(5, Math.min(95, lp.moistureLevel + delta));
 
@@ -724,10 +728,12 @@ export class AgroService {
       select: {
         id: true,
         localWeatherMod: true,
+        employees: { select: { profession: true } },
         workshops: {
           where: { isActive: true },
           select: {
             id: true,
+            grainMoisturePct: true,
             productionOrders: {
               where: { status: 'IN_PROGRESS' },
               select: { recipe: { select: { outputs: { select: { product: { select: { sku: true } } } } } } },
@@ -740,6 +746,7 @@ export class AgroService {
     for (const farm of farms) {
       const localWeatherMod = farm.localWeatherMod ?? 1.0;
       const rainBonus = localWeatherMod > 1.1 ? 2 : 0;
+      const grainSpecialists = farm.employees.filter(e => e.profession === 'GRAIN_SPECIALIST').length;
 
       for (const ws of farm.workshops) {
         const hasCrop = ws.productionOrders
@@ -747,12 +754,22 @@ export class AgroService {
           .some(o => FIELD_CROPS.has(o.product.sku));
         if (!hasCrop) continue;
 
-        const randomJitter = (Math.random() * 2) - 1; // -1..+1
-        const grainMoisturePct = BASE_MOISTURE[seasonIdx] + rainBonus + randomJitter;
+        const current = ws.grainMoisturePct ?? (BASE_MOISTURE[seasonIdx] + rainBonus);
+
+        let newMoisture: number;
+        if (grainSpecialists > 0 && current > 14.0) {
+          // GRAIN_SPECIALIST: auto-сушіння -0.5%/тік (до 2 фахівців)
+          const dryRate = Math.min(grainSpecialists, 2) * 0.5;
+          newMoisture = Math.max(14.0, current - dryRate);
+        } else {
+          // Стандартне оновлення вологи від погоди
+          const randomJitter = (Math.random() * 2) - 1;
+          newMoisture = BASE_MOISTURE[seasonIdx] + rainBonus + randomJitter;
+        }
 
         await this.prisma.workshop.update({
           where: { id: ws.id },
-          data: { grainMoisturePct },
+          data: { grainMoisturePct: newMoisture },
         });
       }
     }

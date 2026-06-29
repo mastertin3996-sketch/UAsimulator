@@ -120,5 +120,24 @@ export async function POST(req: NextRequest) {
     select: { id: true },
   });
 
-  return NextResponse.json({ orderId: order.id }, { status: 201 });
+  // Grain quality hint — якщо продається зернова культура, повертаємо клас якості та множник ціни
+  const GRAIN_SKUS = new Set(['RM-WHEAT', 'RM-CORN', 'RM-SUNFL', 'RM-SUGBEET']);
+  const productSku = inv.product.sku;
+  let grainQualityClass: number | undefined;
+  let grainPriceMult:   number | undefined;
+  if (GRAIN_SKUS.has(productSku)) {
+    const farm = await prisma.enterprise.findFirst({
+      where:  { playerId, type: 'AGRO_FARM', isOperational: true },
+      select: { landPlot: { select: { grainQualityClass: true } } },
+    });
+    const cls = farm?.landPlot?.grainQualityClass ?? 2;
+    const mult = ({ 1: 1.30, 2: 1.00, 3: 0.80 } as Record<number, number>)[cls] ?? 1.0;
+    grainQualityClass = cls;
+    grainPriceMult    = mult;
+  }
+
+  return NextResponse.json({
+    orderId: order.id,
+    ...(grainQualityClass !== undefined && { grainQualityClass, grainPriceMult }),
+  }, { status: 201 });
 }

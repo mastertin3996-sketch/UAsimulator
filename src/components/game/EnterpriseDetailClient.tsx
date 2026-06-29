@@ -2734,6 +2734,18 @@ function FieldsTab({ enterprise, agroInfo, onRefresh }: { enterprise: Enterprise
   const [loanMsg, setLoanMsg] = useState<string | null>(null);
   const [takingLoan, setTakingLoan] = useState(false);
 
+  // Виконані контракти
+  const [historyContracts, setHistoryContracts] = useState<{
+    id: string; productSku: string; productNameUa: string; productUnit: string;
+    quantityUnits: number; pricePerUnit: number; totalValue: number;
+    deliveryTick: number; createdAtTick: number; status: string;
+  }[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
+
+  const CROP_BASE_PRICE: Record<string, number> = {
+    'RM-WHEAT': 8.5, 'RM-CORN': 7.0, 'RM-SUNFL': 14.0, 'RM-SUGBEET': 2.5,
+  };
+
   const AGRO_SKUS = ["RM-WHEAT", "RM-SUNFL", "RM-CORN", "RM-SUGBEET", "SF-MILK", "FG-EGGS"];
   const [recipeModal, setRecipeModal] = useState<Workshop | null>(null);
   const [showAddPlot, setShowAddPlot] = useState(false);
@@ -2757,6 +2769,16 @@ function FieldsTab({ enterprise, agroInfo, onRefresh }: { enterprise: Enterprise
     fetch(`/api/agro/fair?enterpriseId=${enterprise.id}`)
       .then(r => r.ok ? r.json() : null).then(setFairInfo).catch(() => {});
   }, [enterprise.id]);
+
+  useEffect(() => {
+    if (!showHistory) return;
+    fetch(`/api/agro/forward-contracts?enterpriseId=${enterprise.id}&status=FULFILLED`)
+      .then(r => r.ok ? r.json() : [])
+      .then((all: { enterpriseName?: string; id: string; productSku: string; productNameUa: string; productUnit: string; quantityUnits: number; pricePerUnit: number; totalValue: number; deliveryTick: number; createdAtTick: number; status: string }[]) => {
+        const fulfilled = all.filter((c) => c.status === "FULFILLED" || c.status === "CANCELLED");
+        setHistoryContracts(fulfilled.slice(0, 5));
+      }).catch(() => {});
+  }, [showHistory, enterprise.id]);
 
   const handleExpand = async () => {
     const area = parseFloat(expandArea);
@@ -3077,24 +3099,96 @@ function FieldsTab({ enterprise, agroInfo, onRefresh }: { enterprise: Enterprise
 
         {/* Активні контракти */}
         {contracts.length > 0 ? (
-          <div className="space-y-1.5">
-            {contracts.map(c => (
-              <div key={c.id} className="flex items-center justify-between text-xs border border-gray-800 rounded p-2">
-                <div>
-                  <span className="font-mono text-emerald-300">{c.productSku}</span>
-                  <span className="text-gray-400 ml-2">{c.quantityUnits} {c.productUnit} × ₴{c.pricePerUnit}</span>
-                  <span className="text-gray-600 ml-2">= ₴{c.totalValue.toLocaleString()}</span>
+          <div className="space-y-2">
+            {contracts.map(c => {
+              const basePrice = CROP_BASE_PRICE[c.productSku] ?? 0;
+              const pnlPct = basePrice > 0 ? ((c.pricePerUnit - basePrice) / basePrice * 100) : null;
+              const isGoodPrice = pnlPct !== null && pnlPct >= 0;
+              const accumulated = enterprise.workshops[0]?.harvestAccumulated ?? 0;
+              const fillPct = c.quantityUnits > 0 ? Math.min(100, (accumulated / c.quantityUnits) * 100) : 0;
+              const isFulfilled = fillPct >= 100;
+              const isWarning = fillPct >= 20 && fillPct < 50;
+              const isDanger = fillPct < 20;
+              return (
+                <div key={c.id} className="border border-gray-800 rounded p-2 space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <div>
+                      <span className="font-mono text-emerald-300">{c.productSku}</span>
+                      <span className="text-gray-400 ml-2">{c.quantityUnits} {c.productUnit} × ₴{c.pricePerUnit}</span>
+                      <span className="text-gray-600 ml-2">= ₴{c.totalValue.toLocaleString()}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-600">до дня {c.deliveryTick}</span>
+                      <button onClick={() => handleCancelContract(c.id)} className="text-red-500 hover:text-red-400 text-[10px]">✕</button>
+                    </div>
+                  </div>
+                  {/* PnL badge */}
+                  {pnlPct !== null && (
+                    <div className="flex items-center gap-2 text-[10px]">
+                      <span className="text-gray-500">Контрактна: ₴{c.pricePerUnit}/кг · vs Ринок: ~₴{basePrice}/кг</span>
+                      <span className={`px-1.5 py-0.5 rounded font-semibold ${isGoodPrice ? 'bg-emerald-900/50 text-emerald-400' : 'bg-red-900/50 text-red-400'}`}>
+                        {isGoodPrice ? `+${pnlPct.toFixed(1)}% вигода` : `${pnlPct.toFixed(1)}% збиток`}
+                      </span>
+                    </div>
+                  )}
+                  {/* Прогрес виконання */}
+                  <div className="space-y-0.5">
+                    <div className="flex items-center justify-between text-[10px]">
+                      <span className="text-gray-500">Накопичено: {accumulated.toFixed(1)} / {c.quantityUnits} {c.productUnit}</span>
+                      {isFulfilled
+                        ? <span className="text-emerald-400 font-semibold">✓ Готово до доставки</span>
+                        : isWarning
+                          ? <span className="text-yellow-400">⚠ Накопичено {fillPct.toFixed(0)}%</span>
+                          : isDanger
+                            ? <span className="text-red-400">⚡ Ризик дефолту</span>
+                            : <span className="text-gray-400">{fillPct.toFixed(0)}%</span>
+                      }
+                    </div>
+                    <div className="w-full bg-gray-800 rounded-full h-1.5">
+                      <div
+                        className={`h-1.5 rounded-full transition-all ${isFulfilled ? 'bg-emerald-500' : isWarning ? 'bg-yellow-500' : isDanger ? 'bg-red-500' : 'bg-amber-500'}`}
+                        style={{ width: `${fillPct}%` }}
+                      />
+                    </div>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-gray-600">до дня {c.deliveryTick}</span>
-                  <button onClick={() => handleCancelContract(c.id)} className="text-red-500 hover:text-red-400 text-[10px]">✕</button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <p className="text-xs text-gray-600">Немає активних ф'ючерсів</p>
         )}
+
+        {/* Виконані контракти */}
+        <div className="border border-gray-800/60 rounded overflow-hidden">
+          <button
+            onClick={() => setShowHistory(h => !h)}
+            className="w-full flex items-center justify-between px-3 py-2 text-xs text-gray-400 hover:text-gray-300 hover:bg-gray-800/30 transition-colors"
+          >
+            <span>Виконані контракти</span>
+            <span>{showHistory ? '▲' : '▼'}</span>
+          </button>
+          {showHistory && (
+            <div className="p-2 space-y-1.5 border-t border-gray-800/60">
+              {historyContracts.length === 0 ? (
+                <p className="text-xs text-gray-600 py-1 text-center">Немає виконаних контрактів</p>
+              ) : (
+                historyContracts.map(c => (
+                  <div key={c.id} className="flex items-center justify-between text-[10px] border border-gray-800 rounded px-2 py-1.5">
+                    <div>
+                      <span className="font-mono text-gray-300">{c.productSku}</span>
+                      <span className="text-gray-500 ml-2">{c.quantityUnits} {c.productUnit} × ₴{c.pricePerUnit}</span>
+                      <span className="text-gray-600 ml-2">= ₴{c.totalValue.toLocaleString()}</span>
+                    </div>
+                    <span className={`px-1.5 py-0.5 rounded font-semibold ${c.status === 'FULFILLED' ? 'bg-emerald-900/50 text-emerald-400' : 'bg-red-900/50 text-red-400'}`}>
+                      {c.status === 'FULFILLED' ? '✓ Виконано' : '✕ Скасовано'}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </div>
 
         {/* Новий ф'ючерс */}
         <div className="grid grid-cols-2 gap-2">
@@ -3105,8 +3199,23 @@ function FieldsTab({ enterprise, agroInfo, onRefresh }: { enterprise: Enterprise
           </select>
           <input type="number" placeholder="Кількість" value={newContract.qty} onChange={e => setNewContract(p => ({ ...p, qty: e.target.value }))}
             className="bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-amber-500" />
-          <input type="number" placeholder="Ціна ₴/од" value={newContract.price} onChange={e => setNewContract(p => ({ ...p, price: e.target.value }))}
-            className="bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-amber-500" />
+          <div className="space-y-0.5">
+            <input type="number" placeholder="Ціна ₴/од" value={newContract.price} onChange={e => setNewContract(p => ({ ...p, price: e.target.value }))}
+              className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-amber-500" />
+            {newContract.productSku && newContract.price && (() => {
+              const base = CROP_BASE_PRICE[newContract.productSku] ?? 0;
+              const myPrice = parseFloat(newContract.price);
+              if (!base || !myPrice) return null;
+              const diff = ((myPrice - base) / base * 100).toFixed(1);
+              const isGood = myPrice >= base;
+              return (
+                <p className={`text-[9px] ${isGood ? 'text-emerald-400' : 'text-amber-400'}`}>
+                  {isGood ? `✓ Вище ринку на ${diff}%` : `⚠ Нижче ринку на ${Math.abs(parseFloat(diff))}%`}
+                  {' '}(база ~₴{base}/кг)
+                </p>
+              );
+            })()}
+          </div>
           <select value={newContract.days} onChange={e => setNewContract(p => ({ ...p, days: e.target.value }))}
             className="bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500">
             <option value="10">+10 днів</option>

@@ -696,6 +696,27 @@ export class MarketService {
 
     let totalTraded = 0;
 
+    // ── Grain quality class multipliers (Клас 1=Преміум ×1.30, 2=Стандарт ×1.00, 3=Фураж ×0.80) ──
+    const GRAIN_QUALITY_MULT: Record<number, number> = { 1: 1.30, 2: 1.00, 3: 0.80 };
+
+    // Pre-fetch AGRO_FARM grain quality for all unique sellers of grain SKUs
+    const grainSellerIds = new Set<string>();
+    for (const s of allPlayerSells) {
+      const sku = skuMap.get(s.productId) ?? '';
+      if (GRAIN_SKUS.has(sku)) grainSellerIds.add(s.playerId);
+    }
+    const grainQualityMap = new Map<string, number>(); // playerId → grainQualityClass
+    if (grainSellerIds.size > 0) {
+      const farms = await this.prisma.enterprise.findMany({
+        where:  { playerId: { in: [...grainSellerIds] }, type: 'AGRO_FARM', isOperational: true },
+        select: { playerId: true, landPlot: { select: { grainQualityClass: true } } },
+      });
+      for (const farm of farms) {
+        const cls = farm.landPlot?.grainQualityClass ?? 2;
+        grainQualityMap.set(farm.playerId, cls);
+      }
+    }
+
     // Accumulators for batch writes
     type OrderUpdate = { id: string; quantityFilled: number; status: string; isFilled: boolean };
     type InvUpdate   = { playerId: string; productId: string; qty: number };
@@ -742,7 +763,12 @@ export class MarketService {
         const tradeQty   = Math.min(available, remaining);
         if (tradeQty <= 0.001) continue;
 
-        const tradeValue = sellPrice.times(tradeQty);
+        // Apply grain quality class multiplier to effective payout
+        const grainQualityMult = isGrain
+          ? (GRAIN_QUALITY_MULT[grainQualityMap.get(sell.playerId) ?? 2] ?? 1.0)
+          : 1.0;
+        const effectivePrice = grainQualityMult !== 1.0 ? sellPrice.times(grainQualityMult) : sellPrice;
+        const tradeValue = effectivePrice.times(tradeQty);
         const newFilled  = sell.quantityFilled + tradeQty;
         const isFilled   = newFilled >= sell.quantityTotal - 0.001;
 
@@ -753,13 +779,16 @@ export class MarketService {
 
         orderUpdates.push({ id: sell.id, quantityFilled: newFilled, status: isFilled ? 'FILLED' : 'PARTIALLY_FILLED', isFilled });
         invUpdates.push({ playerId: sell.playerId, productId: d.productId, qty: tradeQty });
+        const qualityNote = isGrain && grainQualityMult !== 1.0
+          ? ` [кл.${grainQualityMap.get(sell.playerId) ?? 2} ×${grainQualityMult.toFixed(2)}]`
+          : '';
         (finTxns as any[]).push({
           playerId: sell.playerId, type: 'NPC_SALE', amountUah: tradeValue,
           balanceBefore: curBal, balanceAfter: newBal,
-          description: `NPC купівля: ${tradeQty.toFixed(1)} × ${sku} @ ₴${sellPrice.toFixed(0)}/od.`,
+          description: `NPC купівля: ${tradeQty.toFixed(1)} × ${sku} @ ₴${effectivePrice.toFixed(0)}/od.${qualityNote}`,
           referenceId: sell.id,
         });
-        if (isFilled) notifications.push({ playerId: sell.playerId, body: `NPC викупив ${tradeQty.toFixed(0)} od. @ ₴${sellPrice.toFixed(0)}/od.`, price: sellPrice.toNumber() });
+        if (isFilled) notifications.push({ playerId: sell.playerId, body: `NPC викупив ${tradeQty.toFixed(0)} od. @ ₴${effectivePrice.toFixed(0)}/od.${qualityNote}`, price: effectivePrice.toNumber() });
 
         sell.quantityFilled = newFilled; // update in-memory for subsequent passes
         remaining   -= tradeQty;
@@ -841,6 +870,8 @@ export class MarketService {
       if (totalDemand <= 0 || currentRef <= 0) continue;
 
       // Supply: player SELL orders at or below refPrice (approximated by total supply)
+      // NOTE: для зернових SKUs (RM-WHEAT, RM-CORN, RM-SUNFL, RM-SUGBEET) referencePrice є базовою
+      // ціною для Класу 2 (Стандарт ×1.0). Клас 1 (Преміум) отримує ×1.30, Клас 3 (Фураж) — ×0.80.
       const supply    = supplyMap.get(d.productId) ?? 0;
       const fillRatio = supply / totalDemand;
 
