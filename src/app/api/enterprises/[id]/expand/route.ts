@@ -41,10 +41,13 @@ export async function POST(req: NextRequest, { params }: Params) {
   }
 
   const tick = await prisma.gameTick.findFirst({ orderBy: { tickNumber: "desc" }, select: { tickNumber: true } });
-  const currentTick    = tick?.tickNumber ?? 0n;
-  const buildTicks     = BigInt(Math.max(2, Math.ceil(body.areaM2 / 50) * TICKS_PER_50M2));
-  const activatesAtTick = currentTick + buildTicks;
-  const workshopName   = body.name ?? `${recipe.name} — розширення`;
+  const currentTick = tick?.tickNumber ?? 0n;
+  const workshopName = body.name ?? `${recipe.name} — розширення`;
+
+  // AGRO_FARM: ділянки активуються миттєво (немає будівництва)
+  const isAgroFarm   = enterprise.type === 'AGRO_FARM';
+  const buildTicks   = isAgroFarm ? 0n : BigInt(Math.max(2, Math.ceil(body.areaM2 / 50) * TICKS_PER_50M2));
+  const activatesAtTick = isAgroFarm ? null : (currentTick + buildTicks);
 
   await prisma.$transaction([
     prisma.player.update({
@@ -58,8 +61,8 @@ export async function POST(req: NextRequest, { params }: Params) {
         footprintM2:    body.areaM2,
         maxCapacity:    body.areaM2 * 0.8,
         currentVolume:  0,
-        isActive:       false,
-        activatesAtTick,
+        isActive:       isAgroFarm,
+        activatesAtTick: activatesAtTick ?? undefined,
       },
     }),
     prisma.financialLog.create({
@@ -67,17 +70,21 @@ export async function POST(req: NextRequest, { params }: Params) {
         playerId,
         category:    "EXPENSE_MAINTENANCE",
         amountUah:   -cost,
-        description: `Розширення "${enterprise.name}": ${body.areaM2} м², ${buildTicks} тіків будівництва`,
+        description: isAgroFarm
+          ? `Нова ділянка "${enterprise.name}": ${body.areaM2} м²`
+          : `Розширення "${enterprise.name}": ${body.areaM2} м², ${buildTicks} тіків будівництва`,
         tickNumber:  currentTick,
       },
     }),
   ]);
 
   return NextResponse.json({
-    ok:            true,
+    ok:   true,
     cost,
-    buildTicks:    Number(buildTicks),
-    activatesAtTick: Number(activatesAtTick),
-    message:       `Будівництво розпочато. Цех активується через ${buildTicks} тік(ів).`,
+    buildTicks:      Number(buildTicks),
+    activatesAtTick: activatesAtTick ? Number(activatesAtTick) : null,
+    message: isAgroFarm
+      ? `Ділянку ${body.areaM2} м² додано і готова до роботи.`
+      : `Будівництво розпочато. Цех активується через ${buildTicks} тік(ів).`,
   });
 }

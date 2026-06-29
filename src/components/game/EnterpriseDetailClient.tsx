@@ -2568,7 +2568,7 @@ function CreateFieldPlot({ enterpriseId, enterpriseType, freeLandM2, onCreated }
   }, [enterpriseType]);
 
   const cost  = Math.round(parseFloat(areaM2 || "0") * 2500);
-  const ticks = Math.max(2, Math.ceil(parseFloat(areaM2 || "0") / 50));
+  const ticks = enterpriseType === "AGRO_FARM" ? 0 : Math.max(2, Math.ceil(parseFloat(areaM2 || "0") / 50));
   const selectedRecipe = recipes.find(r => r.id === recipeId);
 
   const handleCreate = async () => {
@@ -2620,12 +2620,15 @@ function CreateFieldPlot({ enterpriseId, enterpriseType, freeLandM2, onCreated }
             </div>
             <div className="flex flex-col justify-end pb-0.5 gap-0.5">
               <p className="text-[10px] text-gray-500">Вартість: <span className="text-white font-mono">₴{cost.toLocaleString()}</span></p>
-              <p className="text-[10px] text-gray-500">Будівництво: <span className="text-white">{ticks} тік{ticks === 1 ? "" : "и"}</span></p>
+              {ticks > 0
+                ? <p className="text-[10px] text-gray-500">Будівництво: <span className="text-white">{ticks} тік{ticks === 1 ? "" : "и"}</span></p>
+                : <p className="text-[10px] text-emerald-500">⚡ Готова миттєво</p>
+              }
             </div>
           </div>
           {selectedRecipe && (
             <p className="text-[10px] text-emerald-500">
-              {SKU_EMOJI[selectedRecipe.outputs[0]?.product.sku ?? ""] ?? "🌿"} Після будівництва ділянка автоматично засіватиметься {selectedRecipe.outputs[0]?.product.nameUa ?? ""}
+              {SKU_EMOJI[selectedRecipe.outputs[0]?.product.sku ?? ""] ?? "🌿"} {ticks > 0 ? "Після будівництва ділянка" : "Ділянка одразу"} засіватиметься {selectedRecipe.outputs[0]?.product.nameUa ?? ""}
             </p>
           )}
           <button onClick={handleCreate} disabled={loading || !recipeId || !areaM2}
