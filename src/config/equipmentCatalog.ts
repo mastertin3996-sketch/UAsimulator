@@ -105,6 +105,14 @@ const FACTORY_SPECS: Record<string, EquipmentSpec> = {
     footprintM2:         30,
     basePriceUah:        120_000,
   },
+  'EQ-IRRIGATION': {
+    nameUa:              'Система зрошення',
+    energyConsumptionKw: 15,   // pump motor for field irrigation
+    wearRatePerTick:     0.005, // outdoor pipes and pump, moderate wear
+    baseQualityModifier: 1.00,
+    footprintM2:         20,
+    basePriceUah:        180_000,
+  },
   'EQ-BEEHIVE': {
     nameUa:              'Вулик (пасіка)',
     energyConsumptionKw: 0.1,  // minimal (warming lamp in winter)

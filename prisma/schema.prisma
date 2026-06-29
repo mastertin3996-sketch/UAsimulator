@@ -34,6 +34,12 @@ enum Profession {
   SALES_ASSISTANT  // RETAIL_STORE: продавець-консультант
   MERCHANDISER     // RETAIL_STORE: мерчандайзер
   VETERINARIAN     // AGRO_FARM: покращує здоров'я худоби (+5% health/tick)
+  COMBINE_OPERATOR // AGRO_FARM: оператор комбайна (+15% збір врожаю)
+  FIELD_WORKER     // AGRO_FARM: польовий робітник (базова ефективність польових робіт)
+  GRAIN_SPECIALIST // AGRO_FARM: фахівець зерна (+1 клас зерна при сушінні, -2% вологи зерна/сезон)
+  BEEKEEPER        // AGRO_FARM: пасічник (+25% продуктивність вуликів)
+  LIVESTOCK_WORKER // AGRO_FARM: тваринник (+8% health худоби/тік)
+  IRRIGATOR        // AGRO_FARM: іригатор (-30% втрати вологи ґрунту/тік, +moisture)
 }
 
 enum EnterpriseType {

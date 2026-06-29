@@ -158,7 +158,10 @@ const PROF_UA: Record<string, string> = {
   RESEARCHER: "Дослідник", DATA_SCIENTIST: "Data scientist",
   // Магазин
   CASHIER: "Касир", SALES_ASSISTANT: "Продавець-консультант", MERCHANDISER: "Мерчандайзер",
-  VETERINARIAN: "Ветеринар",
+  // Агроферма
+  VETERINARIAN: "Ветеринар", COMBINE_OPERATOR: "Оператор комбайна",
+  FIELD_WORKER: "Польовий робітник", GRAIN_SPECIALIST: "Фахівець із зерна",
+  BEEKEEPER: "Пасічник", LIVESTOCK_WORKER: "Тваринник", IRRIGATOR: "Іригатор",
 };
 
 const PROF_SALARY: Record<string, number> = {
@@ -168,6 +171,8 @@ const PROF_SALARY: Record<string, number> = {
   IT_SPECIALIST: 50000, LAWYER: 45000, HR_SPECIALIST: 28000,
   TECHNICIAN: 22000, QUALITY_CONTROLLER: 25000, RESEARCHER: 35000, DATA_SCIENTIST: 60000,
   CASHIER: 16000, SALES_ASSISTANT: 18000, MERCHANDISER: 20000,
+  VETERINARIAN: 28000, COMBINE_OPERATOR: 24000, FIELD_WORKER: 14000,
+  GRAIN_SPECIALIST: 26000, BEEKEEPER: 18000, LIVESTOCK_WORKER: 16000, IRRIGATOR: 22000,
 };
 
 // Які професії доступні для кожного типу підприємства
@@ -175,10 +180,12 @@ const UNIVERSAL_PROFS  = ["MANAGER","ACCOUNTANT","HR_SPECIALIST","LAWYER","IT_SP
 const PRODUCTION_PROFS = ["OPERATOR","ENGINEER","TECHNICIAN","QUALITY_CONTROLLER","AGRONOMIST","SALES_REP"];
 const RETAIL_PROFS     = ["CASHIER","SALES_ASSISTANT","MERCHANDISER","SALES_REP"];
 const LAB_PROFS        = ["RESEARCHER","DATA_SCIENTIST"];
+const AGRO_PROFS       = ["AGRONOMIST","COMBINE_OPERATOR","FIELD_WORKER","GRAIN_SPECIALIST","BEEKEEPER","LIVESTOCK_WORKER","IRRIGATOR","VETERINARIAN","TECHNICIAN"];
 
 function professionsForType(enterpriseType: string): string[] {
   if (enterpriseType === "RETAIL_STORE") return [...UNIVERSAL_PROFS, ...RETAIL_PROFS];
   if (enterpriseType === "RD_LABORATORY") return [...UNIVERSAL_PROFS, ...PRODUCTION_PROFS, ...LAB_PROFS];
+  if (enterpriseType === "AGRO_FARM") return [...UNIVERSAL_PROFS, ...AGRO_PROFS];
   return [...UNIVERSAL_PROFS, ...PRODUCTION_PROFS];
 }
 

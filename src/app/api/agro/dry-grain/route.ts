@@ -20,6 +20,7 @@ export async function POST(req: NextRequest) {
       enterprise: {
         select: {
           id: true, playerId: true,
+          employees: { select: { profession: true } },
           landPlot: { select: { id: true, grainQualityClass: true, nitrogenLevel: true, phosphorusLevel: true, potassiumLevel: true, moistureLevel: true, soilQuality: true } },
         },
       },
@@ -42,8 +43,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Немає зерна для сушіння" }, { status: 400 });
   }
 
+  // GRAIN_SPECIALIST: -20% вартість сушіння + покращення класу зерна
+  const grainSpecialists = workshop.enterprise.employees?.filter(e => e.profession === 'GRAIN_SPECIALIST').length ?? 0;
+  const specialistDiscount = grainSpecialists > 0 ? 0.80 : 1.0;
+
   const pctDrop = currentMoisture - TARGET_MOISTURE;
-  const cost    = Math.ceil(pctDrop * harvestedTonnes * DRYING_COST_PER_PCT);
+  const cost    = Math.ceil(pctDrop * harvestedTonnes * DRYING_COST_PER_PCT * specialistDiscount);
 
   const player = await prisma.player.findUnique({ where: { id: playerId }, select: { cashBalance: true } });
   if (!player || Number(player.cashBalance) < cost) {
@@ -59,9 +64,11 @@ export async function POST(req: NextRequest) {
   const lp = workshop.enterprise.landPlot;
   const avgNPK = ((lp?.nitrogenLevel ?? 70) + (lp?.phosphorusLevel ?? 70) + (lp?.potassiumLevel ?? 70)) / 3;
   const soil   = lp?.soilQuality ?? 5;
-  const newGrainClass =
+  // GRAIN_SPECIALIST покращує клас зерна на 1 рівень
+  const baseClass =
     (soil >= 8 && avgNPK >= 65 && TARGET_MOISTURE <= 14) ? 1 :
     (soil >= 4 && avgNPK >= 40) ? 2 : 3;
+  const newGrainClass = grainSpecialists > 0 ? Math.max(1, baseClass - 1) : baseClass;
 
   await prisma.$transaction([
     prisma.player.update({

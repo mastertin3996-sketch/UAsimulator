@@ -266,6 +266,22 @@ export class ProductionService {
             const agronomists    = ent.employees.filter(e => e.profession === 'AGRONOMIST').length;
             const agronomistMult = 1 + Math.min(agronomists, 2) * 0.08;
 
+            // COMBINE_OPERATOR: +15% при збиранні FIELD_CROPS
+            const combineOps  = ent.employees.filter(e => e.profession === 'COMBINE_OPERATOR').length;
+            const combineBonus = FIELD_CROPS.has(cropSku) ? 1 + Math.min(combineOps, 2) * 0.15 : 1.0;
+
+            // FIELD_WORKER: +5% на польові роботи (стек до 3 осіб)
+            const fieldWorkers  = ent.employees.filter(e => e.profession === 'FIELD_WORKER').length;
+            const fieldWorkerMult = FIELD_CROPS.has(cropSku) ? 1 + Math.min(fieldWorkers, 3) * 0.05 : 1.0;
+
+            // BEEKEEPER: +25% до меду (тільки FG-HONEY)
+            const beekeepers  = ent.employees.filter(e => e.profession === 'BEEKEEPER').length;
+            const beekeeperMult = (cropSku === 'FG-HONEY') ? 1 + Math.min(beekeepers, 2) * 0.25 : 1.0;
+
+            // IRRIGATOR: зменшує штраф від посухи (зараз ефект у AgroService; тут +5% при зрошенні)
+            const irrigators  = ent.employees.filter(e => e.profession === 'IRRIGATOR').length;
+            const irrigatorMult = (hasIrrigation && irrigators > 0) ? 1.05 : 1.0;
+
             // Planting bonus: +20% if field crop order runs in first 5 ticks of spring
             const tickInYear   = Number(tickNumber ?? 0n) % 120;
             const plantingBonus = (FIELD_CROPS.has(cropSku) && tickInYear < 5) ? 1.20 : 1.0;
@@ -362,7 +378,7 @@ export class ProductionService {
               if (!hasSunflower) honeyGate = 0.0;
             }
 
-            baseCapacity = ws.footprintM2 * soilMult * seasonMult * rotationMult * droughtMult * irrigationBonus * agronomistMult * plantingBonus * fieldAreaMult * localWeatherMod * tractorBonus * machineryMult * fertBonus * pestMult * seedMult * diseaseMult * plowBonus * cultivateBonus * sowBonus * npkMult * moistureMult * growthStageMult * intercroppingMult * livestockMult * honeyGate;
+            baseCapacity = ws.footprintM2 * soilMult * seasonMult * rotationMult * droughtMult * irrigationBonus * agronomistMult * plantingBonus * fieldAreaMult * localWeatherMod * tractorBonus * machineryMult * fertBonus * pestMult * seedMult * diseaseMult * plowBonus * cultivateBonus * sowBonus * npkMult * moistureMult * growthStageMult * intercroppingMult * combineBonus * fieldWorkerMult * beekeeperMult * irrigatorMult * livestockMult * honeyGate;
           } else {
             baseCapacity = ws.maxCapacity;
           }

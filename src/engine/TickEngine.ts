@@ -1135,10 +1135,11 @@ export class TickEngine {
           where: { enterpriseId: eid, productId: feedProduct.id },
           data:  { quantity: { decrement: feedNeeded } },
         });
-        // VETERINARIAN: +5% health recovery per vet (max 2)
-        const vets = (herd.enterprise as unknown as { employees?: { profession: string }[] }).employees
-          ?.filter(e => e.profession === 'VETERINARIAN').length ?? 0;
-        const vetBonus = Math.min(vets, 2) * 0.05;
+        // VETERINARIAN: +5% health recovery per vet (max 2) + LIVESTOCK_WORKER: +8%
+        const employees = (herd.enterprise as unknown as { employees?: { profession: string }[] }).employees ?? [];
+        const vets      = employees.filter(e => e.profession === 'VETERINARIAN').length;
+        const lwWorkers = employees.filter(e => e.profession === 'LIVESTOCK_WORKER').length;
+        const vetBonus  = Math.min(vets, 2) * 0.05 + Math.min(lwWorkers, 3) * 0.08;
 
         // Restore health if needed
         if (herd.health < 1.0) {
