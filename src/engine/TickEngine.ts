@@ -296,6 +296,8 @@ export class TickEngine {
         .catch(e => console.error(`[Tick ${tickNumber}] Seasonal soil/pests failed:`, e));
       await this.processCropDiseases(tickNumber)
         .catch(e => console.error(`[Tick ${tickNumber}] Crop diseases failed:`, e));
+      await this.agro.processInsurancePayouts(tickNumber)
+        .catch(e => console.error(`[Tick ${tickNumber}] Insurance payouts failed:`, e));
     }
 
     // ── 3a1j. B2B + логіст. + інспекції + 8-тічні операції — всі паралельно ──

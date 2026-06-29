@@ -510,6 +510,111 @@ export class AgroService {
     }
   }
 
+  // ── 10. Страхові виплати ─────────────────────────────────────────────────────
+  /**
+   * Викликається кожні 30 тіків (раз на сезон).
+   * Перевіряє всі активні AGRO_INSURANCE ліцензії та виплачує компенсацію при катастрофах:
+   *  - погодна подія (localWeatherMod < 0.75)
+   *  - хвороба рослин (cropDiseaseSeverity > 0.4)
+   *  - посуха (moistureLevel < 25)
+   * Розмір виплати: 35% від оціночної вартості сезонного врожаю.
+   */
+  async processInsurancePayouts(tickNumber: bigint): Promise<void> {
+    // 1. Знайди всі активні AGRO_INSURANCE ліцензії, що ще не закінчились
+    const licenses = await this.prisma.license.findMany({
+      where: {
+        type:          'AGRO_INSURANCE',
+        status:        'ACTIVE',
+        expiresAtTick: { gt: tickNumber },
+      },
+      include: {
+        enterprise: {
+          select: {
+            id: true, name: true, footprintM2: true,
+            localWeatherMod: true,
+            landPlot: {
+              select: {
+                soilQuality: true, cropDiseaseSeverity: true, moistureLevel: true,
+              },
+            },
+            workshops: {
+              where: { isActive: true },
+              select: {
+                harvestAccumulated: true,
+                productionOrders: {
+                  where: { status: 'IN_PROGRESS' },
+                  select: { recipe: { select: { outputs: { select: { product: { select: { sku: true } } } } } } },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    for (const lic of licenses) {
+      const ent = lic.enterprise;
+      if (!ent) continue;
+
+      // 2. Визначаємо чи був збиток
+      const weatherDamage  = (ent.localWeatherMod ?? 1.0) < 0.75;   // серйозна погодна подія
+      const diseaseDamage  = (ent.landPlot?.cropDiseaseSeverity ?? 0) > 0.4;
+      const droughtDamage  = (ent.landPlot?.moistureLevel ?? 60) < 25;
+
+      if (!weatherDamage && !diseaseDamage && !droughtDamage) continue;
+
+      // 3. Розрахунок виплати: 35% від вартості очікуваного врожаю за сезон
+      // Базово: footprintM2 × 0.3 кг/м² × базова ціна культури × 0.35
+      const ws = ent.workshops?.[0];
+      const cropSku      = ws?.productionOrders?.[0]?.recipe?.outputs?.[0]?.product?.sku ?? '';
+      // Product не має поля basePrice — використовуємо фіксовану базову ціну зерна ₴5/кг
+      const basePrice    = 5;
+      const estimatedKg  = ent.footprintM2 * 0.3;
+      const estimatedVal = Math.round(estimatedKg * basePrice);
+      const payoutAmount = Math.round(estimatedVal * 0.35);
+
+      if (payoutAmount <= 0) continue;
+
+      // 4. Виплачуємо гравцю
+      const playerBal = await this.prisma.player.findUnique({
+        where:  { id: lic.playerId },
+        select: { cashBalance: true },
+      });
+      const balanceBefore = new Decimal(playerBal?.cashBalance?.toString() ?? '0');
+      const balanceAfter  = balanceBefore.plus(payoutAmount);
+      const reasons = [
+        weatherDamage ? `погода (×${ent.localWeatherMod?.toFixed(2)})` : null,
+        diseaseDamage ? `хвороба (${((ent.landPlot?.cropDiseaseSeverity ?? 0) * 100).toFixed(0)}%)` : null,
+        droughtDamage ? `посуха (${(ent.landPlot?.moistureLevel ?? 0).toFixed(0)}% вологи)` : null,
+      ].filter(Boolean).join(', ');
+
+      await this.prisma.$transaction([
+        this.prisma.player.update({
+          where: { id: lic.playerId },
+          data:  { cashBalance: { increment: payoutAmount } },
+        }),
+        this.prisma.financialTransaction.create({
+          data: {
+            playerId:    lic.playerId,
+            type:        'STATE_SUBSIDY',
+            amountUah:   new Decimal(payoutAmount),
+            balanceBefore,
+            balanceAfter,
+            description: `Страхова виплата: ${ent.name} (${reasons}) — ₴${payoutAmount.toLocaleString('uk-UA')}`,
+          },
+        }),
+        this.prisma.notification.create({
+          data: {
+            playerId: lic.playerId,
+            type:    'SUBSIDY_RECEIVED',
+            title:   '🛡 Страхова виплата',
+            body:    `${ent.name}: компенсація ₴${payoutAmount.toLocaleString('uk-UA')} (${reasons}). Культура: ${cropSku || 'невідома'}.`,
+          },
+        }),
+      ]);
+    }
+  }
+
   // ── Допоміжні: розширення поля (викликається з API) ─────────────────────────
   static calcExtraFieldRent(areaM2: number): number {
     return Math.round(areaM2 * EXTRA_FIELD_RENT_PER_M2);

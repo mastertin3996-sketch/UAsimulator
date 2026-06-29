@@ -2,7 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-const COST_PER_M2 = 1; // ₴1/м²
+const COST_PER_M2 = 1; // ₴1/м² — оплата праці підрядника
+
+// Паливний сурчардж ₴/м² (дизель для техніки)
+const FUEL_SURCHARGE_PER_M2: Record<string, number> = {
+  PLOW:      0.50,
+  CULTIVATE: 0.30,
+  SOW:       0.20,
+  FERTILIZE: 0.20,
+  HARVEST:   0.40,
+};
 
 const FIELD_OPS = {
   PLOW:      { bit: 1,  label: 'Оранка'          },
@@ -33,7 +42,12 @@ export async function POST(req: NextRequest) {
       enterprise: {
         select: {
           id: true, playerId: true,
-          landPlot: { select: { id: true, fieldOpsMask: true, fertilizerTicksLeft: true } },
+          landPlot: {
+            select: {
+              id: true, fieldOpsMask: true, fertilizerTicksLeft: true,
+              nitrogenLevel: true, phosphorusLevel: true, potassiumLevel: true,
+            },
+          },
         },
       },
       productionOrders: {
@@ -50,8 +64,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `«${opDef.label}» вже виконано цього сезону` }, { status: 400 });
   }
 
-  const area = workshop.footprintM2;
-  const cost = Math.ceil(COST_PER_M2 * area);
+  const area        = workshop.footprintM2;
+  const laborCost   = Math.ceil(COST_PER_M2 * area);
+  const fuelCost    = Math.ceil((FUEL_SURCHARGE_PER_M2[op] ?? 0) * area);
+  const cost        = laborCost + fuelCost;
 
   const player = await prisma.player.findUnique({ where: { id: playerId }, select: { cashBalance: true } });
   if (!player || Number(player.cashBalance) < cost) {
@@ -62,10 +78,15 @@ export async function POST(req: NextRequest) {
   const newMask = lp.fieldOpsMask | bit;
 
   // Визначаємо нові значення landPlot
+  const clampNPK = (v: number) => Math.min(100, Math.max(0, v));
   const lpData: Record<string, unknown> = { fieldOpsMask: newMask };
-  // Внесення добрив підрядником = +90 тіків без витрати AG-FERTILIZER
-  if (op === 'FERTILIZE' && lp.fertilizerTicksLeft === 0) {
-    lpData.fertilizerTicksLeft = 90;
+
+  if (op === 'FERTILIZE') {
+    // Підрядник вносить добриво — активуємо fertBonус і відновлюємо NPK (концентрат)
+    if (lp.fertilizerTicksLeft === 0) lpData.fertilizerTicksLeft = 90;
+    lpData.nitrogenLevel   = clampNPK((lp.nitrogenLevel   ?? 70) + 15);
+    lpData.phosphorusLevel = clampNPK((lp.phosphorusLevel ?? 70) + 6);
+    lpData.potassiumLevel  = clampNPK((lp.potassiumLevel  ?? 70) + 4);
   }
 
   // Збір підрядником: переносимо harvestAccumulated у інвентар
@@ -89,7 +110,7 @@ export async function POST(req: NextRequest) {
     await tx.financialTransaction.create({ data: {
       playerId, type: 'MAINTENANCE_COST',
       amountUah: -cost, balanceBefore: before, balanceAfter: before - cost,
-      description: `Польова робота: ${opDef.label} (${area} м² × ₴${COST_PER_M2}/м²)`,
+      description: `Польова робота: ${opDef.label} (праця ₴${laborCost} + пальне ₴${fuelCost})`,
     } });
 
     if (doHarvest && harvestProductId) {
@@ -104,10 +125,10 @@ export async function POST(req: NextRequest) {
 
   const extra = doHarvest && harvestedQty > 0
     ? ` Зібрано ${harvestedQty.toFixed(1)} кг.`
-    : op === 'FERTILIZE' ? ' Добриво активоване на 90 тіків.' : '';
+    : op === 'FERTILIZE' ? ' Добриво активоване (+NPK).' : '';
 
   return NextResponse.json({
-    ok: true, op, label: opDef.label, cost, newMask,
-    message: `${opDef.label} виконано підрядником. Списано ₴${cost.toLocaleString('uk-UA')}.${extra}`,
+    ok: true, op, label: opDef.label, cost, laborCost, fuelCost, newMask,
+    message: `${opDef.label} виконано підрядником. Праця ₴${laborCost.toLocaleString('uk-UA')} + пальне ₴${fuelCost.toLocaleString('uk-UA')}.${extra}`,
   });
 }

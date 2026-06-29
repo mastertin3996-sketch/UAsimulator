@@ -837,6 +837,16 @@ function WorkshopsTab({
   const [seedQualityBusy, setSeedQualityBusy] = useState(false);
   const [diseaseBusy,   setDiseaseBusy]   = useState(false);
   const [tourismBusy,   setTourismBusy]   = useState(false);
+  const [dryGrainBusy,     setDryGrainBusy]     = useState(false);
+  const [soilAnalysisBusy, setSoilAnalysisBusy] = useState(false);
+  const [soilAnalysisData, setSoilAnalysisData] = useState<null | {
+    warnings: string[]; suggestions: string[];
+    npk: { nitrogen: { level: number }; phosphorus: { level: number }; potassium: { level: number } };
+    moisture: { level: number };
+    grain: { moisturePct: number; qualityClass: number; qualityLabel: string };
+    estimatedYieldEfficiency: number;
+  }>(null);
+  const [insuranceBusy, setInsuranceBusy] = useState(false);
   const [fieldOpBusy,   setFieldOpBusy]   = useState<string | null>(null);
 
   useEffect(() => {
@@ -994,6 +1004,46 @@ function WorkshopsTab({
     if (res.ok) onRefresh();
     setTourismBusy(false);
   }
+
+  const doDryGrain = async () => {
+    const wsId = enterprise.workshops.find(w => w.isActive)?.id;
+    if (!wsId) return;
+    setDryGrainBusy(true);
+    try {
+      const r = await fetch('/api/agro/dry-grain', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workshopId: wsId }),
+      });
+      const d = await r.json();
+      if (!r.ok) { alert(d.error ?? 'Помилка'); return; }
+      alert(d.message);
+      onRefresh();
+    } finally { setDryGrainBusy(false); }
+  };
+
+  const doSoilAnalysis = async () => {
+    setSoilAnalysisBusy(true);
+    try {
+      const r = await fetch(`/api/agro/soil-analysis?enterpriseId=${enterprise.id}`);
+      const d = await r.json();
+      if (!r.ok) { alert(d.error ?? 'Помилка'); return; }
+      setSoilAnalysisData(d);
+    } finally { setSoilAnalysisBusy(false); }
+  };
+
+  const buyInsurance = async () => {
+    setInsuranceBusy(true);
+    try {
+      const r = await fetch('/api/licenses', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enterpriseId: enterprise.id, licenseType: 'AGRO_INSURANCE' }),
+      });
+      const d = await r.json();
+      if (!r.ok) { alert(d.error ?? 'Помилка купівлі страховки'); return; }
+      alert('Страхування активовано!');
+      onRefresh();
+    } finally { setInsuranceBusy(false); }
+  };
 
   const freeArea = enterprise.totalFloorAreaM2 - enterprise.usedFloorAreaM2;
 
@@ -1370,6 +1420,14 @@ function WorkshopsTab({
                   {/* NPK Panel */}
                   {isField && (agroInfo?.nitrogenLevel !== undefined) && (
                     <div className="pt-1.5 border-t border-gray-800 space-y-1.5">
+                      <button
+                        onClick={doSoilAnalysis}
+                        disabled={soilAnalysisBusy}
+                        className="w-full text-[10px] rounded bg-blue-900/30 border border-blue-700/40 text-blue-300 hover:bg-blue-800/40 px-2 py-1 disabled:opacity-50 flex items-center justify-center gap-1"
+                      >
+                        {soilAnalysisBusy ? <Loader2 className="w-3 h-3 animate-spin" /> : '🔬'}
+                        Аналіз ґрунту
+                      </button>
                       <p className="text-[9px] text-gray-500 uppercase tracking-wider">🧪 NPK ґрунту</p>
                       {[
                         { label: 'N Азот',    val: agroInfo?.nitrogenLevel ?? 70,   color: 'bg-blue-500'   },
@@ -1468,6 +1526,22 @@ function WorkshopsTab({
                       )}
                       {(agroInfo?.grainMoisturePct ?? 14) <= 14 && (
                         <p className="text-[9px] text-emerald-500">✓ Вологість {(agroInfo?.grainMoisturePct ?? 14).toFixed(1)}% — норма</p>
+                      )}
+                      {(agroInfo?.grainMoisturePct ?? 14) > 14 && (
+                        <button
+                          onClick={doDryGrain}
+                          disabled={dryGrainBusy}
+                          className="mt-1 w-full text-[10px] rounded bg-amber-900/40 border border-amber-700/50 text-amber-300 hover:bg-amber-800/40 px-2 py-1 disabled:opacity-50 flex items-center justify-center gap-1"
+                        >
+                          {dryGrainBusy ? <Loader2 className="w-3 h-3 animate-spin" /> : '🔥'}
+                          Просушити до 14%
+                          {(agroInfo?.grainMoisturePct ?? 14) > 14 && (() => {
+                            const drop = (agroInfo?.grainMoisturePct ?? 14) - 14;
+                            const tonnes = (w.harvestAccumulated ?? 0) / 1000;
+                            const cost = Math.ceil(drop * tonnes * 35);
+                            return cost > 0 ? <span className="text-amber-500 font-mono">≈ ₴{cost.toLocaleString('uk-UA')}</span> : null;
+                          })()}
+                        </button>
                       )}
                     </div>
                   )}
@@ -1784,6 +1858,101 @@ function WorkshopsTab({
           {!agroInfo.agroTourismEnabled && (
             <p className="text-[9px] text-gray-600 mt-1.5">Потрібен ґрунт ≥ 6. З Organic Cert +30% доходу.</p>
           )}
+        </div>
+      )}
+
+      {/* Insurance Panel */}
+      {enterprise.type === 'AGRO_FARM' && (() => {
+        const hasInsurance = enterprise.licenses?.some(l => l.type === 'AGRO_INSURANCE' && l.status === 'ACTIVE');
+        return (
+          <div className="rounded border border-gray-700/50 bg-gray-900/60 px-3 py-2 space-y-1.5">
+            <div className="flex items-center justify-between">
+              <p className="text-[10px] font-medium text-gray-300">🛡 Агрострахування</p>
+              {hasInsurance
+                ? <span className="text-[9px] text-emerald-400 bg-emerald-900/30 border border-emerald-700/40 rounded px-1.5 py-0.5">✓ Активне</span>
+                : <span className="text-[9px] text-red-400 bg-red-900/30 border border-red-700/40 rounded px-1.5 py-0.5">✗ Немає</span>
+              }
+            </div>
+            {hasInsurance ? (
+              <p className="text-[9px] text-gray-500">Захист від посухи, хвороб і погодних катастроф. Виплата 35% вартості врожаю при збитках.</p>
+            ) : (
+              <>
+                <p className="text-[9px] text-gray-500">₴5,000 · Захист від посухи, хвороб і погоди · виплата 35% при катастрофі</p>
+                <button
+                  onClick={buyInsurance}
+                  disabled={insuranceBusy}
+                  className="w-full text-[10px] rounded bg-emerald-900/30 border border-emerald-700/40 text-emerald-300 hover:bg-emerald-800/40 px-2 py-1 disabled:opacity-50 flex items-center justify-center gap-1"
+                >
+                  {insuranceBusy ? <Loader2 className="w-3 h-3 animate-spin" /> : '🛡'}
+                  Купити страхування · ₴5,000
+                </button>
+              </>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* Soil Analysis Modal */}
+      {soilAnalysisData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setSoilAnalysisData(null)}>
+          <div className="rounded-xl border border-gray-700 bg-gray-900 shadow-2xl w-full max-w-sm p-4 space-y-3" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-white">🔬 Аналіз ґрунту</h3>
+              <button onClick={() => setSoilAnalysisData(null)} className="text-gray-500 hover:text-white text-xs">✕</button>
+            </div>
+
+            <div className="space-y-1.5">
+              {[
+                { label: 'N Азот',   val: soilAnalysisData.npk.nitrogen.level,   color: 'bg-blue-500'   },
+                { label: 'P Фосфор', val: soilAnalysisData.npk.phosphorus.level, color: 'bg-orange-500' },
+                { label: 'K Калій',  val: soilAnalysisData.npk.potassium.level,  color: 'bg-purple-500' },
+              ].map(({ label, val, color }) => (
+                <div key={label} className="flex items-center gap-2 text-[11px]">
+                  <span className="w-16 text-gray-400 shrink-0">{label}</span>
+                  <div className="flex-1 h-2 rounded-full bg-gray-700">
+                    <div className={`h-full rounded-full ${color}`} style={{ width: `${val}%` }} />
+                  </div>
+                  <span className={`text-[10px] font-mono w-8 text-right shrink-0 ${val < 40 ? 'text-red-400' : val < 60 ? 'text-amber-400' : 'text-emerald-400'}`}>{val.toFixed(0)}%</span>
+                </div>
+              ))}
+              <div className="flex items-center gap-2 text-[11px]">
+                <span className="w-16 text-gray-400 shrink-0">💧 Волога</span>
+                <div className="flex-1 h-2 rounded-full bg-gray-700">
+                  <div className={`h-full rounded-full ${soilAnalysisData.moisture.level < 30 ? 'bg-red-500' : soilAnalysisData.moisture.level > 80 ? 'bg-blue-300' : 'bg-blue-500'}`} style={{ width: `${soilAnalysisData.moisture.level}%` }} />
+                </div>
+                <span className="text-[10px] font-mono w-8 text-right shrink-0 text-blue-400">{soilAnalysisData.moisture.level.toFixed(0)}%</span>
+              </div>
+            </div>
+
+            <div className="text-[10px] text-gray-400">
+              <span>Зерно: </span>
+              <span className={soilAnalysisData.grain.qualityClass === 1 ? 'text-amber-300' : soilAnalysisData.grain.qualityClass === 3 ? 'text-red-400' : 'text-gray-300'}>
+                {soilAnalysisData.grain.qualityLabel}
+              </span>
+              <span className="text-gray-500"> · вологість {soilAnalysisData.grain.moisturePct.toFixed(1)}%</span>
+            </div>
+
+            <div className="text-[10px] text-gray-300">
+              Ефективність врожаю: <span className={`font-mono ${soilAnalysisData.estimatedYieldEfficiency >= 1.1 ? 'text-emerald-400' : soilAnalysisData.estimatedYieldEfficiency >= 0.8 ? 'text-amber-400' : 'text-red-400'}`}>{(soilAnalysisData.estimatedYieldEfficiency * 100).toFixed(0)}%</span>
+            </div>
+
+            {soilAnalysisData.warnings.length > 0 && (
+              <div className="space-y-0.5">
+                {soilAnalysisData.warnings.map((w, i) => (
+                  <p key={i} className="text-[9px] text-amber-400">{w}</p>
+                ))}
+              </div>
+            )}
+
+            {soilAnalysisData.suggestions.length > 0 && (
+              <div className="space-y-0.5 border-t border-gray-700/50 pt-2">
+                <p className="text-[9px] text-gray-500 uppercase tracking-wider">Рекомендації</p>
+                {soilAnalysisData.suggestions.map((s, i) => (
+                  <p key={i} className="text-[9px] text-blue-300">💡 {s}</p>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 

@@ -126,6 +126,62 @@ export class ProductionService {
     const utilisationByWorkshop: Map<string, number> = new Map();
     const overworkedEnterpriseIds: Set<string>        = new Set();
 
+    // Pre-fetch intercropping data: всі AGRO_FARM гравця з активними культурами по містах
+    const allFarms = await this.prisma.enterprise.findMany({
+      where: { playerId, type: 'AGRO_FARM', isOperational: true },
+      select: {
+        id: true,
+        landPlot: { select: { cityId: true } },
+        workshops: {
+          where: { isActive: true },
+          select: {
+            productionOrders: {
+              where: { status: 'IN_PROGRESS' },
+              select: { recipe: { select: { outputs: { select: { product: { select: { sku: true } } } } } } },
+            },
+          },
+        },
+      },
+    });
+
+    const INTERCROP_FIELD_CROPS = new Set(['RM-WHEAT', 'RM-SUNFL', 'RM-SUGBEET', 'RM-CORN']);
+
+    // Побудуємо Map<cityId, Map<sku, enterpriseId>> — всі активні культури в місті від цього гравця
+    const cityToCrops = new Map<string, Map<string, string>>();
+    for (const farm of allFarms) {
+      const cityId = farm.landPlot?.cityId;
+      if (!cityId) continue;
+      if (!cityToCrops.has(cityId)) cityToCrops.set(cityId, new Map());
+      for (const ws of farm.workshops) {
+        for (const order of ws.productionOrders) {
+          for (const out of order.recipe.outputs) {
+            if (INTERCROP_FIELD_CROPS.has(out.product.sku)) {
+              cityToCrops.get(cityId)!.set(out.product.sku, farm.id);
+            }
+          }
+        }
+      }
+    }
+
+    const INTERCROP_PAIRS: [string, string, number][] = [
+      ['RM-WHEAT',   'RM-SUNFL',   0.06],
+      ['RM-CORN',    'RM-SUGBEET', 0.05],
+      ['RM-WHEAT',   'RM-CORN',    0.03],
+    ];
+
+    // Helper: знайти intercropping бонус для даної культури і міста
+    const getIntercroppingBonus = (cityId: string | undefined, cropSku: string, ownId: string): number => {
+      if (!cityId || !INTERCROP_FIELD_CROPS.has(cropSku)) return 1.0;
+      const cropsInCity = cityToCrops.get(cityId);
+      if (!cropsInCity) return 1.0;
+      for (const [sku1, sku2, bonus] of INTERCROP_PAIRS) {
+        const isMatch1 = cropSku === sku1 && cropsInCity.has(sku2) && cropsInCity.get(sku2) !== ownId;
+        const isMatch2 = cropSku === sku2 && cropsInCity.has(sku1) && cropsInCity.get(sku1) !== ownId;
+        if (isMatch1 || isMatch2) return 1 + bonus;
+      }
+      return 1.0;
+    };
+
     for (const ent of enterprises) {
       const labourEff  = this.hrSvc.workshopLabourEfficiency(ent.employees);
       const avgMood    = this.hrSvc.avgActiveMood(ent.employees); // 0.0–1.0
@@ -177,6 +233,10 @@ export class ProductionService {
           if (ent.type === 'AGRO_FARM') {
             const cropSku  = recipe.outputs[0]?.product.sku ?? '';
             const soilMult = ent.landPlot ? ent.landPlot.soilQuality / 7.0 : 1.0;
+
+            // Intercropping multiplier
+            const cityId = ent.landPlot?.cityId;
+            const intercroppingMult = getIntercroppingBonus(cityId, cropSku, ent.id);
 
             const season     = Math.floor((Number(tickNumber ?? 0n) % 120) / 30);
             const seasonMult = ProductionService.AGRO_SEASON_MULTS[cropSku]?.[season] ?? 1.0;
@@ -302,7 +362,7 @@ export class ProductionService {
               if (!hasSunflower) honeyGate = 0.0;
             }
 
-            baseCapacity = ws.footprintM2 * soilMult * seasonMult * rotationMult * droughtMult * irrigationBonus * agronomistMult * plantingBonus * fieldAreaMult * localWeatherMod * tractorBonus * machineryMult * fertBonus * pestMult * seedMult * diseaseMult * plowBonus * cultivateBonus * sowBonus * npkMult * moistureMult * growthStageMult * livestockMult * honeyGate;
+            baseCapacity = ws.footprintM2 * soilMult * seasonMult * rotationMult * droughtMult * irrigationBonus * agronomistMult * plantingBonus * fieldAreaMult * localWeatherMod * tractorBonus * machineryMult * fertBonus * pestMult * seedMult * diseaseMult * plowBonus * cultivateBonus * sowBonus * npkMult * moistureMult * growthStageMult * intercroppingMult * livestockMult * honeyGate;
           } else {
             baseCapacity = ws.maxCapacity;
           }
