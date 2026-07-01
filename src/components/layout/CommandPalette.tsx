@@ -7,7 +7,7 @@ import {
   Warehouse, FlaskConical, Factory, Truck, Banknote, Wallet,
   Users, Trophy, BarChart2, Tag, History, ScrollText, Bot,
   BadgeCheck, GraduationCap, CandlestickChart, Landmark, Cpu,
-  Bell, Settings, X, CornerDownLeft, Coins, Globe,
+  Bell, Settings, X, CornerDownLeft, Coins, Globe, Award,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -42,6 +42,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/syndicate",        label: "Синдикат",          group: "Компанія",  Icon: Users             },
   { href: "/optimizer",        label: "Оптимізатор",       group: "Компанія",  Icon: Cpu               },
   { href: "/ratings",          label: "Рейтинги",          group: "Компанія",  Icon: Trophy            },
+  { href: "/achievements",     label: "Досягнення",        group: "Компанія",  Icon: Award             },
   { href: "/analytics",        label: "Аналітика",         group: "Компанія",  Icon: BarChart2         },
   { href: "/settings",         label: "Налаштування",      group: "Компанія",  Icon: Settings          },
 ];

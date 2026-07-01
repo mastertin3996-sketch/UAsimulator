@@ -41,6 +41,7 @@ import { BankingLiquidityService }   from './BankingLiquidityService';
 import { StockExchangeService }      from './StockExchangeService';
 import { TenderService }             from './TenderService';
 import { RatingService }             from './RatingService';
+import { AchievementService }        from './AchievementService';
 import { SyndicateVoteService }      from './SyndicateVoteService';
 import { WarehouseRentalService }    from './WarehouseRentalService';
 import { NpcCompetitorService }          from './NpcCompetitorService';
@@ -60,7 +61,13 @@ interface TickSummary {
   tradesExecuted: number;
   errors:         Array<{ playerId: string; error: string }>;
   timings:        Record<string, number>;
+  skipped?:       boolean;
+  skipReason?:    string;
 }
+
+// Якщо попередній тік стартував і досі не completedAt довше цього порогу —
+// вважаємо його "завислим" (напр. впав через необроблений виняток) і дозволяємо новий запуск.
+const STALE_TICK_MS = 55 * 60 * 1000; // 55 хв — трохи менше за годинний інтервал крону
 
 export class TickEngine {
   private readonly production:  ProductionService;
@@ -85,6 +92,7 @@ export class TickEngine {
   private readonly stockExchange:  StockExchangeService;
   private readonly tenders:        TenderService;
   private readonly ratings:        RatingService;
+  private readonly achievements:   AchievementService;
   private readonly syndicateVotes:   SyndicateVoteService;
   private readonly warehouseRents:   WarehouseRentalService;
   private readonly npcCompetitors:   NpcCompetitorService;
@@ -119,6 +127,7 @@ export class TickEngine {
     this.stockExchange  = new StockExchangeService(prismaClient);
     this.tenders        = new TenderService(prismaClient);
     this.ratings        = new RatingService(prismaClient);
+    this.achievements   = new AchievementService(prismaClient);
     this.syndicateVotes  = new SyndicateVoteService(prismaClient);
     this.warehouseRents  = new WarehouseRentalService(prismaClient);
     this.npcCompetitors  = new NpcCompetitorService(prismaClient);
@@ -138,6 +147,28 @@ export class TickEngine {
 
     // ── Determine tick number ────────────────────────────────────────────
     const lastTick = await this.db.gameTick.findFirst({ orderBy: { tickNumber: 'desc' } });
+
+    // ── Guard: не запускати новий тік, якщо попередній ще виконується ────
+    // (запобігає паралельним crон-викликам, що інакше одночасно пишуть у ті самі рядки гравців)
+    if (lastTick && lastTick.completedAt === null) {
+      const ageMs = Date.now() - lastTick.startedAt.getTime();
+      if (ageMs < STALE_TICK_MS) {
+        return {
+          tickNumber: lastTick.tickNumber,
+          gameDay:    lastTick.gameDay,
+          durationMs: 0,
+          playersProcessed: 0,
+          ordersExpired:  0,
+          tradesExecuted: 0,
+          errors:   [],
+          timings:  {},
+          skipped:    true,
+          skipReason: `Попередній тік #${lastTick.tickNumber} ще виконується (${Math.round(ageMs / 1000)}с)`,
+        };
+      }
+      console.warn(`[TickEngine] Тік #${lastTick.tickNumber} завис без completedAt (${Math.round(ageMs / 1000)}с) — запускаю наступний.`);
+    }
+
     const tickNumber = lastTick ? lastTick.tickNumber + 1n : 1n;
     const gameDay    = tickNumber; // 1 tick = 1 game day
 
@@ -278,6 +309,9 @@ export class TickEngine {
       Number(tickNumber) % 30 === 0 ? this.ratings.processAwards(tickNumber)
         .then(n => n > 0 && console.log(`[Tick ${tickNumber}] Рейтинги: ${n} нагород.`))
         .catch(e => console.error(`[Tick ${tickNumber}] Ratings failed:`, e)) : Promise.resolve(),
+      Number(tickNumber) % 10 === 0 ? this.achievements.processAchievements(tickNumber)
+        .then(n => n > 0 && console.log(`[Tick ${tickNumber}] Досягнення: ${n} розблоковано.`))
+        .catch(e => console.error(`[Tick ${tickNumber}] Achievements failed:`, e)) : Promise.resolve(),
       this.tenders.expireTenders(tickNumber)
         .catch(e => console.error(`[Tick ${tickNumber}] Tender expiry failed:`, e)),
     ]);

@@ -19,6 +19,7 @@ export async function POST() {
       tickNumber: summary.tickNumber.toString(),
       durationMs,
       errors:     summary.errors,
+      ...(summary.skipped && { skipped: true, skipReason: summary.skipReason }),
     });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Unknown error";

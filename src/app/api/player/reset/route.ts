@@ -8,6 +8,13 @@ export async function POST() {
 
   const playerId = session.user.id;
 
+  const current = await prisma.player.findUnique({ where: { id: playerId }, select: { prestigeLevel: true } });
+  const newPrestigeLevel = (current?.prestigeLevel ?? 0) + 1;
+  // М'який престиж: кожен reset дає невеликий постійний бонус до стартового капіталу
+  // та кредитного рейтингу — reset відчувається як прогрес, а не втрата.
+  const prestigeStartCash   = 50_000 + newPrestigeLevel * 5_000;
+  const prestigeCreditBonus = Math.min(1.0, newPrestigeLevel * 0.1);
+
   // Get enterprise IDs first (needed for nested deletes)
   const ents = await prisma.enterprise.findMany({ where: { playerId }, select: { id: true } });
   const entIds = ents.map((e) => e.id);
@@ -36,16 +43,17 @@ export async function POST() {
     prisma.player.update({
       where: { id: playerId },
       data: {
-        cashBalance:              50_000,
+        cashBalance:              prestigeStartCash,
         balanceUsd:               0,
-        netWorth:                 50_000,
+        netWorth:                 prestigeStartCash,
         reputationScore:          5.0,
-        creditRating:             7.0,
+        creditRating:             7.0 + prestigeCreditBonus,
         currentOverdraftUsageUah: 0,
         companyValuationUah:      0,
+        prestigeLevel:            newPrestigeLevel,
       },
     }),
   ]);
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, prestigeLevel: newPrestigeLevel, startCash: prestigeStartCash });
 }

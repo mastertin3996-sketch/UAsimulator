@@ -18,6 +18,7 @@ export async function GET(req: NextRequest) {
       durationMs: Date.now() - start,
       errors:     summary.errors,
       timings:    summary.timings,
+      ...(summary.skipped && { skipped: true, skipReason: summary.skipReason }),
     });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Unknown error";

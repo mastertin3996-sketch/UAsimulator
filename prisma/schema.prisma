@@ -153,6 +153,7 @@ enum TransactionType {
   INTERNAL_TRANSFER        // Внутрішній B2B трансфер між підприємствами одного гравця
   LOGISTICS_FREIGHT        // Вантажне перевезення (LOGISTICS_HUB)
   REGULATORY_INSPECTION_FEE // Штраф регуляторної інспекції (якість, пожбезпека, праця)
+  DAILY_LOGIN_BONUS        // Щоденний бонус за вхід (зі стріком)
 }
 
 enum DepositCurrency {
@@ -360,6 +361,9 @@ model Player {
   // True after bankruptcy procedure is executed
   isBankrupt           Boolean  @default(false)
   bankruptcyStartedAt  DateTime?
+  // ── Prestige (м'який reset) ─────────────────────────────────────────────────
+  // Кількість разів гравець виконав престиж-reset через /api/player/reset
+  prestigeLevel        Int      @default(0)
 
   offices         Office[]
   landPlots       LandPlot[]
@@ -418,6 +422,8 @@ model Player {
   regulatoryInspections   RegulatoryInspection[]
   priceAlerts             PriceAlert[]
   supplyOffers            SupplyOffer[]
+  achievements            Achievement[]
+  dailyLoginBonus         DailyLoginBonus?
 
   @@index([username])
 }
@@ -2017,6 +2023,35 @@ model RatingAward {
 
   @@index([playerId, category])
   @@index([tick])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ACHIEVEMENTS & DAILY LOGIN BONUS (retention loop)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Розблоковані досягнення гравця. Каталог умов/назв/описів живе в коді
+// (AchievementService), тут зберігається лише факт розблокування.
+model Achievement {
+  id            String   @id @default(cuid())
+  playerId      String
+  code          String   // код з реєстру AchievementService, напр. "FIRST_MILLION"
+  unlockedAtTick BigInt
+  createdAt     DateTime @default(now())
+
+  player Player @relation(fields: [playerId], references: [id])
+
+  @@unique([playerId, code])
+  @@index([playerId])
+}
+
+// Щоденний бонус (1 раз на ~24 тіки) зі стріком, що зростає при регулярному вході.
+model DailyLoginBonus {
+  playerId        String   @id
+  lastClaimedTick BigInt   @default(0)
+  streakCount     Int      @default(0)
+  updatedAt       DateTime @updatedAt
+
+  player Player @relation(fields: [playerId], references: [id])
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
