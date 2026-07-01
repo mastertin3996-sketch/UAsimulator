@@ -385,6 +385,17 @@ export class ProductionService {
             }
 
             baseCapacity = ws.footprintM2 * soilMult * seasonMult * rotationMult * droughtMult * irrigationBonus * agronomistMult * plantingBonus * fieldAreaMult * localWeatherMod * tractorBonus * tractorOperatorGate * machineryMult * fertBonus * pestMult * seedMult * diseaseMult * plowBonus * cultivateBonus * sowBonus * npkMult * moistureMult * growthStageMult * intercroppingMult * combineBonus * fieldWorkerMult * beekeeperMult * irrigatorMult * livestockMult * honeyGate;
+          } else if (ent.type === 'TEXTILE_FACTORY') {
+            // Бонус-мультиплікатори (не штрафні — щоб не зачепити існуючі підприємства без цих професій)
+            const outputSku = recipe.outputs[0]?.product.sku ?? '';
+            const weavers = ent.employees.filter(e => e.profession === 'WEAVER').length;
+            const tailors = ent.employees.filter(e => e.profession === 'TAILOR').length;
+            // WEAVER: +5%/особу (макс 3) до виробництва тканини
+            const weaverMult = (outputSku === 'SF-FABRIC') ? 1 + Math.min(weavers, 3) * 0.05 : 1.0;
+            // TAILOR: +5%/особу (макс 3) до пошиву готового одягу/трикотажу
+            const tailorMult = (outputSku === 'FG-CLOTHING' || outputSku === 'FG-KNITWEAR')
+              ? 1 + Math.min(tailors, 3) * 0.05 : 1.0;
+            baseCapacity = ws.maxCapacity * weaverMult * tailorMult;
           } else {
             baseCapacity = ws.maxCapacity;
           }

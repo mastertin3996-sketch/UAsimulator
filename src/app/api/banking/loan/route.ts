@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { LoanService } from "@/engine/LoanService";
+import { allowRate } from "@/lib/rateLimit";
+
+const issueLoanSchema = z.object({
+  amountUah:  z.number().finite().positive(),
+  termMonths: z.number().finite().int().positive(),
+});
 
 // PATCH /api/banking/loan  — pay current monthly installment
 export async function PATCH(req: NextRequest) {
@@ -49,11 +56,17 @@ export async function POST(req: NextRequest) {
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const playerId = session.user.id;
-  const body = await req.json().catch(() => ({})) as { amountUah?: number; termMonths?: number };
 
-  if (!body.amountUah || !body.termMonths) {
-    return NextResponse.json({ error: "Потрібен amountUah та termMonths" }, { status: 400 });
+  if (!allowRate(`loan:${playerId}`, 3000)) {
+    return NextResponse.json({ error: "Забагато запитів — спробуйте за кілька секунд" }, { status: 429 });
   }
+
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = issueLoanSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Потрібен amountUah (число > 0) та termMonths (ціле число > 0)" }, { status: 400 });
+  }
+  const body = parsed.data;
 
   const lastTick = await prisma.gameTick.findFirst({ orderBy: { tickNumber: "desc" }, select: { tickNumber: true } });
   const currentTick = lastTick?.tickNumber ?? 1n;

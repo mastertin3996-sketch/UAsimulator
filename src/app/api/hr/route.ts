@@ -18,6 +18,7 @@ const PROF_UA: Record<Profession, string> = {
   TRACTOR_OPERATOR: "Тракторист", FARM_WORKER: "Різнороб",
   MILKMAID: "Доярка", MILKING_OPERATOR: "Оператор доїльної станції",
   DEBONER: "Обвалювальник", SLAUGHTER_TECH: "Технік цеху забою",
+  WEAVER: "Ткач", TAILOR: "Кравець",
 };
 
 const TYPE_NAME: Record<EnterpriseType, string> = {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
+import { allowRate } from "@/lib/rateLimit";
 
 export async function POST(
   _req: NextRequest,
@@ -12,6 +13,10 @@ export async function POST(
 
   const buyerId = session.user.id;
   const { dealId } = await params;
+
+  if (!allowRate(`ma-buy:${buyerId}`, 3000)) {
+    return NextResponse.json({ error: "Забагато запитів — спробуйте за кілька секунд" }, { status: 429 });
+  }
 
   const lastTick = await prisma.gameTick.findFirst({ orderBy: { tickNumber: "desc" }, select: { tickNumber: true } });
   const currentTick = lastTick?.tickNumber ?? 1n;

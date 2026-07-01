@@ -46,6 +46,8 @@ enum Profession {
   MILKING_OPERATOR   // AGRO_FARM: оператор доїльної станції — до 2400 л/тік з EQ-MILKING_STATION
   DEBONER            // AGRO_FARM: обвалювальник — обов'язковий для будь-якого цеху забою
   SLAUGHTER_TECH     // AGRO_FARM: технік цеху забою — обов'язковий для цеху забою
+  WEAVER             // TEXTILE_FACTORY: ткач — +5%/особу (макс 3) до виробництва тканини (SF-FABRIC)
+  TAILOR             // TEXTILE_FACTORY: кравець — +5%/особу (макс 3) до пошиву одягу/трикотажу (FG-CLOTHING, FG-KNITWEAR)
 }
 
 enum EnterpriseType {

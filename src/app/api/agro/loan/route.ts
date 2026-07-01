@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Decimal } from "@prisma/client/runtime/library";
+import { allowRate } from "@/lib/rateLimit";
 
 const AGRO_INTEREST_PCT = 8.0;  // 8% річних
 const MAX_LOAN_TO_CONTRACT_RATIO = 0.70; // макс 70% від вартості контракту
@@ -47,6 +48,10 @@ export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  if (!allowRate(`agro-loan:${session.user.id}`, 3000)) {
+    return NextResponse.json({ error: "Забагато запитів — спробуйте за кілька секунд" }, { status: 429 });
+  }
+
   const body = await req.json().catch(() => null);
   if (!body) return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
 
@@ -56,7 +61,7 @@ export async function POST(req: NextRequest) {
     termMonths: number;
   };
 
-  if (!forwardContractId || !principalUah || !termMonths) {
+  if (!forwardContractId || !principalUah || !termMonths || !Number.isFinite(principalUah) || !Number.isFinite(termMonths)) {
     return NextResponse.json({ error: "forwardContractId, principalUah, termMonths required" }, { status: 400 });
   }
   if (principalUah < 1000) {

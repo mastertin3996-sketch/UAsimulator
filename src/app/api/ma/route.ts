@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { allowRate } from "@/lib/rateLimit";
+
+const createDealSchema = z.object({
+  targetEnterpriseId: z.string().min(1).optional(),
+  priceUah:           z.number().finite().positive(),
+  notes:              z.string().max(500).optional(),
+});
 
 const dealSelect = {
   id: true, status: true,
@@ -103,42 +111,49 @@ export async function POST(req: NextRequest) {
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const playerId = session.user.id;
-  const body = await req.json().catch(() => ({})) as {
-    targetEnterpriseId?: string;
-    priceUah?: number;
-    notes?: string;
-  };
 
-  if (!body.priceUah || body.priceUah <= 0) {
-    return NextResponse.json({ error: "Потрібна priceUah > 0" }, { status: 400 });
+  if (!allowRate(`ma-create:${playerId}`, 3000)) {
+    return NextResponse.json({ error: "Забагато запитів — спробуйте за кілька секунд" }, { status: 429 });
   }
 
-  // Validate enterprise ownership if specific enterprise
-  if (body.targetEnterpriseId) {
-    const ent = await prisma.enterprise.findFirst({
-      where: { id: body.targetEnterpriseId, playerId },
-    });
-    if (!ent) return NextResponse.json({ error: "Підприємство не знайдено або не належить вам" }, { status: 404 });
-
-    // Check no active listing for this enterprise
-    const existing = await prisma.maDeal.findFirst({
-      where: { targetEnterpriseId: body.targetEnterpriseId, status: "PENDING" },
-    });
-    if (existing) return NextResponse.json({ error: "Це підприємство вже виставлено на продаж" }, { status: 409 });
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = createDealSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Потрібна priceUah (число > 0); targetEnterpriseId/notes — опційно" }, { status: 400 });
   }
+  const body = parsed.data;
 
-  const lastTick = await prisma.gameTick.findFirst({ orderBy: { tickNumber: "desc" }, select: { tickNumber: true } });
-  const currentTick = lastTick?.tickNumber ?? 1n;
+  try {
+    // Validate enterprise ownership if specific enterprise
+    if (body.targetEnterpriseId) {
+      const ent = await prisma.enterprise.findFirst({
+        where: { id: body.targetEnterpriseId, playerId },
+      });
+      if (!ent) return NextResponse.json({ error: "Підприємство не знайдено або не належить вам" }, { status: 404 });
 
-  const deal = await prisma.maDeal.create({
-    data: {
-      sellerId:             playerId,
-      targetEnterpriseId:   body.targetEnterpriseId ?? null,
-      transactionAmountUah: body.priceUah,
-      listedAtTick:         currentTick,
-      notes:                body.notes ?? null,
-    },
-  });
+      // Check no active listing for this enterprise
+      const existing = await prisma.maDeal.findFirst({
+        where: { targetEnterpriseId: body.targetEnterpriseId, status: "PENDING" },
+      });
+      if (existing) return NextResponse.json({ error: "Це підприємство вже виставлено на продаж" }, { status: 409 });
+    }
 
-  return NextResponse.json({ ok: true, dealId: deal.id }, { status: 201 });
+    const lastTick = await prisma.gameTick.findFirst({ orderBy: { tickNumber: "desc" }, select: { tickNumber: true } });
+    const currentTick = lastTick?.tickNumber ?? 1n;
+
+    const deal = await prisma.maDeal.create({
+      data: {
+        sellerId:             playerId,
+        targetEnterpriseId:   body.targetEnterpriseId ?? null,
+        transactionAmountUah: body.priceUah,
+        listedAtTick:         currentTick,
+        notes:                body.notes ?? null,
+      },
+    });
+
+    return NextResponse.json({ ok: true, dealId: deal.id }, { status: 201 });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Помилка";
+    return NextResponse.json({ error: message }, { status: 400 });
+  }
 }
