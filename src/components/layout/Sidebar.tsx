@@ -96,7 +96,7 @@ export default function Sidebar({ isAdmin = false, isOpen = false, onClose, unre
           <span className="text-lg font-bold tracking-tight text-emerald-400">UA Simulator</span>
           <span className="block text-[10px] text-gray-500 mt-0.5">Economic Simulator</span>
         </div>
-        <button onClick={onClose} className="lg:hidden p-1 rounded text-gray-500 hover:text-white">
+        <button onClick={onClose} aria-label="Закрити меню" className="lg:hidden p-1 rounded text-gray-500 hover:text-white">
           <X size={18} />
         </button>
       </div>

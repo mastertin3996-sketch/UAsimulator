@@ -153,7 +153,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
             placeholder="Пошук сторінок та підприємств…"
             className="flex-1 bg-transparent text-sm text-white placeholder-gray-500 outline-none"
           />
-          <button onClick={onClose} className="text-gray-600 hover:text-gray-400 transition-colors">
+          <button onClick={onClose} aria-label="Закрити пошук" className="text-gray-600 hover:text-gray-400 transition-colors">
             <X size={14} />
           </button>
         </div>

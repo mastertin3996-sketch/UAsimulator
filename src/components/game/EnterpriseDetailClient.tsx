@@ -263,7 +263,7 @@ function HireModal({
       <div className="rounded-2xl border border-gray-800 bg-gray-950 p-6 w-full max-w-md space-y-4 shadow-2xl">
         <div className="flex items-center justify-between">
           <h3 className="text-base font-semibold text-white">Найняти співробітника</h3>
-          <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors"><X size={16} /></button>
+          <button onClick={onClose} aria-label="Закрити" className="text-gray-500 hover:text-white transition-colors"><X size={16} /></button>
         </div>
 
         {err && <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{err}</p>}
@@ -357,7 +357,7 @@ function AddWorkshopModal({
       <div className="rounded-2xl border border-gray-800 bg-gray-950 p-6 w-full max-w-md space-y-4 shadow-2xl">
         <div className="flex items-center justify-between">
           <h3 className="text-base font-semibold text-white">Додати цех</h3>
-          <button onClick={onClose} className="text-gray-500 hover:text-white"><X size={16} /></button>
+          <button onClick={onClose} aria-label="Закрити" className="text-gray-500 hover:text-white"><X size={16} /></button>
         </div>
 
         {err && <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{err}</p>}
@@ -480,7 +480,7 @@ function RecipeModal({
       <div className="rounded-2xl border border-gray-800 bg-gray-950 w-full max-w-lg max-h-[80vh] flex flex-col shadow-2xl">
         <div className="flex items-center justify-between p-5 border-b border-gray-800">
           <h3 className="text-base font-semibold text-white">Обрати рецепт — {workshop.name}</h3>
-          <button onClick={onClose} className="text-gray-500 hover:text-white"><X size={16} /></button>
+          <button onClick={onClose} aria-label="Закрити" className="text-gray-500 hover:text-white"><X size={16} /></button>
         </div>
 
         {err && <p className="text-sm text-red-400 mx-5 mt-3 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{err}</p>}
@@ -757,7 +757,7 @@ function BuyEquipmentModal({
             <h3 className="text-base font-semibold text-white">Купити обладнання</h3>
             <p className="text-xs text-gray-500 mt-0.5">{workshopName} · {freeM2.toFixed(0)} м² вільно</p>
           </div>
-          <button onClick={onClose} className="text-gray-500 hover:text-white"><X size={16} /></button>
+          <button onClick={onClose} aria-label="Закрити" className="text-gray-500 hover:text-white"><X size={16} /></button>
         </div>
 
         <div className="overflow-y-auto flex-1 px-5 py-3 space-y-2">
@@ -1919,7 +1919,7 @@ function WorkshopsTab({
           <div className="rounded-xl border border-gray-700 bg-gray-900 shadow-2xl w-full max-w-sm p-4 space-y-3" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-white">🔬 Аналіз ґрунту</h3>
-              <button onClick={() => setSoilAnalysisData(null)} className="text-gray-500 hover:text-white text-xs">✕</button>
+              <button onClick={() => setSoilAnalysisData(null)} aria-label="Закрити" className="text-gray-500 hover:text-white text-xs">✕</button>
             </div>
 
             <div className="space-y-1.5">
@@ -2041,10 +2041,10 @@ function SalaryRow({ profession, count, currentSalary, enterpriseId, onSaved }: 
             autoFocus
             className="w-28 rounded-md border border-emerald-500/40 bg-gray-800 px-2 py-1 text-xs font-mono text-white focus:outline-none"
           />
-          <button onClick={save} disabled={saving} className="text-xs text-emerald-400 hover:text-emerald-300 disabled:opacity-50">
+          <button onClick={save} disabled={saving} aria-label="Зберегти" className="text-xs text-emerald-400 hover:text-emerald-300 disabled:opacity-50">
             {saving ? "…" : "✓"}
           </button>
-          <button onClick={() => setEditing(false)} className="text-xs text-gray-600 hover:text-gray-400">✕</button>
+          <button onClick={() => setEditing(false)} aria-label="Скасувати" className="text-xs text-gray-600 hover:text-gray-400">✕</button>
         </div>
       ) : (
         <button
@@ -2544,7 +2544,7 @@ function SupplyTab({ enterpriseId }: { enterpriseId: string }) {
                 >
                   {toggling === r.id ? <Loader2 size={12} className="animate-spin" /> : r.isActive ? "⏸" : "▶"}
                 </button>
-                <button onClick={() => remove(r.id)} className="text-gray-600 hover:text-red-400 transition-colors">
+                <button onClick={() => remove(r.id)} aria-label="Видалити маршрут" className="text-gray-600 hover:text-red-400 transition-colors">
                   <Trash2 size={12} />
                 </button>
               </div>
@@ -3136,7 +3136,7 @@ function FieldsTab({ enterprise, agroInfo, onRefresh }: { enterprise: Enterprise
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-gray-600">до дня {c.deliveryTick}</span>
-                      <button onClick={() => handleCancelContract(c.id)} className="text-red-500 hover:text-red-400 text-[10px]">✕</button>
+                      <button onClick={() => handleCancelContract(c.id)} aria-label="Скасувати ф'ючерс" className="text-red-500 hover:text-red-400 text-[10px]">✕</button>
                     </div>
                   </div>
                   {/* PnL badge */}
