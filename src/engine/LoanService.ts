@@ -472,12 +472,48 @@ export class LoanService {
   }
 
   private async triggerDefault(loanId: string, playerId: string): Promise<void> {
+    const loan = await this.prisma.loan.findUnique({
+      where:  { id: loanId },
+      select: { collateralForwardContractId: true, remainingUah: true },
+    });
+
     await this.prisma.loan.update({
       where: { id: loanId },
       data:  { status: 'DEFAULTED' },
     });
     await this.adjustCreditRating(playerId, RATING_DELTA.DEFAULT);
     await this.creditSvc.onLoanDefault(playerId).catch(() => {});
+
+    // Застава: ф'ючерсний контракт вилучається на користь банку, а його вартість
+    // списується з залишку боргу (не виплачується гравцю при настанні deliveryTick).
+    if (loan?.collateralForwardContractId) {
+      const contract = await this.prisma.grainForwardContract.findFirst({
+        where:  { id: loan.collateralForwardContractId, status: 'ACTIVE' },
+        select: { id: true, quantityUnits: true, pricePerUnit: true, product: { select: { nameUa: true } } },
+      });
+      if (contract) {
+        const seizedValue = new Decimal(contract.quantityUnits).times(contract.pricePerUnit.toString());
+        const newRemaining = Decimal.max(0, new Decimal(loan.remainingUah.toString()).minus(seizedValue));
+        await this.prisma.$transaction([
+          this.prisma.grainForwardContract.update({
+            where: { id: contract.id },
+            data:  { status: 'CANCELLED' },
+          }),
+          this.prisma.loan.update({
+            where: { id: loanId },
+            data:  { remainingUah: newRemaining },
+          }),
+        ]);
+        await this.prisma.notification.create({ data: {
+          playerId,
+          type:    'LOAN_DEFAULT',
+          title:   'Заставу вилучено',
+          body:    `Банк вилучив заставний ф'ючерс (${contract.product.nameUa} × ${contract.quantityUnits}) на ₴${seizedValue.toFixed(0)} для погашення боргу.`,
+          entityId: loanId,
+        }}).catch(() => {});
+      }
+    }
+
     await this.prisma.notification.create({ data: {
       playerId,
       type:    'LOAN_DEFAULT',

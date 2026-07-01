@@ -110,6 +110,7 @@ interface AgroInfo {
   grainQualityClass?:  number;
   grainMoisturePct?:   number;
   plantedSeasonTick?:  number;
+  intercroppingBonus?: { partnerCropSku: string; bonusPct: number } | null;
 }
 
 interface EnterpriseLicense {
@@ -4010,6 +4011,12 @@ function InfoColumn({
                 <span className="text-gray-400 font-mono text-[10px]">{agroInfo.lastCropSku}</span>
               </div>
             )}
+            {agroInfo.intercroppingBonus && (
+              <div className="flex justify-between text-[11px]">
+                <span className="text-gray-500">Сумісні посіви ({agroInfo.intercroppingBonus.partnerCropSku})</span>
+                <span className="text-emerald-400 font-mono text-[10px]">+{(agroInfo.intercroppingBonus.bonusPct * 100).toFixed(0)}%</span>
+              </div>
+            )}
             {[['WHEAT',[1.0,0.8,0.15,0.0]],['SUNFL',[0.2,1.0,0.75,0.0]],['MILK',[1.0,0.9,1.0,0.75]]].map(([name, mults]) => (
               <div key={name as string} className="flex justify-between text-[10px]">
                 <span className="text-gray-600">{name as string} ×</span>
@@ -4035,12 +4042,22 @@ function InfoColumn({
               AGRO_PERMIT:     { label: "Агро-дозвіл",                       icon: "📋", color: isActive ? "text-amber-400 border-amber-800/40 bg-amber-950/30"   : "text-gray-500 border-gray-800 bg-gray-900" },
             };
             const b = BADGE[lic.type] ?? { label: lic.type, icon: "📄", color: "text-gray-400 border-gray-800 bg-gray-900" };
+            const ticksLeft = isActive && lic.expiresAtTick != null && agroInfo?.tickNumber != null
+              ? Number(lic.expiresAtTick) - agroInfo.tickNumber
+              : null;
             return (
               <div key={lic.id} className={cn("flex items-center gap-2 rounded-lg border px-2 py-1.5", b.color)}>
                 <span className="text-sm shrink-0">{b.icon}</span>
                 <div className="min-w-0">
                   <p className="text-[10px] font-medium truncate">{b.label}</p>
-                  <p className="text-[9px] text-gray-600">{isActive ? "Активна" : "Неактивна"}</p>
+                  <p className="text-[9px] text-gray-600">
+                    {isActive ? "Активна" : "Неактивна"}
+                    {ticksLeft !== null && (
+                      <span className={ticksLeft <= 30 ? "text-amber-500" : undefined}>
+                        {" "}· спливає через {Math.max(0, ticksLeft)} тіків
+                      </span>
+                    )}
+                  </p>
                 </div>
               </div>
             );

@@ -1173,6 +1173,12 @@ export class TickEngine {
           if (outProduct) {
             const qty = out.qtyPerHead * herd.headCount * herd.health;
 
+            // VETERINARIAN/MILKMAID/MILKING_OPERATOR/LIVESTOCK_WORKER: доглянуте стадо → вища якість продукції (0–10)
+            const vets      = allEmployees.filter(e => e.profession === 'VETERINARIAN').length;
+            const lwWorkers = allEmployees.filter(e => e.profession === 'LIVESTOCK_WORKER').length;
+
+            let existingOutInv: { id: string; quantity: number; avgQuality: number } | null = null;
+
             if (herd.species === 'CATTLE') {
               // Milkmaid: ручне доїння, 250 л/тік на особу
               // MILKING_OPERATOR: 2400 л/тік на оператора (доїльна станція)
@@ -1185,16 +1191,38 @@ export class TickEngine {
               if (milkCap === 0) continue; // нема кому доїти — пропускаємо запис молока
 
               const cappedQty = Math.min(qty, milkCap);
+              const qualityBonus = Math.min(milkmaids, 3) * 0.3 + Math.min(milkingOps, 3) * 0.2 + Math.min(vets, 2) * 0.3;
+              const producedQuality = Math.max(0, Math.min(10, herd.health * 10 + qualityBonus));
+
+              existingOutInv = await this.db.enterpriseInventory.findUnique({
+                where:  { enterpriseId_productId: { enterpriseId: eid, productId: outProduct.id } },
+                select: { id: true, quantity: true, avgQuality: true },
+              });
+              const newQty = (existingOutInv?.quantity ?? 0) + cappedQty;
+              const newAvgQ = existingOutInv
+                ? (existingOutInv.avgQuality * existingOutInv.quantity + producedQuality * cappedQty) / newQty
+                : producedQuality;
               await this.db.enterpriseInventory.upsert({
                 where:  { enterpriseId_productId: { enterpriseId: eid, productId: outProduct.id } },
-                update: { quantity: { increment: cappedQty } },
-                create: { enterpriseId: eid, productId: outProduct.id, quantity: cappedQty },
+                update: { quantity: newQty, avgQuality: newAvgQ },
+                create: { enterpriseId: eid, productId: outProduct.id, quantity: cappedQty, avgQuality: producedQuality },
               });
             } else {
+              const qualityBonus = Math.min(lwWorkers, 3) * 0.3 + Math.min(vets, 2) * 0.3;
+              const producedQuality = Math.max(0, Math.min(10, herd.health * 10 + qualityBonus));
+
+              existingOutInv = await this.db.enterpriseInventory.findUnique({
+                where:  { enterpriseId_productId: { enterpriseId: eid, productId: outProduct.id } },
+                select: { id: true, quantity: true, avgQuality: true },
+              });
+              const newQty = (existingOutInv?.quantity ?? 0) + qty;
+              const newAvgQ = existingOutInv
+                ? (existingOutInv.avgQuality * existingOutInv.quantity + producedQuality * qty) / newQty
+                : producedQuality;
               await this.db.enterpriseInventory.upsert({
                 where:  { enterpriseId_productId: { enterpriseId: eid, productId: outProduct.id } },
-                update: { quantity: { increment: qty } },
-                create: { enterpriseId: eid, productId: outProduct.id, quantity: qty },
+                update: { quantity: newQty, avgQuality: newAvgQ },
+                create: { enterpriseId: eid, productId: outProduct.id, quantity: qty, avgQuality: producedQuality },
               });
             }
           }

@@ -386,7 +386,7 @@ export class AgroService {
           select: {
             id: true, soilQuality: true, fertilizerTicksLeft: true, pestDamageMult: true,
             nitrogenLevel: true, phosphorusLevel: true, potassiumLevel: true,
-            moistureLevel: true, grainQualityClass: true,
+            moistureLevel: true, grainQualityClass: true, fieldOpsMask: true,
           },
         },
         workshops: {
@@ -477,6 +477,16 @@ export class AgroService {
       });
 
       // Notifications
+      if (lp.fieldOpsMask !== 0 && farm.playerId) {
+        await this.prisma.notification.create({
+          data: {
+            playerId: farm.playerId,
+            type:     'INFO',
+            title:    `Новий сезон на фермі «${farm.name}»`,
+            body:     'Оранка/культивація/посів скинуто на новий сезон — повторіть польові роботи у вкладці Поля, щоб зберегти бонуси врожайності.',
+          },
+        }).catch(() => {});
+      }
       if (pestSpawns && farm.playerId) {
         await this.prisma.notification.create({
           data: {

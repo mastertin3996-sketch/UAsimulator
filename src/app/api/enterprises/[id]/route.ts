@@ -31,6 +31,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
           soilQuality: true, lastCropSku: true, fertilizerTicksLeft: true, pestDamageMult: true,
           seedQuality: true, cropDiseaseType: true, cropDiseaseSeverity: true, fieldOpsMask: true,
           nitrogenLevel: true, phosphorusLevel: true, potassiumLevel: true, moistureLevel: true, grainQualityClass: true,
+          cityId: true,
           city: { select: { id: true, name: true, nameUa: true, region: true, energyTariffUah: true } },
         },
       },
@@ -111,6 +112,41 @@ export async function GET(_req: NextRequest, { params }: Params) {
   const ROTATION_NEXT: Record<string, string> = {
     'RM-WHEAT': 'RM-SUNFL', 'RM-SUNFL': 'RM-SUGBEET', 'RM-SUGBEET': 'RM-WHEAT', 'RM-CORN': 'RM-WHEAT',
   };
+
+  // Intercropping: сусідні ферми гравця у тому ж місті з комплементарними культурами дають бонус врожаю
+  const INTERCROP_FIELD_CROPS = new Set(['RM-WHEAT', 'RM-SUNFL', 'RM-SUGBEET', 'RM-CORN']);
+  const INTERCROP_PAIRS: [string, string, number][] = [
+    ['RM-WHEAT', 'RM-SUNFL',   0.06],
+    ['RM-CORN',  'RM-SUGBEET', 0.05],
+    ['RM-WHEAT', 'RM-CORN',    0.03],
+  ];
+  const activeCropSku = enterprise.workshops
+    .flatMap(ws => ws.productionOrders)
+    .map(po => po.recipe?.outputs?.[0]?.product?.sku)
+    .find((sku): sku is string => !!sku && INTERCROP_FIELD_CROPS.has(sku));
+
+  let intercroppingBonus: { partnerCropSku: string; bonusPct: number } | null = null;
+  if (enterprise.type === "AGRO_FARM" && activeCropSku) {
+    const siblingFarms = await prisma.enterprise.findMany({
+      where: { playerId, type: 'AGRO_FARM', isOperational: true, id: { not: enterpriseId }, landPlot: { cityId: enterprise.landPlot.cityId } },
+      select: {
+        workshops: {
+          where: { isActive: true },
+          select: { productionOrders: { where: { status: 'IN_PROGRESS' }, select: { recipe: { select: { outputs: { take: 1, select: { product: { select: { sku: true } } } } } } } } },
+        },
+      },
+    });
+    const siblingCropSkus = new Set(
+      siblingFarms.flatMap(f => f.workshops.flatMap(ws => ws.productionOrders.map(po => po.recipe?.outputs?.[0]?.product?.sku))).filter(Boolean) as string[]
+    );
+    for (const [sku1, sku2, bonus] of INTERCROP_PAIRS) {
+      if ((activeCropSku === sku1 && siblingCropSkus.has(sku2)) || (activeCropSku === sku2 && siblingCropSkus.has(sku1))) {
+        intercroppingBonus = { partnerCropSku: activeCropSku === sku1 ? sku2 : sku1, bonusPct: bonus };
+        break;
+      }
+    }
+  }
+
   const agroInfo = enterprise.type === "AGRO_FARM" ? {
     soilQuality:         enterprise.landPlot.soilQuality,
     lastCropSku:         enterprise.landPlot.lastCropSku,
@@ -135,6 +171,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
     currentSeason: SEASON_NAMES_UA[seasonIdx],
     seasonIndex:   seasonIdx,
     tickNumber:    tickNum,
+    intercroppingBonus,
   } : null;
 
   const TICKS_PER_MONTH = 30;
