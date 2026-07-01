@@ -9,6 +9,7 @@ import { cn, formatNumber } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import Link from "next/link";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -395,8 +396,9 @@ export default function MyOffersClient() {
             <Tag size={22} className="text-emerald-400" />
             Мої ордери
           </h1>
-          <p className="text-gray-500 text-sm mt-1">
+          <p className="text-gray-500 text-sm mt-1 flex items-center gap-1">
             Управління власними SELL та BUY ордерами
+            <InfoTooltip text="При виставленні SELL-ордера товар переноситься зі складу підприємства в особистий 'ескроу' — він недоступний для виробництва, доки ордер не виконається або не буде скасований." />
           </p>
         </div>
         <Link href="/market">

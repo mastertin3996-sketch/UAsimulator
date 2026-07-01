@@ -13,6 +13,7 @@ import { cn, formatUAH, formatNumber } from "@/lib/utils";
 import { QualityStars } from "@/components/game/QualityBar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import SeasonalPlanner from "@/components/game/SeasonalPlanner";
 
 // ─── Product emoji map ─────────────────────────────────────────────────────────
@@ -1442,7 +1443,10 @@ function WorkshopsTab({
                         {soilAnalysisBusy ? <Loader2 className="w-3 h-3 animate-spin" /> : '🔬'}
                         Аналіз ґрунту
                       </button>
-                      <p className="text-[9px] text-gray-500 uppercase tracking-wider">🧪 NPK ґрунту</p>
+                      <p className="text-[9px] text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                        🧪 NPK ґрунту
+                        <InfoTooltip text="Рівень азоту/фосфору/калію в ґрунті (0-100). Кожен нутрієнт додає до +15% врожайності польових культур. Падає з кожним врожаєм, відновлюється добривом." />
+                      </p>
                       {[
                         { label: 'N Азот',    val: agroInfo?.nitrogenLevel ?? 70,   color: 'bg-blue-500'   },
                         { label: 'P Фосфор',  val: agroInfo?.phosphorusLevel ?? 70, color: 'bg-orange-500' },
@@ -1520,7 +1524,10 @@ function WorkshopsTab({
                   {/* Grain Quality + Moisture Panel */}
                   {isField && cropSku && (
                     <div className="rounded bg-gray-800/40 px-2 py-1.5 space-y-1">
-                      <p className="text-[9px] text-gray-500 uppercase tracking-wider">🌾 Якість зерна</p>
+                      <p className="text-[9px] text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                        🌾 Якість зерна
+                        <InfoTooltip text="Клас визначається якістю ґрунту, рівнем NPK і вологою на момент збору врожаю. Клас 1 (Преміум) вимагає високої якості ґрунту, NPK ≥65% і оптимальної вологи 45-75%." />
+                      </p>
                       <div className="flex items-center justify-between">
                         {(() => {
                           const cls = agroInfo?.grainQualityClass ?? 2;
@@ -3102,7 +3109,10 @@ function FieldsTab({ enterprise, agroInfo, onRefresh }: { enterprise: Enterprise
       )}
       {/* Ф'ючерсні контракти */}
       <div className="rounded-lg border border-amber-900/40 bg-amber-950/10 p-3 space-y-3">
-        <p className="text-xs font-semibold text-amber-400">Ф'ючерси (фіксована ціна продажу)</p>
+        <p className="text-xs font-semibold text-amber-400 flex items-center gap-1">
+          Ф'ючерси (фіксована ціна продажу)
+          <InfoTooltip text="Контракт на продаж майбутнього врожаю за фіксованою ціною наперед. Якщо на момент постачання товару не вистачить — штраф 5% від суми угоди. Можна використати як заставу для агрокредиту." />
+        </p>
 
         {/* Активні контракти */}
         {contracts.length > 0 ? (

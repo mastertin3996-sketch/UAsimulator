@@ -9,7 +9,7 @@ import {
   UsersRound, LogOut, ShieldAlert, Truck, Bot, Factory,
   ScrollText, Tag, History, Landmark, CandlestickChart, Banknote,
   Bell, Wallet, GraduationCap, Users, Cpu, X, BadgeCheck, MapPin, Globe, Coins,
-  Award,
+  Award, HelpCircle,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
 
@@ -22,6 +22,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/dashboard",     label: "Дашборд",    icon: LayoutDashboard },
       { href: "/notifications", label: "Сповіщення", icon: Bell },
+      { href: "/help",          label: "Допомога",   icon: HelpCircle },
     ],
   },
   {

@@ -13,6 +13,7 @@ import { RevenueChart } from "@/components/game/charts/FinanceChart";
 import { NetWorthChart, PnLChart } from "@/components/game/charts/NetWorthChart";
 import { QualityStars } from "@/components/game/QualityBar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { cn, formatUAH, formatUSD, formatNumber } from "@/lib/utils";
 
 interface Warning {
@@ -443,7 +444,10 @@ export default function DashboardClient() {
             return (
               <div className={cn("rounded-xl border bg-gray-900 p-4 space-y-3", ring)}>
                 <div className="flex items-center justify-between">
-                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Комплаєнс</p>
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1">
+                    Комплаєнс
+                    <InfoTooltip text="Оцінка дотримання законодавства (0-100%): податки, зарплати не нижче мінімуму, ліцензії, кредити без прострочень. Низький рівень підвищує ризик аудиту й заморозки підприємства." />
+                  </p>
                   <Icon size={14} className={bar.replace("bg-", "text-")} />
                 </div>
                 <div className="flex items-end gap-2">

@@ -7,7 +7,7 @@ import {
   Warehouse, FlaskConical, Factory, Truck, Banknote, Wallet,
   Users, Trophy, BarChart2, Tag, History, ScrollText, Bot,
   BadgeCheck, GraduationCap, CandlestickChart, Landmark, Cpu,
-  Bell, Settings, X, CornerDownLeft, Coins, Globe, Award,
+  Bell, Settings, X, CornerDownLeft, Coins, Globe, Award, HelpCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -18,6 +18,7 @@ interface NavItem { href: string; label: string; group: string; Icon: React.FC<{
 const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard",        label: "Дашборд",          group: "Навігація", Icon: LayoutDashboard   },
   { href: "/notifications",    label: "Сповіщення",        group: "Навігація", Icon: Bell              },
+  { href: "/help",             label: "Допомога",          group: "Навігація", Icon: HelpCircle        },
   { href: "/enterprises",      label: "Підприємства",      group: "Виробництво", Icon: Building2       },
   { href: "/enterprises/create", label: "Нове підприємство", group: "Виробництво", Icon: Building2     },
   { href: "/employees",        label: "Персонал",          group: "Виробництво", Icon: Users           },

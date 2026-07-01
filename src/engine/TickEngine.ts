@@ -1036,6 +1036,17 @@ export class TickEngine {
       },
     });
 
+    // Батч-фетч усіх SELL-ордерів гравця один раз — уникаємо findFirst у циклі по товарах
+    const existingOrders = await this.db.marketOrder.findMany({
+      where: { playerId, type: 'SELL', status: { in: ['OPEN', 'PARTIALLY_FILLED'] } },
+      select: { productId: true, status: true },
+    });
+    const statusesByProduct = new Map<string, Set<string>>();
+    for (const o of existingOrders) {
+      if (!statusesByProduct.has(o.productId)) statusesByProduct.set(o.productId, new Set());
+      statusesByProduct.get(o.productId)!.add(o.status);
+    }
+
     for (const item of items) {
       const qty       = Number(item.quantity);
       const threshold = item.autoSellThreshold;
@@ -1045,14 +1056,7 @@ export class TickEngine {
       const price   = Number(item.autoSellPriceUah!);
 
       // Check for an existing OPEN auto-sell order for same product+player to avoid duplicates
-      const existing = await this.db.marketOrder.findFirst({
-        where: {
-          playerId, productId: item.productId,
-          type: "SELL", status: "OPEN",
-        },
-        select: { id: true },
-      });
-      if (existing) continue;
+      if (statusesByProduct.get(item.productId)?.has('OPEN')) continue;
 
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 3);
@@ -1084,6 +1088,10 @@ export class TickEngine {
           },
         }),
       ]);
+      // тримаємо мапу в синхронізації — якщо той самий productId є в кількох enterprises гравця,
+      // наступна ітерація цього тіку не повинна виставити ще один SELL-ордер на той самий товар
+      if (!statusesByProduct.has(item.productId)) statusesByProduct.set(item.productId, new Set());
+      statusesByProduct.get(item.productId)!.add('OPEN');
     }
 
     // Re-list goods stuck in playerInventory with no active sell order
@@ -1094,22 +1102,26 @@ export class TickEngine {
                 product: { select: { sku: true } } },
     });
 
+    // Батч-фетч автопродажних цін по всіх enterprise гравця — уникаємо findFirst у циклі
+    const autoSellConfigs = await this.db.enterpriseInventory.findMany({
+      where:  { enterprise: { playerId }, autoSellPriceUah: { not: null } },
+      select: { productId: true, autoSellPriceUah: true },
+    });
+    const autoSellPriceByProduct = new Map<string, number>();
+    for (const c of autoSellConfigs) {
+      if (!autoSellPriceByProduct.has(c.productId)) autoSellPriceByProduct.set(c.productId, Number(c.autoSellPriceUah));
+    }
+
     for (const pItem of playerInvItems) {
-      const openOrder = await this.db.marketOrder.findFirst({
-        where: { playerId, productId: pItem.productId, type: 'SELL', status: { in: ['OPEN', 'PARTIALLY_FILLED'] } },
-        select: { id: true },
-      });
-      if (openOrder) continue;
+      const statuses = statusesByProduct.get(pItem.productId);
+      if (statuses?.has('OPEN') || statuses?.has('PARTIALLY_FILLED')) continue;
 
       // Look up auto-sell price from enterprise inventory config
-      const entInv = await this.db.enterpriseInventory.findFirst({
-        where: { enterprise: { playerId }, productId: pItem.productId, autoSellPriceUah: { not: null } },
-        select: { autoSellPriceUah: true },
-      });
-      if (!entInv?.autoSellPriceUah) continue;
+      const autoSellPrice = autoSellPriceByProduct.get(pItem.productId);
+      if (!autoSellPrice) continue;
 
       const qty   = Number(pItem.quantity);
-      const price = Number(entInv.autoSellPriceUah);
+      const price = autoSellPrice;
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 3);
 
@@ -1141,6 +1153,8 @@ export class TickEngine {
       },
     });
 
+    if (herds.length === 0) return;
+
     const FEED_SKU   = 'RM-CORN';
     const feedProduct = await this.db.product.findUnique({ where: { sku: FEED_SKU }, select: { id: true } });
     if (!feedProduct) return;
@@ -1150,6 +1164,28 @@ export class TickEngine {
       POULTRY: { sku: 'FG-EGGS',  qtyPerHead: 0.5 },
     };
     const FEED_QTY: Record<string, number> = { CATTLE: 0.05, PIGS: 0.03, POULTRY: 0.01 };
+
+    // ── Batch-fetch upfront: уникаємо N+1 findUnique у циклі по стадах ─────────
+    const outProducts = await this.db.product.findMany({
+      where:  { sku: { in: Object.values(OUTPUT).map(o => o.sku) } },
+      select: { id: true, sku: true },
+    });
+    const outProductIdBySku = new Map(outProducts.map(p => [p.sku, p.id]));
+    const outProductIds = outProducts.map(p => p.id);
+
+    const enterpriseIds = [...new Set(herds.map(h => h.enterprise.id))];
+
+    const feedInvRows = await this.db.enterpriseInventory.findMany({
+      where:  { enterpriseId: { in: enterpriseIds }, productId: feedProduct.id },
+      select: { enterpriseId: true, quantity: true },
+    });
+    const feedByEnterprise = new Map(feedInvRows.map(r => [r.enterpriseId, Number(r.quantity)]));
+
+    const outInvRows = outProductIds.length > 0 ? await this.db.enterpriseInventory.findMany({
+      where:  { enterpriseId: { in: enterpriseIds }, productId: { in: outProductIds } },
+      select: { id: true, enterpriseId: true, productId: true, quantity: true, avgQuality: true },
+    }) : [];
+    const outInvByKey = new Map(outInvRows.map(r => [`${r.enterpriseId}:${r.productId}`, r]));
 
     for (const herd of herds) {
       if (!herd.enterprise.isOperational) continue;
@@ -1166,16 +1202,15 @@ export class TickEngine {
         continue;
       }
 
-      // Check feed availability
-      const feedInv = await this.db.enterpriseInventory.findUnique({
-        where:  { enterpriseId_productId: { enterpriseId: eid, productId: feedProduct.id } },
-        select: { quantity: true },
-      });
+      // Check feed availability (з попередньо завантаженої мапи — без findUnique у циклі)
+      const feedQty    = feedByEnterprise.get(eid) ?? 0;
       const feedNeeded = (FEED_QTY[herd.species] ?? 0.03) * herd.headCount;
-      const hasFeed    = feedInv && Number(feedInv.quantity) >= feedNeeded;
+      const hasFeed    = feedQty >= feedNeeded;
 
       if (hasFeed) {
-        // Consume feed
+        // Consume feed (тримаємо мапу в синхронізації — якщо в enterprise кілька стад, наступне
+        // в цьому ж тіку має бачити вже зменшений залишок, а не початковий)
+        feedByEnterprise.set(eid, feedQty - feedNeeded);
         await this.db.enterpriseInventory.updateMany({
           where: { enterpriseId: eid, productId: feedProduct.id },
           data:  { quantity: { decrement: feedNeeded } },
@@ -1203,15 +1238,18 @@ export class TickEngine {
         );
 
         if (out && herd.health >= 0.5 && isProductionAge) {
-          const outProduct = await this.db.product.findUnique({ where: { sku: out.sku }, select: { id: true } });
-          if (outProduct) {
+          const outProductId = outProductIdBySku.get(out.sku);
+          if (outProductId) {
             const qty = out.qtyPerHead * herd.headCount * herd.health;
+            const outKey = `${eid}:${outProductId}`;
 
             // VETERINARIAN/MILKMAID/MILKING_OPERATOR/LIVESTOCK_WORKER: доглянуте стадо → вища якість продукції (0–10)
             const vets      = allEmployees.filter(e => e.profession === 'VETERINARIAN').length;
             const lwWorkers = allEmployees.filter(e => e.profession === 'LIVESTOCK_WORKER').length;
 
-            let existingOutInv: { id: string; quantity: number; avgQuality: number } | null = null;
+            // з попередньо завантаженої мапи — без findUnique у циклі; оновлюємо мапу
+            // одразу після запису, щоб кілька стад однієї enterprise в цьому ж тіку акумулювались коректно
+            const existingOutInv = outInvByKey.get(outKey);
 
             if (herd.species === 'CATTLE') {
               // Milkmaid: ручне доїння, 250 л/тік на особу
@@ -1228,36 +1266,32 @@ export class TickEngine {
               const qualityBonus = Math.min(milkmaids, 3) * 0.3 + Math.min(milkingOps, 3) * 0.2 + Math.min(vets, 2) * 0.3;
               const producedQuality = Math.max(0, Math.min(10, herd.health * 10 + qualityBonus));
 
-              existingOutInv = await this.db.enterpriseInventory.findUnique({
-                where:  { enterpriseId_productId: { enterpriseId: eid, productId: outProduct.id } },
-                select: { id: true, quantity: true, avgQuality: true },
-              });
               const newQty = (existingOutInv?.quantity ?? 0) + cappedQty;
               const newAvgQ = existingOutInv
                 ? (existingOutInv.avgQuality * existingOutInv.quantity + producedQuality * cappedQty) / newQty
                 : producedQuality;
-              await this.db.enterpriseInventory.upsert({
-                where:  { enterpriseId_productId: { enterpriseId: eid, productId: outProduct.id } },
+              const row = await this.db.enterpriseInventory.upsert({
+                where:  { enterpriseId_productId: { enterpriseId: eid, productId: outProductId } },
                 update: { quantity: newQty, avgQuality: newAvgQ },
-                create: { enterpriseId: eid, productId: outProduct.id, quantity: cappedQty, avgQuality: producedQuality },
+                create: { enterpriseId: eid, productId: outProductId, quantity: cappedQty, avgQuality: producedQuality },
+                select: { id: true, enterpriseId: true, productId: true, quantity: true, avgQuality: true },
               });
+              outInvByKey.set(outKey, row);
             } else {
               const qualityBonus = Math.min(lwWorkers, 3) * 0.3 + Math.min(vets, 2) * 0.3;
               const producedQuality = Math.max(0, Math.min(10, herd.health * 10 + qualityBonus));
 
-              existingOutInv = await this.db.enterpriseInventory.findUnique({
-                where:  { enterpriseId_productId: { enterpriseId: eid, productId: outProduct.id } },
-                select: { id: true, quantity: true, avgQuality: true },
-              });
               const newQty = (existingOutInv?.quantity ?? 0) + qty;
               const newAvgQ = existingOutInv
                 ? (existingOutInv.avgQuality * existingOutInv.quantity + producedQuality * qty) / newQty
                 : producedQuality;
-              await this.db.enterpriseInventory.upsert({
-                where:  { enterpriseId_productId: { enterpriseId: eid, productId: outProduct.id } },
+              const row = await this.db.enterpriseInventory.upsert({
+                where:  { enterpriseId_productId: { enterpriseId: eid, productId: outProductId } },
                 update: { quantity: newQty, avgQuality: newAvgQ },
-                create: { enterpriseId: eid, productId: outProduct.id, quantity: qty, avgQuality: producedQuality },
+                create: { enterpriseId: eid, productId: outProductId, quantity: qty, avgQuality: producedQuality },
+                select: { id: true, enterpriseId: true, productId: true, quantity: true, avgQuality: true },
               });
+              outInvByKey.set(outKey, row);
             }
           }
         }
