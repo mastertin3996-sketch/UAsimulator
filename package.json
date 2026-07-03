@@ -50,6 +50,7 @@
     "tailwindcss": "^4",
     "ts-node": "^10.9.2",
     "typescript": "^5",
-    "vitest": "^4.1.9"
+    "vitest": "^4.1.9",
+    "vitest-mock-extended": "^4.0.0"
   }
 }

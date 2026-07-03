@@ -128,6 +128,10 @@ scripts/              # одноразові адмін/дата-скрипти,
 - `LoanService` / `FinanceService` — кредитні ставки, ануїтетні платежі
 - `EquipmentService` / `HRService` / `CapacityService` — виробничі формули
 - `StockExchangeService` — корекція ціни акцій
+- `AgroService` — оренда додаткового поля, штраф за розірвання ф'ючерсу
+- `MarketService.matchOrders` / `ProductionService` — через `vitest-mock-extended`
+  (мок `PrismaClient`): B2B-матчинг ордерів (ціна/якість/ліквідність/само-трейдинг),
+  цикл виробництва (споживання input, розрахунок якості, capacity-гейти)
 
 ```bash
 npm run test
