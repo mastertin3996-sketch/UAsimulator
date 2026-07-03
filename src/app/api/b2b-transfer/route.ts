@@ -4,9 +4,18 @@
  * DELETE /api/b2b-transfer?id=... — деактивувати угоду
  */
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Decimal } from "@prisma/client/runtime/library";
+
+const createB2bTransferSchema = z.object({
+  sourceEnterpriseId: z.string().min(1),
+  targetEnterpriseId: z.string().min(1),
+  productSku:         z.string().min(1),
+  quantityPerTick:    z.number().finite().positive(),
+  pricePerUnit:       z.number().finite().optional(),
+});
 
 export async function GET(_req: NextRequest) {
   const session = await auth();
@@ -39,17 +48,13 @@ export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const body = await req.json().catch(() => null);
-  if (!body) return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
-
-  const { sourceEnterpriseId, targetEnterpriseId, productSku, quantityPerTick, pricePerUnit } = body as {
-    sourceEnterpriseId: string; targetEnterpriseId: string;
-    productSku: string; quantityPerTick: number; pricePerUnit: number;
-  };
-
-  if (!sourceEnterpriseId || !targetEnterpriseId || !productSku || !quantityPerTick) {
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = createB2bTransferSchema.safeParse(rawBody);
+  if (!parsed.success) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
+  const { sourceEnterpriseId, targetEnterpriseId, productSku, quantityPerTick, pricePerUnit } = parsed.data;
+
   if (sourceEnterpriseId === targetEnterpriseId) {
     return NextResponse.json({ error: "Джерело і ціль не можуть бути однаковими" }, { status: 400 });
   }

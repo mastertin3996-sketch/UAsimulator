@@ -8,6 +8,7 @@
  * Повертає активні агро-кредити гравця.
  */
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Decimal } from "@prisma/client/runtime/library";
@@ -15,6 +16,12 @@ import { allowRate } from "@/lib/rateLimit";
 
 const AGRO_INTEREST_PCT = 8.0;  // 8% річних
 const MAX_LOAN_TO_CONTRACT_RATIO = 0.70; // макс 70% від вартості контракту
+
+const agroLoanSchema = z.object({
+  forwardContractId: z.string().min(1),
+  principalUah:      z.number().finite().min(1000),
+  termMonths:        z.number().finite().int().min(1).max(24),
+});
 
 export async function GET(_req: NextRequest) {
   const session = await auth();
@@ -48,28 +55,23 @@ export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  if (!allowRate(`agro-loan:${session.user.id}`, 3000)) {
+  if (!(await allowRate(`agro-loan:${session.user.id}`, 3000))) {
     return NextResponse.json({ error: "Забагато запитів — спробуйте за кілька секунд" }, { status: 429 });
   }
 
-  const body = await req.json().catch(() => null);
-  if (!body) return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
-
-  const { forwardContractId, principalUah, termMonths } = body as {
-    forwardContractId: string;
-    principalUah: number;
-    termMonths: number;
-  };
-
-  if (!forwardContractId || !principalUah || !termMonths || !Number.isFinite(principalUah) || !Number.isFinite(termMonths)) {
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = agroLoanSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    const flat = parsed.error.flatten().fieldErrors;
+    if (flat.principalUah) {
+      return NextResponse.json({ error: "Мінімальна сума кредиту: ₴1 000" }, { status: 400 });
+    }
+    if (flat.termMonths) {
+      return NextResponse.json({ error: "Термін: від 1 до 24 місяців" }, { status: 400 });
+    }
     return NextResponse.json({ error: "forwardContractId, principalUah, termMonths required" }, { status: 400 });
   }
-  if (principalUah < 1000) {
-    return NextResponse.json({ error: "Мінімальна сума кредиту: ₴1 000" }, { status: 400 });
-  }
-  if (termMonths < 1 || termMonths > 24) {
-    return NextResponse.json({ error: "Термін: від 1 до 24 місяців" }, { status: 400 });
-  }
+  const { forwardContractId, principalUah, termMonths } = parsed.data;
 
   // Check forward contract belongs to player and is ACTIVE
   const contract = await prisma.grainForwardContract.findFirst({

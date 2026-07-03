@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 const PAGE_SIZE = 50;
+
+const transactionsQuerySchema = z.object({
+  role: z.enum(["all", "seller", "buyer"]).optional().default("all"),
+  take: z.coerce.number().finite().optional().default(PAGE_SIZE),
+  skip: z.coerce.number().finite().optional().default(0),
+});
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -10,9 +17,13 @@ export async function GET(req: NextRequest) {
 
   const playerId = session.user.id;
   const { searchParams } = new URL(req.url);
-  const role = searchParams.get("role") ?? "all";
-  const take = Math.min(100, Math.max(1, Number(searchParams.get("take") ?? PAGE_SIZE)));
-  const skip = Math.max(0, Number(searchParams.get("skip") ?? 0));
+  const parsedQuery = transactionsQuerySchema.safeParse(Object.fromEntries(searchParams));
+  if (!parsedQuery.success) {
+    return NextResponse.json({ error: "Невірні параметри запиту" }, { status: 400 });
+  }
+  const role = parsedQuery.data.role;
+  const take = Math.min(100, Math.max(1, parsedQuery.data.take));
+  const skip = Math.max(0, parsedQuery.data.skip);
 
   // Find orders belonging to player
   const myOrders = await prisma.marketOrder.findMany({

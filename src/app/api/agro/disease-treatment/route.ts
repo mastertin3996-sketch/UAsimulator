@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 const PESTICIDE_COST_KG = 8; // кг RM-PESTICIDE для лікування
+
+const diseaseTreatmentSchema = z.object({
+  enterpriseId: z.string().min(1),
+});
 
 // POST /api/agro/disease-treatment  { enterpriseId }
 export async function POST(req: NextRequest) {
@@ -10,8 +15,10 @@ export async function POST(req: NextRequest) {
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const playerId = session.user.id;
 
-  const { enterpriseId } = await req.json().catch(() => ({})) as { enterpriseId?: string };
-  if (!enterpriseId) return NextResponse.json({ error: "enterpriseId required" }, { status: 400 });
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = diseaseTreatmentSchema.safeParse(rawBody);
+  if (!parsed.success) return NextResponse.json({ error: "enterpriseId required" }, { status: 400 });
+  const { enterpriseId } = parsed.data;
 
   const enterprise = await prisma.enterprise.findFirst({
     where: { id: enterpriseId, playerId, type: "AGRO_FARM", isOperational: true },

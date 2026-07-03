@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 const INTEL_COST = 15_000;
+
+const intelligenceSchema = z.object({
+  targetId: z.string().min(1),
+});
 
 export async function GET() {
   const session = await auth();
@@ -40,8 +45,12 @@ export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const body = await req.json().catch(() => ({})) as { targetId?: string };
-  if (!body.targetId) return NextResponse.json({ error: "targetId обов'язковий" }, { status: 400 });
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = intelligenceSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "targetId обов'язковий" }, { status: 400 });
+  }
+  const body = parsed.data;
   if (body.targetId === session.user.id) return NextResponse.json({ error: "Не можна стежити за собою" }, { status: 400 });
 
   const player = await prisma.player.findUnique({ where: { id: session.user.id }, select: { cashBalance: true } });

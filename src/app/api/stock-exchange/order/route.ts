@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { StockExchangeService } from "@/engine/StockExchangeService";
+
+const placeOrderSchema = z.object({
+  tickerId:         z.string().min(1),
+  type:             z.enum(["BUY", "SELL"]),
+  quantity:         z.number().finite().positive(),
+  pricePerShareUah: z.number().finite().positive(),
+});
 
 // POST — place order: { tickerId, type, quantity, pricePerShareUah }
 export async function POST(req: NextRequest) {
@@ -9,19 +17,12 @@ export async function POST(req: NextRequest) {
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const playerId = session.user.id;
-  const body = await req.json().catch(() => ({})) as {
-    tickerId?: string;
-    type?: "BUY" | "SELL";
-    quantity?: number;
-    pricePerShareUah?: number;
-  };
-
-  if (!body.tickerId || !body.type || !body.quantity || !body.pricePerShareUah) {
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = placeOrderSchema.safeParse(rawBody);
+  if (!parsed.success) {
     return NextResponse.json({ error: "Потрібен tickerId, type, quantity, pricePerShareUah" }, { status: 400 });
   }
-  if (!["BUY", "SELL"].includes(body.type)) {
-    return NextResponse.json({ error: "type має бути BUY або SELL" }, { status: 400 });
-  }
+  const body = parsed.data;
 
   const lastTick = await prisma.gameTick.findFirst({ orderBy: { tickNumber: "desc" }, select: { tickNumber: true } });
   const currentTick = lastTick?.tickNumber ?? 1n;

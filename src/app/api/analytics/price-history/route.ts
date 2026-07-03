@@ -1,13 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+
+const priceHistoryQuerySchema = z.object({
+  productId: z.string().min(1),
+});
 
 export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const productId = new URL(req.url).searchParams.get("productId");
-  if (!productId) return NextResponse.json({ error: "productId required" }, { status: 400 });
+  const parsed = priceHistoryQuerySchema.safeParse(Object.fromEntries(new URL(req.url).searchParams));
+  if (!parsed.success) {
+    return NextResponse.json({ error: "productId required" }, { status: 400 });
+  }
+  const { productId } = parsed.data;
 
   const since = new Date();
   since.setDate(since.getDate() - 60);

@@ -1,6 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+
+const createAlertSchema = z.object({
+  productSku: z.string().min(1),
+  alertBelow: z.number().finite().optional(),
+  alertAbove: z.number().finite().optional(),
+}).refine((d) => d.alertBelow != null || d.alertAbove != null, {
+  message: "Вкажіть alertBelow або alertAbove",
+});
+
+const deleteAlertSchema = z.object({
+  id: z.string().min(1),
+});
 
 export async function GET() {
   const session = await auth();
@@ -52,12 +65,13 @@ export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const body = await req.json().catch(() => ({})) as {
-    productSku?: string; alertBelow?: number; alertAbove?: number;
-  };
-  if (!body.productSku) return NextResponse.json({ error: "productSku required" }, { status: 400 });
-  if (!body.alertBelow && !body.alertAbove)
-    return NextResponse.json({ error: "Вкажіть alertBelow або alertAbove" }, { status: 400 });
+  const rawBody = await req.json().catch(() => ({}));
+  const parsed  = createAlertSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    const message = parsed.error.issues[0]?.message ?? "productSku required";
+    return NextResponse.json({ error: message }, { status: 400 });
+  }
+  const body = parsed.data;
 
   const alert = await prisma.priceAlert.create({
     data: {
@@ -75,8 +89,10 @@ export async function DELETE(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { id } = await req.json().catch(() => ({})) as { id?: string };
-  if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
+  const rawBody = await req.json().catch(() => ({}));
+  const parsedBody = deleteAlertSchema.safeParse(rawBody);
+  if (!parsedBody.success) return NextResponse.json({ error: "id required" }, { status: 400 });
+  const { id } = parsedBody.data;
 
   await prisma.priceAlert.deleteMany({
     where: { id, playerId: session.user.id },

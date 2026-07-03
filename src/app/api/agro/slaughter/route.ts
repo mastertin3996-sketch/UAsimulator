@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { LivestockSpecies, Profession } from "@prisma/client";
+
+const slaughterSchema = z.object({
+  enterpriseId: z.string().min(1),
+  herdId:       z.string().min(1),
+  count:        z.number().finite().int().min(1),
+});
 
 // ── Вікові обмеження (тіків) ────────────────────────────────────────────────
 const MIN_AGE: Record<LivestockSpecies, number> = {
@@ -57,19 +64,15 @@ export async function POST(req: NextRequest) {
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const playerId = session.user.id;
 
-  const body = await req.json().catch(() => ({})) as {
-    enterpriseId?: string;
-    herdId?: string;
-    count?: number;
-  };
-
-  const { enterpriseId, herdId, count } = body;
-  if (!enterpriseId || !herdId || !count || count < 1) {
+  const rawBody = await req.json().catch(() => ({}));
+  const parsed  = slaughterSchema.safeParse(rawBody);
+  if (!parsed.success) {
     return NextResponse.json(
       { error: "enterpriseId, herdId та count (>0) обов'язкові" },
       { status: 400 },
     );
   }
+  const { enterpriseId, herdId, count } = parsed.data;
 
   // ── 1. Знайти стадо (підтвердити власника через enterprise) ─────────────────
   const herd = await prisma.livestockHerd.findFirst({

@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { CompanyService } from "@/engine/CompanyService";
 import { EQUIPMENT_CATALOG, DEFAULT_EQUIPMENT_SPEC } from "@/config/equipmentCatalog";
+
+const installEquipmentSchema = z.object({
+  productId: z.string().min(1),
+  priceUah:  z.number().finite().positive(),
+});
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -84,11 +90,12 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   const { id: workshopId } = await params;
   const playerId = session.user.id;
-  const body = await req.json().catch(() => ({})) as { productId?: string; priceUah?: number };
-
-  if (!body.productId || !body.priceUah || body.priceUah <= 0) {
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = installEquipmentSchema.safeParse(rawBody);
+  if (!parsed.success) {
     return NextResponse.json({ error: "productId і priceUah обов'язкові" }, { status: 400 });
   }
+  const body = parsed.data;
 
   try {
     const product = await prisma.product.findUnique({ where: { id: body.productId }, select: { sku: true } });

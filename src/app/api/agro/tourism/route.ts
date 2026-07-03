@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 const BASE_TOURISM_REVENUE = 500; // ₴/тік base
 const ORGANIC_BONUS        = 1.3;
+
+const tourismSchema = z.object({
+  enterpriseId: z.string().min(1),
+  enabled:      z.boolean(),
+});
 
 // POST /api/agro/tourism  { enterpriseId, enabled: boolean }
 export async function POST(req: NextRequest) {
@@ -11,8 +17,10 @@ export async function POST(req: NextRequest) {
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const playerId = session.user.id;
 
-  const { enterpriseId, enabled } = await req.json().catch(() => ({})) as { enterpriseId?: string; enabled?: boolean };
-  if (!enterpriseId || typeof enabled !== 'boolean') return NextResponse.json({ error: "enterpriseId і enabled required" }, { status: 400 });
+  const rawBody = await req.json().catch(() => ({}));
+  const parsed  = tourismSchema.safeParse(rawBody);
+  if (!parsed.success) return NextResponse.json({ error: "enterpriseId і enabled required" }, { status: 400 });
+  const { enterpriseId, enabled } = parsed.data;
 
   const enterprise = await prisma.enterprise.findFirst({
     where: { id: enterpriseId, playerId, type: "AGRO_FARM" },

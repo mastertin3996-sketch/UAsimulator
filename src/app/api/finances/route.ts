@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 const PAGE_SIZE = 30;
+
+const financesQuerySchema = z.object({
+  page: z.coerce.number().finite().optional(),
+  type: z.string().optional(),
+});
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -10,8 +16,12 @@ export async function GET(req: NextRequest) {
 
   const playerId = session.user.id;
   const { searchParams } = new URL(req.url);
-  const page     = Math.max(1, Number(searchParams.get("page") ?? 1));
-  const typeFilter = searchParams.get("type") ?? "";
+  const parsed = financesQuerySchema.safeParse(Object.fromEntries(searchParams));
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Некоректні параметри запиту" }, { status: 400 });
+  }
+  const page     = Math.max(1, Number(parsed.data.page ?? 1));
+  const typeFilter = parsed.data.type ?? "";
 
   // Transactions (paginated)
   const where = {

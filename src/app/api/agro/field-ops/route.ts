@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -23,15 +24,21 @@ const FIELD_OPS = {
 
 type FieldOpKey = keyof typeof FIELD_OPS;
 
+const fieldOpsSchema = z.object({
+  workshopId: z.string().min(1),
+  op:         z.enum(Object.keys(FIELD_OPS) as [FieldOpKey, ...FieldOpKey[]]),
+});
+
 // POST /api/agro/field-ops  { workshopId, op }
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const playerId = session.user.id;
 
-  const { workshopId, op } = await req.json().catch(() => ({})) as { workshopId?: string; op?: string };
-  if (!workshopId || !op) return NextResponse.json({ error: "workshopId і op required" }, { status: 400 });
-  if (!Object.keys(FIELD_OPS).includes(op)) return NextResponse.json({ error: "Недійсна операція" }, { status: 400 });
+  const rawBody = await req.json().catch(() => ({}));
+  const parsed  = fieldOpsSchema.safeParse(rawBody);
+  if (!parsed.success) return NextResponse.json({ error: "workshopId і op required (дійсна операція)" }, { status: 400 });
+  const { workshopId, op } = parsed.data;
 
   const opDef = FIELD_OPS[op as FieldOpKey];
 

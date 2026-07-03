@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { SyndicateVoteService } from "@/engine/SyndicateVoteService";
 
 const svc = new SyndicateVoteService(prisma);
+
+const proposeVoteSchema = z.object({
+  type:   z.enum(["AD_CAMPAIGN", "INSURANCE_FUND"]),
+  amount: z.number().finite().positive(),
+});
 
 // GET — list votes for player's syndicate
 export async function GET() {
@@ -51,13 +57,12 @@ export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const body = await req.json().catch(() => ({})) as {
-    type?: "AD_CAMPAIGN" | "INSURANCE_FUND";
-    amount?: number;
-  };
-  if (!body.type || !body.amount || body.amount <= 0) {
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = proposeVoteSchema.safeParse(rawBody);
+  if (!parsed.success) {
     return NextResponse.json({ error: "type і amount обов'язкові" }, { status: 400 });
   }
+  const body = parsed.data;
 
   const member = await prisma.syndicateMember.findUnique({ where: { playerId: session.user.id } });
   if (!member) return NextResponse.json({ error: "Ви не є членом синдикату" }, { status: 403 });

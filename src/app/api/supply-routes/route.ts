@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+
+const createSupplyRouteSchema = z.object({
+  sourceEnterpriseId: z.string().min(1),
+  targetEnterpriseId: z.string().min(1),
+  productId:          z.string().min(1),
+  qtyPerTick:         z.number().finite().positive(),
+});
 
 export async function GET() {
   const session = await auth();
@@ -75,19 +83,13 @@ export async function POST(req: NextRequest) {
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const playerId = session.user.id;
 
-  const body = await req.json().catch(() => ({})) as {
-    sourceEnterpriseId?: string;
-    targetEnterpriseId?: string;
-    productId?:          string;
-    qtyPerTick?:         number;
-  };
-
-  if (!body.sourceEnterpriseId || !body.targetEnterpriseId || !body.productId || !body.qtyPerTick) {
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = createSupplyRouteSchema.safeParse(rawBody);
+  if (!parsed.success) {
     return NextResponse.json({ error: "Потрібні: sourceEnterpriseId, targetEnterpriseId, productId, qtyPerTick" }, { status: 400 });
   }
-  if (body.qtyPerTick <= 0) {
-    return NextResponse.json({ error: "qtyPerTick має бути > 0" }, { status: 400 });
-  }
+  const body = parsed.data;
+
   if (body.sourceEnterpriseId === body.targetEnterpriseId) {
     return NextResponse.json({ error: "Джерело і ціль не можуть бути однаковими" }, { status: 400 });
   }

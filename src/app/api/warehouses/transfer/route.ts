@@ -1,17 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+
+const transferSchema = z.object({
+  sourceEnterpriseId: z.string().min(1),
+  targetEnterpriseId: z.string().min(1),
+  productId:          z.string().min(1),
+  quantity:           z.number().finite().positive(),
+});
 
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const playerId = session.user.id;
-  const { sourceEnterpriseId, targetEnterpriseId, productId, quantity } = await req.json();
-
-  if (!sourceEnterpriseId || !targetEnterpriseId || !productId || !quantity) {
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = transferSchema.safeParse(rawBody);
+  if (!parsed.success) {
     return NextResponse.json({ error: "Невірні параметри" }, { status: 400 });
   }
+  const { sourceEnterpriseId, targetEnterpriseId, productId, quantity } = parsed.data;
+
   if (sourceEnterpriseId === targetEnterpriseId) {
     return NextResponse.json({ error: "Ціль не може бути джерелом" }, { status: 400 });
   }

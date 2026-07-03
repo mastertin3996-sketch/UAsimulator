@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+
+const updateSupplyRouteSchema = z.object({
+  qtyPerTick: z.number().finite().optional(),
+  isActive:   z.boolean().optional(),
+});
 
 export async function PATCH(
   req: NextRequest,
@@ -11,10 +17,12 @@ export async function PATCH(
   const playerId = session.user.id;
   const { id } = await params;
 
-  const body = await req.json().catch(() => ({})) as {
-    qtyPerTick?: number;
-    isActive?:   boolean;
-  };
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = updateSupplyRouteSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Некоректні дані запиту" }, { status: 400 });
+  }
+  const body = parsed.data;
 
   const route = await prisma.supplyRoute.findFirst({ where: { id, playerId }, select: { id: true } });
   if (!route) return NextResponse.json({ error: "Маршрут не знайдено" }, { status: 404 });

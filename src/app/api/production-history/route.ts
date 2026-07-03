@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+
+const productionHistoryQuerySchema = z.object({
+  enterpriseId: z.string().min(1).optional(),
+  productId:    z.string().min(1).optional(),
+  take:         z.coerce.number().finite().optional(),
+  skip:         z.coerce.number().finite().optional(),
+});
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -8,10 +16,15 @@ export async function GET(req: NextRequest) {
 
   const playerId = session.user.id;
   const { searchParams } = new URL(req.url);
-  const enterpriseId = searchParams.get("enterpriseId") ?? undefined;
-  const productId    = searchParams.get("productId")    ?? undefined;
-  const take = Math.min(30, Number(searchParams.get("take") ?? 20));
-  const skip = Number(searchParams.get("skip") ?? 0);
+  const parsed = productionHistoryQuerySchema.safeParse(Object.fromEntries(searchParams));
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Некоректні параметри запиту" }, { status: 400 });
+  }
+  const query = parsed.data;
+  const enterpriseId = query.enterpriseId;
+  const productId    = query.productId;
+  const take = Math.min(30, query.take ?? 20);
+  const skip = query.skip ?? 0;
 
   // Find player enterprises
   const enterprises = await prisma.enterprise.findMany({

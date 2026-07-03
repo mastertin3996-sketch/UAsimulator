@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -8,19 +9,22 @@ const CONCENTRATE_KG_PER_M2 = 0.03;
 const COMPOST_KG_PER_M2     = 4.0;
 const FERT_DURATION          = 90; // тіків = 3 сезони
 
+const fertilizeSchema = z.object({
+  enterpriseId:   z.string().min(1),
+  fertilizerType: z.enum(["CONCENTRATE", "ORGANIC"]).optional().default("CONCENTRATE"),
+});
+
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const playerId = session.user.id;
 
-  const { enterpriseId, fertilizerType = "CONCENTRATE" } = await req.json().catch(() => ({})) as {
-    enterpriseId?: string;
-    fertilizerType?: "CONCENTRATE" | "ORGANIC";
-  };
-  if (!enterpriseId) return NextResponse.json({ error: "enterpriseId required" }, { status: 400 });
-  if (!["CONCENTRATE", "ORGANIC"].includes(fertilizerType)) {
-    return NextResponse.json({ error: "Недійсний тип добрива" }, { status: 400 });
+  const rawBody = await req.json().catch(() => ({}));
+  const parsed  = fertilizeSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "enterpriseId required та дійсний fertilizerType" }, { status: 400 });
   }
+  const { enterpriseId, fertilizerType } = parsed.data;
 
   const enterprise = await prisma.enterprise.findFirst({
     where: { id: enterpriseId, playerId, type: "AGRO_FARM", isOperational: true },

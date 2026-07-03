@@ -5,6 +5,7 @@
  * Вартість: extraAreaM2 × 8 ₴/м²/місяць оренди + 100 ₴/м² одноразово за підготовку.
  */
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { AgroService } from "@/engine/AgroService";
@@ -13,16 +14,23 @@ import { Decimal } from "@prisma/client/runtime/library";
 const SETUP_COST_PER_M2 = 100; // одноразово ₴/м²
 const MAX_EXTRA_AREA    = 200_000; // максимальне розширення
 
+const expandFieldSchema = z.object({
+  enterpriseId: z.string().min(1),
+  extraAreaM2:  z.number().finite().positive(),
+});
+
+const expandFieldQuerySchema = z.object({
+  enterpriseId: z.string().min(1),
+});
+
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const body = await req.json().catch(() => null);
-  if (!body) return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
-
-  const { enterpriseId, extraAreaM2 } = body as { enterpriseId: string; extraAreaM2: number };
-  if (!enterpriseId || !extraAreaM2 || extraAreaM2 <= 0)
-    return NextResponse.json({ error: "Missing fields" }, { status: 400 });
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = expandFieldSchema.safeParse(rawBody);
+  if (!parsed.success) return NextResponse.json({ error: "Missing fields" }, { status: 400 });
+  const { enterpriseId, extraAreaM2 } = parsed.data;
 
   const ent = await prisma.enterprise.findFirst({
     where: { id: enterpriseId, playerId: session.user.id, type: "AGRO_FARM" },
@@ -78,8 +86,9 @@ export async function GET(req: NextRequest) {
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
-  const enterpriseId = searchParams.get("enterpriseId");
-  if (!enterpriseId) return NextResponse.json({ error: "enterpriseId required" }, { status: 400 });
+  const parsedQuery = expandFieldQuerySchema.safeParse(Object.fromEntries(searchParams));
+  if (!parsedQuery.success) return NextResponse.json({ error: "enterpriseId required" }, { status: 400 });
+  const { enterpriseId } = parsedQuery.data;
 
   const ent = await prisma.enterprise.findFirst({
     where:  { id: enterpriseId, playerId: session.user.id, type: "AGRO_FARM" },

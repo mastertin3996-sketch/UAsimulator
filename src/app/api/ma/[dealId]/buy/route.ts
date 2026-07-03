@@ -14,7 +14,7 @@ export async function POST(
   const buyerId = session.user.id;
   const { dealId } = await params;
 
-  if (!allowRate(`ma-buy:${buyerId}`, 3000)) {
+  if (!(await allowRate(`ma-buy:${buyerId}`, 3000))) {
     return NextResponse.json({ error: "Забагато запитів — спробуйте за кілька секунд" }, { status: 429 });
   }
 

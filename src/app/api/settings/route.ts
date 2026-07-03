@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
+
+const updateSettingsSchema = z.object({
+  currentPassword: z.string().optional(),
+  newPassword:     z.string().optional(),
+  username:        z.string().optional(),
+  companyName:     z.string().optional(),
+});
 
 export async function GET() {
   const session = await auth();
@@ -32,7 +40,12 @@ export async function PATCH(req: NextRequest) {
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const playerId = session.user.id;
-  const body = await req.json();
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = updateSettingsSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Некоректні дані запиту" }, { status: 400 });
+  }
+  const body = parsed.data;
 
   // Password change
   if (body.currentPassword && body.newPassword) {

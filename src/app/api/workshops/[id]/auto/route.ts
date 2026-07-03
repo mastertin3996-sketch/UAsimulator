@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+
+const updateAutoSchema = z.object({
+  autoHarvest:   z.boolean().optional(),
+  autoFertilize: z.boolean().optional(),
+});
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -17,7 +23,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   });
   if (!workshop) return NextResponse.json({ error: "Не знайдено" }, { status: 404 });
 
-  const body = await req.json().catch(() => ({})) as { autoHarvest?: boolean; autoFertilize?: boolean };
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = updateAutoSchema.safeParse(rawBody ?? {});
+  if (!parsed.success) return NextResponse.json({ error: "Невірні параметри" }, { status: 400 });
+  const body = parsed.data;
   const data: Record<string, boolean> = {};
   if (typeof body.autoHarvest  === 'boolean') data.autoHarvest  = body.autoHarvest;
   if (typeof body.autoFertilize === 'boolean') data.autoFertilize = body.autoFertilize;

@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 type Params = { params: Promise<{ id: string }> };
+
+const updateOperationalSchema = z.object({
+  isOperational: z.boolean(),
+});
 
 export async function GET(_req: NextRequest, { params }: Params) {
   const session = await auth();
@@ -238,10 +243,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const { id: enterpriseId } = await params;
   const playerId = session.user.id;
 
-  const body = await req.json().catch(() => ({})) as { isOperational?: boolean };
-  if (body.isOperational === undefined) {
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = updateOperationalSchema.safeParse(rawBody);
+  if (!parsed.success) {
     return NextResponse.json({ error: "isOperational required" }, { status: 400 });
   }
+  const body = parsed.data;
 
   const enterprise = await prisma.enterprise.findFirst({
     where: { id: enterpriseId, playerId },

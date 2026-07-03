@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 type Params = { params: Promise<{ id: string }> };
+
+const createWorkshopSchema = z.object({
+  name:        z.string().min(1).optional(),
+  footprintM2: z.number().finite().positive().optional(),
+  maxCapacity: z.number().finite().positive().optional(),
+});
 
 export async function POST(req: NextRequest, { params }: Params) {
   const session = await auth();
@@ -18,11 +25,12 @@ export async function POST(req: NextRequest, { params }: Params) {
   if (!enterprise) return NextResponse.json({ error: "Підприємство не знайдено" }, { status: 404 });
   if (!enterprise.isOperational) return NextResponse.json({ error: "Підприємство ще не збудовано" }, { status: 400 });
 
-  const body = await req.json().catch(() => ({})) as {
-    name?: string;
-    footprintM2?: number;
-    maxCapacity?: number;
-  };
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = createWorkshopSchema.safeParse(rawBody ?? {});
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Некоректні дані запиту" }, { status: 400 });
+  }
+  const body = parsed.data;
 
   const name        = body.name?.trim() ?? "Цех 1";
   const footprintM2 = body.footprintM2 ?? 200;

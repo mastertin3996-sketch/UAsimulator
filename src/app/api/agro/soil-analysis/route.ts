@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+
+const soilAnalysisQuerySchema = z.object({
+  enterpriseId: z.string().min(1),
+});
 
 const NPK_RECCOMEND: Record<string, { n: string; p: string; k: string; note: string }> = {
   'RM-WHEAT':   { n: 'висока',   p: 'середня',  k: 'низька',   note: 'Пшениця потребує азоту на початку росту' },
@@ -15,8 +20,9 @@ export async function GET(req: NextRequest) {
   const playerId = session.user.id;
 
   const { searchParams } = new URL(req.url);
-  const enterpriseId = searchParams.get("enterpriseId");
-  if (!enterpriseId) return NextResponse.json({ error: "enterpriseId required" }, { status: 400 });
+  const parsedQuery = soilAnalysisQuerySchema.safeParse(Object.fromEntries(searchParams));
+  if (!parsedQuery.success) return NextResponse.json({ error: "enterpriseId required" }, { status: 400 });
+  const { enterpriseId } = parsedQuery.data;
 
   const enterprise = await prisma.enterprise.findFirst({
     where: { id: enterpriseId, playerId, type: "AGRO_FARM", isOperational: true },

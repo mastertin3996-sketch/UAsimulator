@@ -4,10 +4,19 @@
  * DEL  /api/agro/forward-contracts/[id]  — скасувати (зі штрафом)
  */
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { AgroService } from "@/engine/AgroService";
 import { Decimal } from "@prisma/client/runtime/library";
+
+const forwardContractSchema = z.object({
+  enterpriseId:    z.string().min(1),
+  productSku:      z.string().min(1),
+  quantityUnits:   z.number().finite().positive(),
+  pricePerUnit:    z.number().finite().positive(),
+  deliveryInTicks: z.number().finite().int().min(5).max(120),
+});
 
 export async function GET() {
   const session = await auth();
@@ -43,18 +52,12 @@ export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const body = await req.json().catch(() => null);
-  if (!body) return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
-
-  const { enterpriseId, productSku, quantityUnits, pricePerUnit, deliveryInTicks } = body as {
-    enterpriseId: string; productSku: string;
-    quantityUnits: number; pricePerUnit: number; deliveryInTicks: number;
-  };
-
-  if (!enterpriseId || !productSku || !quantityUnits || !pricePerUnit || !deliveryInTicks)
-    return NextResponse.json({ error: "Missing fields" }, { status: 400 });
-  if (quantityUnits <= 0 || pricePerUnit <= 0 || deliveryInTicks < 5 || deliveryInTicks > 120)
-    return NextResponse.json({ error: "deliveryInTicks must be 5–120, qty/price > 0" }, { status: 400 });
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = forwardContractSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Missing/invalid fields: deliveryInTicks must be 5–120, qty/price > 0" }, { status: 400 });
+  }
+  const { enterpriseId, productSku, quantityUnits, pricePerUnit, deliveryInTicks } = parsed.data;
 
   // Verify enterprise belongs to player and is AGRO_FARM
   const ent = await prisma.enterprise.findFirst({

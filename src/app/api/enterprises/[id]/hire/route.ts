@@ -1,9 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Profession } from "@prisma/client";
 
 type Params = { params: Promise<{ id: string }> };
+
+const hireSchema = z.object({
+  profession: z.string().min(1),
+  salaryUah:  z.number().finite().optional(),
+  firstName:  z.string().optional(),
+  lastName:   z.string().optional(),
+});
+
+const fireSchema = z.object({
+  employeeId: z.string().min(1),
+});
 
 const MALE_FIRST   = ["Олексій","Михайло","Василь","Петро","Андрій","Іван","Сергій","Дмитро","Олег","Юрій","Максим","Богдан","Тарас","Віктор","Роман"];
 const FEMALE_FIRST = ["Олена","Тетяна","Ірина","Наталія","Юлія","Оксана","Людмила","Ганна","Марія","Анна","Вікторія","Крістіна","Катерина","Лариса"];
@@ -35,15 +47,12 @@ export async function POST(req: NextRequest, { params }: Params) {
   });
   if (!enterprise) return NextResponse.json({ error: "Підприємство не знайдено" }, { status: 404 });
 
-  const body = await req.json().catch(() => ({})) as {
-    profession?: string;
-    salaryUah?: number;
-    firstName?: string;
-    lastName?: string;
-  };
-
-  const { profession, salaryUah, firstName, lastName } = body;
-  if (!profession) return NextResponse.json({ error: "Вкажіть profession" }, { status: 400 });
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = hireSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Вкажіть profession" }, { status: 400 });
+  }
+  const { profession, salaryUah, firstName, lastName } = parsed.data;
 
   const validProfessions = Object.values(Profession) as string[];
   if (!validProfessions.includes(profession)) {
@@ -85,9 +94,13 @@ export async function DELETE(req: NextRequest, { params }: Params) {
 
   const playerId = session.user.id;
   const { id: enterpriseId } = await params;
-  const body = await req.json().catch(() => ({})) as { employeeId?: string };
 
-  if (!body.employeeId) return NextResponse.json({ error: "Потрібен employeeId" }, { status: 400 });
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = fireSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Потрібен employeeId" }, { status: 400 });
+  }
+  const body = parsed.data;
 
   const employee = await prisma.employee.findFirst({
     where: { id: body.employeeId, enterpriseId, playerId },

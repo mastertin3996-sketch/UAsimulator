@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+
+const replenishSchema = z.object({
+  productId:       z.string().min(1),
+  isActive:        z.boolean().optional(),
+  minStockTicks:   z.number().finite().optional(),
+  maxPricePerUnit: z.number().finite().positive(),
+});
 
 export async function PUT(
   req: NextRequest,
@@ -11,16 +19,13 @@ export async function PUT(
 
   const playerId     = session.user.id;
   const { id: enterpriseId } = await params;
-  const body = await req.json().catch(() => ({})) as {
-    productId?:      string;
-    isActive?:       boolean;
-    minStockTicks?:  number;
-    maxPricePerUnit?: number;
-  };
 
-  if (!body.productId || !body.maxPricePerUnit) {
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = replenishSchema.safeParse(rawBody);
+  if (!parsed.success) {
     return NextResponse.json({ error: "Потрібен productId та maxPricePerUnit" }, { status: 400 });
   }
+  const body = parsed.data;
 
   // Verify ownership
   const enterprise = await prisma.enterprise.findFirst({

@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 type Params = { params: Promise<{ id: string }> };
+
+const landListingActionSchema = z.object({
+  action: z.enum(["buy", "cancel"]).optional(),
+});
 
 // POST — buy or cancel
 export async function POST(req: NextRequest, { params }: Params) {
@@ -10,7 +15,13 @@ export async function POST(req: NextRequest, { params }: Params) {
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
-  const body = await req.json().catch(() => ({})) as { action?: "buy" | "cancel" };
+
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = landListingActionSchema.safeParse(rawBody ?? {});
+  if (!parsed.success) {
+    return NextResponse.json({ error: "action must be 'buy' or 'cancel'" }, { status: 400 });
+  }
+  const body = parsed.data;
 
   const listing = await prisma.landPlotListing.findUnique({
     where:   { id },

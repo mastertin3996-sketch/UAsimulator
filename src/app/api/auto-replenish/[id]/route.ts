@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+
+const updateReplenishRuleSchema = z.object({
+  isActive:        z.boolean().optional(),
+  minStockTicks:   z.number().finite().optional(),
+  maxPricePerUnit: z.number().finite().optional(),
+});
 
 export async function PATCH(
   req: NextRequest,
@@ -11,11 +18,13 @@ export async function PATCH(
 
   const playerId = session.user.id;
   const { id } = await params;
-  const body = await req.json().catch(() => ({})) as {
-    isActive?: boolean;
-    minStockTicks?: number;
-    maxPricePerUnit?: number;
-  };
+
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = updateReplenishRuleSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Некоректні дані оновлення" }, { status: 400 });
+  }
+  const body = parsed.data;
 
   const rule = await prisma.replenishRule.findUnique({ where: { id } });
   if (!rule || rule.playerId !== playerId) {

@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+
+const createListingSchema = z.object({
+  landPlotId:  z.string().min(1),
+  askingPrice: z.number().finite().positive(),
+});
 
 export async function GET() {
   const session = await auth();
@@ -35,10 +41,12 @@ export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const body = await req.json().catch(() => ({})) as { landPlotId?: string; askingPrice?: number };
-  if (!body.landPlotId || !body.askingPrice || body.askingPrice <= 0) {
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = createListingSchema.safeParse(rawBody);
+  if (!parsed.success) {
     return NextResponse.json({ error: "landPlotId і askingPrice (>0) обов'язкові" }, { status: 400 });
   }
+  const body = parsed.data;
 
   const plot = await prisma.landPlot.findFirst({
     where:   { id: body.landPlotId, playerId: session.user.id, status: "OWNED" },

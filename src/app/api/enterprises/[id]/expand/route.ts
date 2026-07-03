@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -7,6 +8,12 @@ const TICKS_PER_50M2  = 1;    // 1 tick per 50m² (min 2 ticks)
 
 type Params = { params: Promise<{ id: string }> };
 
+const expandSchema = z.object({
+  recipeId: z.string().min(1),
+  areaM2:   z.number().finite().min(50),
+  name:     z.string().optional(),
+});
+
 export async function POST(req: NextRequest, { params }: Params) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -14,13 +21,12 @@ export async function POST(req: NextRequest, { params }: Params) {
   const { id: enterpriseId } = await params;
   const playerId = session.user.id;
 
-  const body = await req.json().catch(() => ({})) as {
-    recipeId?: string; areaM2?: number; name?: string;
-  };
-
-  if (!body.recipeId || !body.areaM2 || body.areaM2 < 50) {
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = expandSchema.safeParse(rawBody);
+  if (!parsed.success) {
     return NextResponse.json({ error: "recipeId і areaM2 (≥50) обов'язкові" }, { status: 400 });
   }
+  const body = parsed.data;
 
   const enterprise = await prisma.enterprise.findFirst({
     where: { id: enterpriseId, playerId },

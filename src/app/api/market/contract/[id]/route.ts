@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 type Params = { params: Promise<{ id: string }> };
+
+const patchContractSchema = z.object({
+  action: z.enum(["resume", "pause"]),
+});
 
 export async function DELETE(_req: NextRequest, { params }: Params) {
   const session = await auth();
@@ -26,7 +31,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
   const { id } = await params;
   const playerId = session.user.id;
-  const { action } = await req.json();
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = patchContractSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "action має бути 'resume' або 'pause'" }, { status: 400 });
+  }
+  const { action } = parsed.data;
 
   const contract = await prisma.autoContract.findFirst({
     where: { id, OR: [{ buyerId: playerId }, { sellerId: playerId }] },

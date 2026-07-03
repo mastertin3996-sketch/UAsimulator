@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { TenderService } from "@/engine/TenderService";
+
+const fulfillTenderSchema = z.object({
+  enterpriseId: z.string().min(1),
+});
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -10,9 +15,10 @@ export async function POST(req: NextRequest, { params }: Params) {
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id: tenderId } = await params;
-  const { enterpriseId } = await req.json();
-
-  if (!enterpriseId) return NextResponse.json({ error: "enterpriseId required" }, { status: 400 });
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = fulfillTenderSchema.safeParse(rawBody);
+  if (!parsed.success) return NextResponse.json({ error: "enterpriseId required" }, { status: 400 });
+  const { enterpriseId } = parsed.data;
 
   // Verify enterprise belongs to player
   const ent = await prisma.enterprise.findFirst({ where: { id: enterpriseId, playerId: session.user.id } });

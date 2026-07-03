@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+
+const listNotificationsSchema = z.object({
+  unread: z.string().optional(),
+  take:   z.coerce.number().finite().optional(),
+  skip:   z.coerce.number().finite().optional(),
+});
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -8,9 +15,14 @@ export async function GET(req: NextRequest) {
 
   const playerId = session.user.id;
   const { searchParams } = new URL(req.url);
-  const unreadOnly = searchParams.get("unread") === "true";
-  const take = Math.min(50, Number(searchParams.get("take") ?? 50));
-  const skip = Number(searchParams.get("skip") ?? 0);
+  const parsed = listNotificationsSchema.safeParse(Object.fromEntries(searchParams));
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Некоректні параметри запиту" }, { status: 400 });
+  }
+  const query = parsed.data;
+  const unreadOnly = query.unread === "true";
+  const take = Math.min(50, query.take ?? 50);
+  const skip = query.skip ?? 0;
 
   // ── DB notifications ──────────────────────────────────────────────────────
   const [dbNotifs, dbUnreadCount, lastTick] = await Promise.all([

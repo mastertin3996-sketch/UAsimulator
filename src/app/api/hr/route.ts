@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Profession, EnterpriseType } from "@prisma/client";
+
+const hrSalaryPatchSchema = z.object({
+  percentChange: z.number().finite().refine((v) => v !== 0 && Math.abs(v) <= 200, {
+    message: "percentChange має бути від -200 до 200 (крім 0)",
+  }),
+});
 
 const PROF_UA: Record<Profession, string> = {
   ACCOUNTANT: "Бухгалтер", MANAGER: "Менеджер", OPERATOR: "Оператор",
@@ -160,11 +167,12 @@ export async function PATCH(req: NextRequest) {
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const playerId = session.user.id;
 
-  const body = await req.json().catch(() => ({})) as { percentChange?: number };
-  const pct  = Number(body.percentChange ?? 0);
-  if (!pct || Math.abs(pct) > 200) {
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = hrSalaryPatchSchema.safeParse(rawBody);
+  if (!parsed.success) {
     return NextResponse.json({ error: "percentChange має бути від -200 до 200 (крім 0)" }, { status: 400 });
   }
+  const pct = parsed.data.percentChange;
 
   const multiplier = 1 + pct / 100;
   const result = await prisma.$executeRaw`

@@ -1,6 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+
+const createSupplyOfferSchema = z.object({
+  productSku:      z.string().min(1),
+  pricePerUnit:    z.number().finite().positive(),
+  quantityPerTick: z.number().finite().positive(),
+  minQuality:      z.number().finite().optional().default(0),
+  description:     z.string().optional().default(""),
+});
+
+const deleteSupplyOfferSchema = z.object({
+  id: z.string().min(1),
+});
 
 export async function GET() {
   const session = await auth();
@@ -43,12 +56,11 @@ export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const body = await req.json().catch(() => ({})) as {
-    productSku?: string; pricePerUnit?: number; quantityPerTick?: number;
-    minQuality?: number; description?: string;
-  };
-  if (!body.productSku || !body.pricePerUnit || !body.quantityPerTick)
+  const rawBody = await req.json().catch(() => ({}));
+  const parsed  = createSupplyOfferSchema.safeParse(rawBody);
+  if (!parsed.success)
     return NextResponse.json({ error: "productSku, pricePerUnit, quantityPerTick required" }, { status: 400 });
+  const body = parsed.data;
 
   const offer = await prisma.supplyOffer.create({
     data: {
@@ -56,8 +68,8 @@ export async function POST(req: NextRequest) {
       productSku:      body.productSku,
       pricePerUnit:    body.pricePerUnit,
       quantityPerTick: body.quantityPerTick,
-      minQuality:      body.minQuality ?? 0,
-      description:     body.description ?? "",
+      minQuality:      body.minQuality,
+      description:     body.description,
     },
   });
 
@@ -68,8 +80,10 @@ export async function DELETE(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { id } = await req.json().catch(() => ({})) as { id?: string };
-  if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
+  const rawBody = await req.json().catch(() => ({}));
+  const parsedBody = deleteSupplyOfferSchema.safeParse(rawBody);
+  if (!parsedBody.success) return NextResponse.json({ error: "id required" }, { status: 400 });
+  const { id } = parsedBody.data;
 
   await prisma.supplyOffer.updateMany({
     where: { id, sellerId: session.user.id },

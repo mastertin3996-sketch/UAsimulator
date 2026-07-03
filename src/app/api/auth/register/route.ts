@@ -1,20 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 
+const registerSchema = z.object({
+  email:       z.string().min(1),
+  username:    z.string().min(3).max(30),
+  companyName: z.string().optional(),
+  password:    z.string().min(8),
+});
+
 export async function POST(req: NextRequest) {
   try {
-    const { email, username, companyName, password } = await req.json();
-
-    if (!email || !username || !password) {
+    const rawBody = await req.json().catch(() => null);
+    const parsed  = registerSchema.safeParse(rawBody);
+    if (!parsed.success) {
       return NextResponse.json({ error: "Всі поля обов'язкові" }, { status: 400 });
     }
-    if (password.length < 8) {
-      return NextResponse.json({ error: "Пароль мінімум 8 символів" }, { status: 400 });
-    }
-    if (username.length < 3 || username.length > 30) {
-      return NextResponse.json({ error: "Нікнейм 3–30 символів" }, { status: 400 });
-    }
+    const { email, username, companyName, password } = parsed.data;
 
     const existing = await prisma.player.findFirst({
       where: { OR: [{ email }, { username }] },

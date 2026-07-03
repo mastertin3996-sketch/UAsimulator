@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+
+const hrPolicySchema = z.object({
+  isActive:           z.boolean().optional(),
+  autoAdjustSalaries: z.boolean().optional(),
+  targetMood:         z.number().finite().min(0).max(1).optional(),
+  maxSalaryCapUah:    z.number().finite().positive().optional(),
+});
 
 export async function GET() {
   const session = await auth();
@@ -21,19 +29,12 @@ export async function PUT(req: NextRequest) {
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const playerId = session.user.id;
 
-  const body = await req.json().catch(() => ({})) as {
-    isActive?:           boolean;
-    autoAdjustSalaries?: boolean;
-    targetMood?:         number;
-    maxSalaryCapUah?:    number;
-  };
-
-  if (body.targetMood !== undefined && (body.targetMood < 0 || body.targetMood > 1)) {
-    return NextResponse.json({ error: "targetMood має бути 0–1" }, { status: 400 });
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = hrPolicySchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Некоректні дані запиту" }, { status: 400 });
   }
-  if (body.maxSalaryCapUah !== undefined && body.maxSalaryCapUah <= 0) {
-    return NextResponse.json({ error: "maxSalaryCapUah має бути > 0" }, { status: 400 });
-  }
+  const body = parsed.data;
 
   const policy = await prisma.hRAutomationPolicy.upsert({
     where:  { playerId },

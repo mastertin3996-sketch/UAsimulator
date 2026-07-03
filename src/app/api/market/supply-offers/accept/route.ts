@@ -1,14 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+
+const acceptOfferSchema = z.object({
+  offerId: z.string().min(1),
+});
 
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const buyerId = session.user.id;
 
-  const { offerId } = await req.json().catch(() => ({})) as { offerId?: string };
-  if (!offerId) return NextResponse.json({ error: "offerId required" }, { status: 400 });
+  const rawBody = await req.json().catch(() => ({}));
+  const parsed  = acceptOfferSchema.safeParse(rawBody);
+  if (!parsed.success) return NextResponse.json({ error: "offerId required" }, { status: 400 });
+  const { offerId } = parsed.data;
 
   const offer = await prisma.supplyOffer.findFirst({
     where: { id: offerId, isActive: true },

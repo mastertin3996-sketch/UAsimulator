@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+
+const createSyndicateSchema = z.object({
+  name:        z.string().trim().min(3).max(40),
+  description: z.string().trim().optional(),
+  isPublic:    z.boolean().optional(),
+});
 
 export async function GET() {
   const session = await auth();
@@ -59,11 +66,12 @@ export async function POST(req: NextRequest) {
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const playerId = session.user.id;
 
-  const body = await req.json().catch(() => ({})) as { name?: string; description?: string; isPublic?: boolean };
-  if (!body.name?.trim()) return NextResponse.json({ error: "Потрібна назва синдикату" }, { status: 400 });
-  if (body.name.trim().length < 3 || body.name.trim().length > 40) {
-    return NextResponse.json({ error: "Назва: 3–40 символів" }, { status: 400 });
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = createSyndicateSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Потрібна назва синдикату (3–40 символів)" }, { status: 400 });
   }
+  const body = parsed.data;
 
   const existing = await prisma.syndicateMember.findUnique({ where: { playerId }, select: { id: true } });
   if (existing) return NextResponse.json({ error: "Ви вже є членом синдикату" }, { status: 400 });
@@ -71,14 +79,14 @@ export async function POST(req: NextRequest) {
   const alreadyLeader = await prisma.syndicate.findUnique({ where: { leaderId: playerId }, select: { id: true } });
   if (alreadyLeader) return NextResponse.json({ error: "Ви вже є лідером синдикату" }, { status: 400 });
 
-  const nameTaken = await prisma.syndicate.findUnique({ where: { name: body.name.trim() }, select: { id: true } });
+  const nameTaken = await prisma.syndicate.findUnique({ where: { name: body.name }, select: { id: true } });
   if (nameTaken) return NextResponse.json({ error: "Назва вже зайнята" }, { status: 409 });
 
   const syndicate = await prisma.$transaction(async (tx) => {
     const s = await tx.syndicate.create({
       data: {
-        name:        body.name!.trim(),
-        description: body.description?.trim() || null,
+        name:        body.name,
+        description: body.description || null,
         leaderId:    playerId,
         isPublic:    body.isPublic ?? true,
       },

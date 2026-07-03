@@ -1,9 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ForeignTradeService } from "@/engine/ForeignTradeService";
 
 const svc = () => new ForeignTradeService(prisma);
+
+const foreignTradeSchema = z.object({
+  action:        z.enum(["export", "import", "fx"]),
+  enterpriseId:  z.string().min(1).optional(),
+  cityId:        z.string().min(1).optional(),
+  commodity:     z.string().min(1).optional(),
+  quantity:      z.number().finite().optional(),
+  direction:     z.enum(["UAH_TO_USD", "USD_TO_UAH"]).optional(),
+  amount:        z.number().finite().optional(),
+});
 
 // GET /api/foreign-trade — tickers + player inventories + FX rate + declarations + cities
 export async function GET() {
@@ -90,15 +101,12 @@ export async function POST(req: NextRequest) {
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const playerId = session.user.id;
 
-  const body = await req.json().catch(() => ({})) as {
-    action:        "export" | "import" | "fx";
-    enterpriseId?: string;
-    cityId?:       string;
-    commodity?:    string;
-    quantity?:     number;
-    direction?:    "UAH_TO_USD" | "USD_TO_UAH";
-    amount?:       number;
-  };
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = foreignTradeSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Невідома дія" }, { status: 400 });
+  }
+  const body = parsed.data;
 
   const service = svc();
 

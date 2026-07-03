@@ -7,9 +7,14 @@
  * Гравець (з LOGISTICS_HUB) бере замовлення.
  */
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { LogisticsFreightService } from "@/engine/LogisticsFreightService";
+
+const acceptOrderSchema = z.object({
+  orderId: z.string().min(1),
+});
 
 export async function GET(_req: NextRequest) {
   const session = await auth();
@@ -66,8 +71,10 @@ export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const body = await req.json().catch(() => null);
-  if (!body?.orderId) return NextResponse.json({ error: "orderId required" }, { status: 400 });
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = acceptOrderSchema.safeParse(rawBody);
+  if (!parsed.success) return NextResponse.json({ error: "orderId required" }, { status: 400 });
+  const body = parsed.data;
 
   const currentTick = await prisma.gameTick.findFirst({
     orderBy: { tickNumber: "desc" }, select: { tickNumber: true },

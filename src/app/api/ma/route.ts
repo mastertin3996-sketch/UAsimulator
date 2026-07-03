@@ -112,7 +112,7 @@ export async function POST(req: NextRequest) {
 
   const playerId = session.user.id;
 
-  if (!allowRate(`ma-create:${playerId}`, 3000)) {
+  if (!(await allowRate(`ma-create:${playerId}`, 3000))) {
     return NextResponse.json({ error: "Забагато запитів — спробуйте за кілька секунд" }, { status: 429 });
   }
 

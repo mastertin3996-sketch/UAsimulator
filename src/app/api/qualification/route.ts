@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+
+const startTrainingSchema = z.object({
+  employeeId: z.string().min(1),
+});
 
 // Training cost & duration per level (1-5)
 const TRAINING_CONFIG: Record<number, { costUah: number; ticks: number; efficiencyBonus: number }> = {
@@ -71,8 +76,12 @@ export async function POST(req: NextRequest) {
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const playerId = session.user.id;
 
-  const body = await req.json().catch(() => ({})) as { employeeId?: string };
-  if (!body.employeeId) return NextResponse.json({ error: "Потрібен employeeId" }, { status: 400 });
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = startTrainingSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Потрібен employeeId" }, { status: 400 });
+  }
+  const body = parsed.data;
 
   const employee = await prisma.employee.findFirst({
     where: { id: body.employeeId, playerId },

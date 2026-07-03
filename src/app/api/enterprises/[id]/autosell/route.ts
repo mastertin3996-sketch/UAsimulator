@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 type Params = { params: Promise<{ id: string }> };
+
+const autosellSchema = z.object({
+  productId:     z.string().min(1),
+  autoSellQty:   z.number().finite().optional(),
+  autoSellPrice: z.number().finite().nullable().optional(),
+});
 
 export async function PATCH(req: NextRequest, { params }: Params) {
   const session = await auth();
@@ -17,13 +24,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   });
   if (!enterprise) return NextResponse.json({ error: "Підприємство не знайдено" }, { status: 404 });
 
-  const body = await req.json().catch(() => ({})) as {
-    productId?:     string;
-    autoSellQty?:   number;
-    autoSellPrice?: number | null;
-  };
-
-  if (!body.productId) return NextResponse.json({ error: "productId обов'язковий" }, { status: 400 });
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = autosellSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "productId обов'язковий" }, { status: 400 });
+  }
+  const body = parsed.data;
 
   const threshold = Math.max(0, Number(body.autoSellQty ?? 0));
   const price     = threshold > 0 && body.autoSellPrice != null && Number(body.autoSellPrice) > 0

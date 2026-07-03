@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+
+const orderbookQuerySchema = z.object({
+  productId: z.string().min(1),
+});
 
 // GET /api/market/orderbook?productId=...
 // Returns asks (sells) + bids (buys) + last 20 trades + reference price
@@ -8,8 +13,10 @@ export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const productId = new URL(req.url).searchParams.get("productId");
-  if (!productId) return NextResponse.json({ error: "productId required" }, { status: 400 });
+  const { searchParams } = new URL(req.url);
+  const parsedQuery = orderbookQuerySchema.safeParse(Object.fromEntries(searchParams));
+  if (!parsedQuery.success) return NextResponse.json({ error: "productId required" }, { status: 400 });
+  const { productId } = parsedQuery.data;
 
   const now = new Date();
 

@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { LoanService } from "@/engine/LoanService";
 import { BankingLiquidityService } from "@/engine/BankingLiquidityService";
+
+const bankingQuerySchema = z.object({
+  term: z.coerce.number().int().positive().optional().default(12),
+});
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -10,7 +15,11 @@ export async function GET(req: NextRequest) {
 
   const playerId = session.user.id;
   const { searchParams } = new URL(req.url);
-  const termMonths = parseInt(searchParams.get("term") ?? "12", 10);
+  const parsed = bankingQuerySchema.safeParse(Object.fromEntries(searchParams));
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Некоректний параметр term" }, { status: 400 });
+  }
+  const termMonths = parsed.data.term;
 
   const loanSvc    = new LoanService(prisma);
   const bankingSvc = new BankingLiquidityService(prisma);

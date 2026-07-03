@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { SeedQuality } from "@prisma/client";
 
 const SEED_PRICES: Record<string, number> = { BASIC: 0, STANDARD: 0, PREMIUM: 5000 };
+
+const seedQualitySchema = z.object({
+  enterpriseId: z.string().min(1),
+  seedQuality:  z.enum(['BASIC', 'STANDARD', 'PREMIUM']),
+});
 
 // PATCH /api/agro/seed-quality  { enterpriseId, seedQuality: "BASIC"|"STANDARD"|"PREMIUM" }
 export async function PATCH(req: NextRequest) {
@@ -11,10 +16,10 @@ export async function PATCH(req: NextRequest) {
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const playerId = session.user.id;
 
-  const { enterpriseId, seedQuality: rawQuality } = await req.json().catch(() => ({})) as { enterpriseId?: string; seedQuality?: string };
-  if (!enterpriseId || !rawQuality) return NextResponse.json({ error: "enterpriseId і seedQuality required" }, { status: 400 });
-  if (!['BASIC', 'STANDARD', 'PREMIUM'].includes(rawQuality)) return NextResponse.json({ error: "Недійсна якість насіння" }, { status: 400 });
-  const seedQuality = rawQuality as SeedQuality;
+  const rawBody = await req.json().catch(() => ({}));
+  const parsed  = seedQualitySchema.safeParse(rawBody);
+  if (!parsed.success) return NextResponse.json({ error: "enterpriseId і дійсний seedQuality required" }, { status: 400 });
+  const { enterpriseId, seedQuality } = parsed.data;
 
   const enterprise = await prisma.enterprise.findFirst({
     where: { id: enterpriseId, playerId, type: "AGRO_FARM", isOperational: true },

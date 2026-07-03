@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { MachineryType } from "@prisma/client";
@@ -11,6 +12,13 @@ const MACHINERY_CONFIG: Record<MachineryType, { nameUa: string; price: number; r
   SEEDER:           { nameUa: "Сівалка",        price:  90_000, rentPerTick: 180, yieldBonus: 0.10 },
   SPRAYER:          { nameUa: "Обприскувач",    price:  75_000, rentPerTick: 150, yieldBonus: 0.05 },
 };
+
+const machineryActionSchema = z.object({
+  action:        z.string().optional(),
+  machineryType: z.nativeEnum(MachineryType).optional(),
+  machineryId:   z.string().min(1).optional(),
+  isRent:        z.boolean().optional(),
+});
 
 export async function GET(_: Request, { params }: Params) {
   const session = await auth();
@@ -56,7 +64,12 @@ export async function POST(req: NextRequest, { params }: Params) {
   });
   if (!enterprise) return NextResponse.json({ error: "Підприємство не знайдено" }, { status: 404 });
 
-  const body = await req.json().catch(() => ({})) as { action?: string; machineryType?: MachineryType; machineryId?: string; isRent?: boolean };
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = machineryActionSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Некоректні дані запиту" }, { status: 400 });
+  }
+  const body = parsed.data;
 
   if (body.action === "repair") {
     const m = await prisma.farmMachinery.findFirst({ where: { id: body.machineryId, enterpriseId } });

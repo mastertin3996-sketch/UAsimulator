@@ -1,14 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+
+const harvestSchema = z.object({
+  workshopId: z.string().min(1),
+});
 
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const playerId = session.user.id;
 
-  const { workshopId } = await req.json().catch(() => ({})) as { workshopId?: string };
-  if (!workshopId) return NextResponse.json({ error: "workshopId required" }, { status: 400 });
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = harvestSchema.safeParse(rawBody);
+  if (!parsed.success) return NextResponse.json({ error: "workshopId required" }, { status: 400 });
+  const { workshopId } = parsed.data;
 
   const ws = await prisma.workshop.findFirst({
     where: { id: workshopId, enterprise: { playerId } },

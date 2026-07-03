@@ -1,9 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { MacroEventType } from "@prisma/client";
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? "mastertin3996@gmail.com";
+
+const triggerEventSchema = z.object({
+  type:             z.enum(["POWER_OUTAGE", "LOGISTICS_BOTTLENECK", "GRAIN_MARKET_BOOM"]),
+  durationTicks:    z.number().finite().positive().optional(),
+  cityId:           z.string().min(1).optional(),
+  fromCityId:       z.string().min(1).optional(),
+  toCityId:         z.string().min(1).optional(),
+  demandMultiplier: z.number().finite().positive().optional(),
+});
 
 // GET /api/macro-events — active macro events (public, all players)
 export async function GET() {
@@ -54,21 +64,13 @@ export async function POST(req: NextRequest) {
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (session.user.email !== ADMIN_EMAIL) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const body = await req.json().catch(() => ({})) as {
-    type?:              string;
-    durationTicks?:     number;
-    cityId?:            string;
-    fromCityId?:        string;
-    toCityId?:          string;
-    demandMultiplier?:  number;
-  };
-
-  if (!body.type) return NextResponse.json({ error: "type обов'язковий" }, { status: 400 });
-
-  const validTypes = ["POWER_OUTAGE", "LOGISTICS_BOTTLENECK", "GRAIN_MARKET_BOOM"];
-  if (!validTypes.includes(body.type)) {
+  const rawBody = await req.json().catch(() => ({}));
+  const parsed  = triggerEventSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    const validTypes = ["POWER_OUTAGE", "LOGISTICS_BOTTLENECK", "GRAIN_MARKET_BOOM"];
     return NextResponse.json({ error: `type має бути одним з: ${validTypes.join(", ")}` }, { status: 400 });
   }
+  const body = parsed.data;
 
   const lastTick = await prisma.gameTick.findFirst({ orderBy: { tickNumber: "desc" }, select: { tickNumber: true } });
   const currentTick = lastTick?.tickNumber ?? 1n;

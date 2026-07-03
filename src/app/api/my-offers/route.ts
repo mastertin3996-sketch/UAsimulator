@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -7,14 +8,23 @@ const UA_STATUS: Record<string, string> = {
   FILLED: "FILLED", CANCELLED: "CANCELLED", EXPIRED: "EXPIRED",
 };
 
+const myOffersQuerySchema = z.object({
+  status: z.string().min(1).optional().default("ACTIVE"),
+  type:   z.enum(["SELL", "BUY"]).optional().default("SELL"),
+});
+
 export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const playerId = session.user.id;
   const { searchParams } = new URL(req.url);
-  const status  = searchParams.get("status") ?? "ACTIVE";
-  const orderType = searchParams.get("type") ?? "SELL"; // "SELL" | "BUY"
+  const parsedQuery = myOffersQuerySchema.safeParse(Object.fromEntries(searchParams));
+  if (!parsedQuery.success) {
+    return NextResponse.json({ error: "Невірні параметри запиту" }, { status: 400 });
+  }
+  const status  = parsedQuery.data.status;
+  const orderType = parsedQuery.data.type; // "SELL" | "BUY"
 
   const where: Record<string, unknown> = { playerId, type: orderType };
   if (status === "ACTIVE") {

@@ -1,6 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+
+const createAutoContractSchema = z.object({
+  resourceType:    z.string().min(1),
+  quantityPerTick: z.number().finite().positive(),
+  maxPricePerUnit: z.number().finite().positive(),
+  minQuality:      z.number().finite().optional(),
+});
+
+const updateAutoContractSchema = z.object({
+  isActive:        z.boolean().optional(),
+  quantityPerTick: z.number().finite().positive().optional(),
+  maxPricePerUnit: z.number().finite().positive().optional(),
+  minQuality:      z.number().finite().optional(),
+});
 
 // GET /api/auto-contract — list player's AutoContracts + product names
 export async function GET() {
@@ -59,19 +74,12 @@ export async function POST(req: NextRequest) {
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const playerId = session.user.id;
 
-  const body = await req.json().catch(() => ({})) as {
-    resourceType?:    string;
-    quantityPerTick?: number;
-    maxPricePerUnit?: number;
-    minQuality?:      number;
-  };
-
-  if (!body.resourceType || !body.quantityPerTick || !body.maxPricePerUnit) {
-    return NextResponse.json({ error: "resourceType, quantityPerTick та maxPricePerUnit обов'язкові" }, { status: 400 });
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = createAutoContractSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "resourceType, quantityPerTick та maxPricePerUnit обов'язкові (кількість і ціна > 0)" }, { status: 400 });
   }
-  if (body.quantityPerTick <= 0 || body.maxPricePerUnit <= 0) {
-    return NextResponse.json({ error: "Кількість та ціна мають бути > 0" }, { status: 400 });
-  }
+  const body = parsed.data;
 
   // Verify product exists
   const product = await prisma.product.findFirst({ where: { sku: body.resourceType } });
@@ -100,15 +108,15 @@ export async function PATCH(req: NextRequest) {
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const playerId = session.user.id;
 
-  const id   = req.nextUrl.searchParams.get("id");
-  const body = await req.json().catch(() => ({})) as {
-    isActive?:        boolean;
-    quantityPerTick?: number;
-    maxPricePerUnit?: number;
-    minQuality?:      number;
-  };
-
+  const id = req.nextUrl.searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id обов'язковий" }, { status: 400 });
+
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = updateAutoContractSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Некоректні дані оновлення" }, { status: 400 });
+  }
+  const body = parsed.data;
 
   const existing = await prisma.autoContract.findFirst({ where: { id, buyerId: playerId } });
   if (!existing) return NextResponse.json({ error: "Контракт не знайдено" }, { status: 404 });

@@ -1,9 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { LivestockSpecies } from "@prisma/client";
 
 type Params = { params: Promise<{ id: string }> };
+
+const livestockSchema = z.object({
+  species:   z.nativeEnum(LivestockSpecies).optional(),
+  headCount: z.number().finite().optional(),
+  action:    z.literal("slaughter").optional(),
+  herdId:    z.string().optional(),
+});
 
 const LIVESTOCK_CONFIG: Record<LivestockSpecies, {
   nameUa: string; pricePerHead: number; feedSkuPerTick: number; feedQtyPerHead: number;
@@ -55,7 +63,12 @@ export async function POST(req: NextRequest, { params }: Params) {
   });
   if (!enterprise) return NextResponse.json({ error: "Підприємство не знайдено" }, { status: 404 });
 
-  const body = await req.json().catch(() => ({})) as { species?: LivestockSpecies; headCount?: number; action?: "slaughter"; herdId?: string };
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = livestockSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "species і headCount (>0) обов'язкові" }, { status: 400 });
+  }
+  const body = parsed.data;
 
   if (body.action === "slaughter") {
     return NextResponse.json(

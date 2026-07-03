@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Profession } from "@prisma/client";
 
 type Params = { params: Promise<{ id: string }> };
+
+const hrPatchSchema = z.object({
+  action: z.literal("resolveStrike").optional(),
+  roleId: z.string().min(1).optional(),
+  salary: z.number().finite().positive().optional(),
+});
 
 // PATCH — update salary OR resolve strikes
 export async function PATCH(req: NextRequest, { params }: Params) {
@@ -12,7 +19,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
   const { id: enterpriseId } = await params;
   const playerId = session.user.id;
-  const body = await req.json();
+
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = hrPatchSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Невірні параметри" }, { status: 400 });
+  }
+  const body = parsed.data;
 
   const enterprise = await prisma.enterprise.findFirst({ where: { id: enterpriseId, playerId } });
   if (!enterprise) return NextResponse.json({ error: "Підприємство не знайдено" }, { status: 404 });
@@ -49,7 +62,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
   // ── Update salary for profession ──────────────────────────────────────────
   const { roleId, salary } = body;
-  if (!roleId || !salary || salary <= 0) {
+  if (!roleId || !salary) {
     return NextResponse.json({ error: "Невірні параметри" }, { status: 400 });
   }
 

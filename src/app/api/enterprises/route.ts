@@ -1,8 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { EnterpriseType } from "@prisma/client";
 import { Decimal } from "@prisma/client/runtime/library";
+
+const createEnterpriseSchema = z.object({
+  landPlotId:       z.string().min(1),
+  type:             z.string().min(1),
+  name:             z.string().min(1),
+  footprintM2:      z.number().finite().positive().optional(),
+  totalFloorAreaM2: z.number().finite().positive().optional(),
+});
 
 const CATEGORY_MAP: Record<EnterpriseType, "EXTRACTION" | "PRODUCTION" | "TRADE" | "LOGISTICS"> = {
   OFFICE: "PRODUCTION",
@@ -163,16 +172,16 @@ export async function POST(req: NextRequest) {
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const playerId = session.user.id;
-  const body = await req.json().catch(() => ({})) as {
-    landPlotId?: string;
-    type?: string;
-    name?: string;
-    footprintM2?: number;
-    totalFloorAreaM2?: number;
-  };
+
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = createEnterpriseSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Потрібен landPlotId, type, name" }, { status: 400 });
+  }
+  const body = parsed.data;
 
   const { landPlotId, type, name } = body;
-  if (!landPlotId || !type || !name?.trim()) {
+  if (!name.trim()) {
     return NextResponse.json({ error: "Потрібен landPlotId, type, name" }, { status: 400 });
   }
 

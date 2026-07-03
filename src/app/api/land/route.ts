@@ -1,15 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Decimal } from "@prisma/client/runtime/library";
+
+const landQuerySchema = z.object({
+  cityId: z.string().min(1).optional(),
+  plotId: z.string().min(1).optional(),
+});
+
+const landActionSchema = z.object({
+  plotId: z.string().min(1),
+  action: z.enum(["buy", "lease"]),
+});
 
 export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
-  const cityId  = searchParams.get("cityId");
-  const plotId  = searchParams.get("plotId");
+  const parsedQuery = landQuerySchema.safeParse(Object.fromEntries(searchParams));
+  if (!parsedQuery.success) {
+    return NextResponse.json({ error: "Некоректні параметри запиту" }, { status: 400 });
+  }
+  const { cityId = null, plotId = null } = parsedQuery.data;
 
   // Single plot lookup (for enterprise create wizard pre-fill)
   if (plotId) {
@@ -74,12 +88,13 @@ export async function POST(req: NextRequest) {
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const playerId = session.user.id;
-  const body = await req.json().catch(() => ({}));
-  const { plotId, action } = body as { plotId?: string; action?: "buy" | "lease" };
 
-  if (!plotId || !action || !["buy", "lease"].includes(action)) {
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = landActionSchema.safeParse(rawBody);
+  if (!parsed.success) {
     return NextResponse.json({ error: "Потрібен plotId та action (buy|lease)" }, { status: 400 });
   }
+  const { plotId, action } = parsed.data;
 
   const plot = await prisma.landPlot.findUnique({ where: { id: plotId } });
   if (!plot) return NextResponse.json({ error: "Ділянка не знайдена" }, { status: 404 });

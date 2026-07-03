@@ -1,20 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Decimal } from "@prisma/client/runtime/library";
+
+const adjustSchema = z.object({
+  playerId:  z.string().min(1),
+  amountUah: z.number().finite().refine(v => v !== 0, "amountUah must not be zero"),
+  reason:    z.string().optional(),
+});
 
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const body = await req.json().catch(() => ({})) as {
-    playerId?: string; amountUah?: number; reason?: string;
-  };
-
-  if (!body.playerId) return NextResponse.json({ error: "Потрібен playerId" }, { status: 400 });
-  if (typeof body.amountUah !== "number" || body.amountUah === 0) {
-    return NextResponse.json({ error: "Потрібна сума (не нуль)" }, { status: 400 });
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = adjustSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Потрібен playerId та сума amountUah (число, не нуль)" }, { status: 400 });
   }
+  const body = parsed.data;
 
   const player = await prisma.player.findUnique({
     where:  { id: body.playerId },

@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 type Params = { params: Promise<{ id: string }> };
+
+const patchOfferSchema = z.object({
+  price:    z.number().finite().positive().optional(),
+  minOrder: z.number().finite().positive().optional(),
+});
 
 // PATCH — update price / minOrder
 export async function PATCH(req: NextRequest, { params }: Params) {
@@ -11,7 +17,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
   const { id } = await params;
   const playerId = session.user.id;
-  const { price, minOrder } = await req.json();
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = patchOfferSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "price та minOrder мають бути числами > 0" }, { status: 400 });
+  }
+  const { price, minOrder } = parsed.data;
 
   const order = await prisma.marketOrder.findFirst({
     where: { id, playerId, status: { in: ["OPEN", "PARTIALLY_FILLED"] } },

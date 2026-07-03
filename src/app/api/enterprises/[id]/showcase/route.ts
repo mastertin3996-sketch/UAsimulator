@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 type Params = { params: Promise<{ id: string }> };
+
+const showcasePatchSchema = z.object({
+  productId:      z.string().min(1),
+  price:          z.number().finite().positive().optional(),
+  isActive:       z.boolean().optional(),
+  startPromotion: z.boolean().optional(),
+});
 
 export async function GET(_req: NextRequest, { params }: Params) {
   const session = await auth();
@@ -84,13 +92,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
   const { id: enterpriseId } = await params;
   const playerId = session.user.id;
-  const body = await req.json().catch(() => ({})) as {
-    productId?: string; price?: number; isActive?: boolean;
-    startPromotion?: boolean; // if true: start a 5-tick promotion (-15% price, ×1.5 NPC share)
-  };
 
-  if (!body.productId) return NextResponse.json({ error: "productId required" }, { status: 400 });
-  if (body.price !== undefined && body.price <= 0) return NextResponse.json({ error: "Ціна має бути > 0" }, { status: 400 });
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = showcasePatchSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "productId required" }, { status: 400 });
+  }
+  const body = parsed.data;
 
   const enterprise = await prisma.enterprise.findFirst({ where: { id: enterpriseId, playerId } });
   if (!enterprise) return NextResponse.json({ error: "Not found" }, { status: 404 });

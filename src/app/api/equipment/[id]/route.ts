@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { EquipmentService } from "@/engine/EquipmentService";
 
 type Params = { params: Promise<{ id: string }> };
+
+const equipmentActionSchema = z.object({
+  action: z.enum(["maintenance", "repair"]),
+});
 
 // POST /api/equipment/[id] — body: { action: "maintenance" | "repair" }
 export async function POST(req: NextRequest, { params }: Params) {
@@ -12,11 +17,13 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   const { id }    = await params;
   const playerId  = session.user.id;
-  const { action } = await req.json().catch(() => ({})) as { action?: string };
 
-  if (action !== "maintenance" && action !== "repair") {
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = equipmentActionSchema.safeParse(rawBody);
+  if (!parsed.success) {
     return NextResponse.json({ error: "action must be 'maintenance' or 'repair'" }, { status: 400 });
   }
+  const { action } = parsed.data;
 
   try {
     const svc = new EquipmentService(prisma);

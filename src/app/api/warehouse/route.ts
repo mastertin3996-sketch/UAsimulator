@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+
+const createOfferSchema = z.object({
+  enterpriseId: z.string().min(1),
+  pricePerTick: z.number().finite().positive(),
+  capacityKg:   z.number().finite().positive(),
+  description:  z.string().optional(),
+});
 
 // GET — list all active warehouse rental offers
 export async function GET() {
@@ -41,15 +49,12 @@ export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const body = await req.json().catch(() => ({})) as {
-    enterpriseId?: string; pricePerTick?: number; capacityKg?: number; description?: string;
-  };
-  if (!body.enterpriseId || !body.pricePerTick || !body.capacityKg) {
-    return NextResponse.json({ error: "enterpriseId, pricePerTick і capacityKg обов'язкові" }, { status: 400 });
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = createOfferSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "enterpriseId, pricePerTick і capacityKg обов'язкові (числа > 0)" }, { status: 400 });
   }
-  if (body.pricePerTick <= 0 || body.capacityKg <= 0) {
-    return NextResponse.json({ error: "Значення мають бути > 0" }, { status: 400 });
-  }
+  const body = parsed.data;
 
   const enterprise = await prisma.enterprise.findFirst({
     where: { id: body.enterpriseId, playerId: session.user.id, type: "WAREHOUSE" },

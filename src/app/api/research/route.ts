@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ResearchDevelopmentService } from "@/engine/ResearchDevelopmentService";
+
+const setActiveResearchSchema = z.object({
+  techCode: z.string().min(1).nullable().optional(),
+});
 
 export async function GET() {
   const session = await auth();
@@ -54,7 +59,12 @@ export async function POST(req: NextRequest) {
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const playerId = session.user.id;
-  const body = await req.json().catch(() => ({})) as { techCode?: string | null };
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = setActiveResearchSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Некоректний techCode" }, { status: 400 });
+  }
+  const body = parsed.data;
 
   let techId: string | null = null;
   if (body.techCode) {

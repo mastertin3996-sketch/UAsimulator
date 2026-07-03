@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { FiscalBudgetService } from "@/engine/FiscalBudgetService";
 
 const fiscal = new FiscalBudgetService(prisma);
+
+const applySubsidySchema = z.object({
+  enterpriseId: z.string().min(1),
+  programType:  z.string().min(1),
+});
 
 // GET /api/subsidies — available programs + player's applications
 export async function GET() {
@@ -64,10 +70,12 @@ export async function POST(req: NextRequest) {
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const playerId = session.user.id;
 
-  const body = await req.json().catch(() => ({})) as { enterpriseId?: string; programType?: string };
-  if (!body.enterpriseId || !body.programType) {
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = applySubsidySchema.safeParse(rawBody);
+  if (!parsed.success) {
     return NextResponse.json({ error: "enterpriseId і programType обов'язкові" }, { status: 400 });
   }
+  const body = parsed.data;
 
   const lastTick = await prisma.gameTick.findFirst({ orderBy: { tickNumber: "desc" }, select: { tickNumber: true } });
   const currentTick = lastTick?.tickNumber ?? 1n;

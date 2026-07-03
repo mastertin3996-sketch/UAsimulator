@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+
+const subscriptionActionSchema = z.object({
+  action: z.enum(["subscribe", "unsubscribe"]).optional(),
+});
 
 type Params = { params: Promise<{ offerId: string }> };
 
@@ -11,7 +16,10 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   const { offerId } = await params;
   const playerId = session.user.id;
-  const body = await req.json().catch(() => ({})) as { action?: "subscribe" | "unsubscribe" };
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = subscriptionActionSchema.safeParse(rawBody ?? {});
+  if (!parsed.success) return NextResponse.json({ error: "action має бути subscribe або unsubscribe" }, { status: 400 });
+  const body = parsed.data;
 
   const offer = await prisma.warehouseRentalOffer.findUnique({
     where:  { id: offerId },

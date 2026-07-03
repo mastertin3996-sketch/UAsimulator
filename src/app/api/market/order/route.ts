@@ -1,6 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+
+const deleteOrderQuerySchema = z.object({
+  id: z.string().min(1),
+});
+
+const createOrderSchema = z.object({
+  productId:  z.string().min(1),
+  quantity:   z.number().finite().positive(),
+  price:      z.number().finite().positive(),
+  qualityMin: z.number().finite().optional().default(0),
+  daysValid:  z.number().finite().optional().default(7),
+});
 
 // GET /api/market/order  — list player's own open orders
 export async function GET() {
@@ -43,8 +56,10 @@ export async function DELETE(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const playerId = session.user.id;
-  const id = new URL(req.url).searchParams.get("id");
-  if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
+  const { searchParams } = new URL(req.url);
+  const parsedQuery = deleteOrderQuerySchema.safeParse(Object.fromEntries(searchParams));
+  if (!parsedQuery.success) return NextResponse.json({ error: "id required" }, { status: 400 });
+  const { id } = parsedQuery.data;
 
   const order = await prisma.marketOrder.findFirst({
     where: { id, playerId, status: { in: ["OPEN", "PARTIALLY_FILLED"] } },
@@ -85,15 +100,12 @@ export async function POST(req: NextRequest) {
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const playerId = session.user.id;
-  const body     = await req.json();
-  const { productId, quantity, price, qualityMin = 0, daysValid = 7 } = body;
-
-  if (!productId || !quantity || !price) {
-    return NextResponse.json({ error: "Заповніть всі обов'язкові поля" }, { status: 400 });
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = createOrderSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Заповніть всі обов'язкові поля (ціна та кількість мають бути > 0)" }, { status: 400 });
   }
-  if (Number(price) <= 0 || Number(quantity) <= 0) {
-    return NextResponse.json({ error: "Ціна та кількість мають бути > 0" }, { status: 400 });
-  }
+  const { productId, quantity, price, qualityMin, daysValid } = parsed.data;
 
   const product = await prisma.product.findUnique({
     where: { id: productId }, select: { id: true, sku: true, nameUa: true },

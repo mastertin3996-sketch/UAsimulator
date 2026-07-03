@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+
+const updateVolumeSchema = z.object({
+  currentVolume: z.number().finite().optional(),
+});
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -17,7 +22,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   });
   if (!workshop) return NextResponse.json({ error: "Не знайдено" }, { status: 404 });
 
-  const body = await req.json().catch(() => ({})) as { currentVolume?: number };
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = updateVolumeSchema.safeParse(rawBody ?? {});
+  if (!parsed.success) return NextResponse.json({ error: "currentVolume має бути числом" }, { status: 400 });
+  const body = parsed.data;
   const volume = body.currentVolume ?? 0;
 
   if (volume < 0 || volume > workshop.maxCapacity) {

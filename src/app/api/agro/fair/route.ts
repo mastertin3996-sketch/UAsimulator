@@ -8,17 +8,29 @@
  * Повертає поточний статус ярмарку та запаси зерна для продажу.
  */
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { AgroService } from "@/engine/AgroService";
+
+const fairQuerySchema = z.object({
+  enterpriseId: z.string().min(1),
+});
+
+const fairSellSchema = z.object({
+  enterpriseId: z.string().min(1),
+  sku:          z.string().min(1),
+  quantity:     z.number().finite().positive(),
+});
 
 export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
-  const enterpriseId = searchParams.get("enterpriseId");
-  if (!enterpriseId) return NextResponse.json({ error: "enterpriseId required" }, { status: 400 });
+  const parsedQuery = fairQuerySchema.safeParse(Object.fromEntries(searchParams));
+  if (!parsedQuery.success) return NextResponse.json({ error: "enterpriseId required" }, { status: 400 });
+  const { enterpriseId } = parsedQuery.data;
 
   const ent = await prisma.enterprise.findFirst({
     where:  { id: enterpriseId, playerId: session.user.id, type: "AGRO_FARM" },
@@ -79,15 +91,12 @@ export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const body = await req.json().catch(() => null);
-  if (!body) return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
-
-  const { enterpriseId, sku, quantity } = body as {
-    enterpriseId: string; sku: string; quantity: number;
-  };
-  if (!enterpriseId || !sku || !quantity || quantity <= 0) {
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = fairSellSchema.safeParse(rawBody);
+  if (!parsed.success) {
     return NextResponse.json({ error: "Missing fields" }, { status: 400 });
   }
+  const { enterpriseId, sku, quantity } = parsed.data;
 
   const ent = await prisma.enterprise.findFirst({
     where: { id: enterpriseId, playerId: session.user.id, type: "AGRO_FARM" },

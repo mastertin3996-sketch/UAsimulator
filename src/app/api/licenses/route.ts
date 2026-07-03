@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { StateRegulationService } from "@/engine/StateRegulationService";
 import { LicenseType } from "@prisma/client";
+
+const purchaseLicenseSchema = z.object({
+  enterpriseId: z.string().min(1),
+  licenseType:  z.nativeEnum(LicenseType),
+});
 
 const LICENSE_FEE: Record<LicenseType, number> = {
   AGRO_PERMIT:           15_000,
@@ -122,19 +128,16 @@ export async function POST(req: NextRequest) {
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const playerId = session.user.id;
-  const { enterpriseId, licenseType } = await req.json();
-
-  if (!enterpriseId || !licenseType) {
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = purchaseLicenseSchema.safeParse(rawBody);
+  if (!parsed.success) {
     return NextResponse.json({ error: "enterpriseId і licenseType обов'язкові" }, { status: 400 });
   }
-
-  if (!Object.values(LicenseType).includes(licenseType)) {
-    return NextResponse.json({ error: "Невідомий тип ліцензії" }, { status: 400 });
-  }
+  const { enterpriseId, licenseType } = parsed.data;
 
   try {
     const svc    = new StateRegulationService(prisma);
-    const result = await svc.purchaseOrRenewLicense(playerId, enterpriseId, licenseType as LicenseType);
+    const result = await svc.purchaseOrRenewLicense(playerId, enterpriseId, licenseType);
     return NextResponse.json({
       ok:           true,
       renewed:      result.renewed,

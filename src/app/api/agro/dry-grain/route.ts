@@ -1,17 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 const TARGET_MOISTURE = 14.0;   // % — стандарт зберігання
 const DRYING_COST_PER_PCT = 35; // ₴ за кожен 1% зниження вологи на 1 тонну
 
+const dryGrainSchema = z.object({
+  workshopId: z.string().min(1),
+});
+
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const playerId = session.user.id;
 
-  const { workshopId } = await req.json().catch(() => ({})) as { workshopId?: string };
-  if (!workshopId) return NextResponse.json({ error: "workshopId required" }, { status: 400 });
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = dryGrainSchema.safeParse(rawBody);
+  if (!parsed.success) return NextResponse.json({ error: "workshopId required" }, { status: 400 });
+  const { workshopId } = parsed.data;
 
   const workshop = await prisma.workshop.findFirst({
     where: { id: workshopId, enterprise: { playerId, type: 'AGRO_FARM', isOperational: true } },

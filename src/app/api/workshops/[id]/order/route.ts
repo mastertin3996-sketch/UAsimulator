@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+
+const createOrderSchema = z.object({
+  recipeId:       z.string().min(1),
+  targetQuantity: z.number().finite().positive().optional(),
+});
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -50,8 +56,10 @@ export async function POST(req: NextRequest, { params }: Params) {
   });
   if (!workshop) return NextResponse.json({ error: "Цех не знайдено" }, { status: 404 });
 
-  const body = await req.json().catch(() => ({})) as { recipeId?: string; targetQuantity?: number };
-  if (!body.recipeId) return NextResponse.json({ error: "Потрібен recipeId" }, { status: 400 });
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = createOrderSchema.safeParse(rawBody);
+  if (!parsed.success) return NextResponse.json({ error: "Потрібен recipeId" }, { status: 400 });
+  const body = parsed.data;
 
   const recipe = await prisma.recipe.findUnique({
     where: { id: body.recipeId },

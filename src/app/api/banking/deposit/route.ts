@@ -1,26 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { BankingLiquidityService } from "@/engine/BankingLiquidityService";
+
+const openDepositSchema = z.object({
+  amount:       z.number().finite().positive(),
+  currency:     z.enum(["UAH", "USD"]),
+  durationDays: z.number().finite().positive(),
+});
 
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const playerId = session.user.id;
-  const body = await req.json().catch(() => ({})) as {
-    amount?: number;
-    currency?: "UAH" | "USD";
-    durationDays?: number;
-  };
 
-  if (!body.amount || !body.currency || !body.durationDays) {
+  const rawBody = await req.json().catch(() => null);
+  const parsed  = openDepositSchema.safeParse(rawBody);
+  if (!parsed.success) {
     return NextResponse.json({ error: "Потрібен amount, currency (UAH|USD), durationDays" }, { status: 400 });
   }
-
-  if (!["UAH", "USD"].includes(body.currency)) {
-    return NextResponse.json({ error: "currency має бути UAH або USD" }, { status: 400 });
-  }
+  const body = parsed.data;
 
   const lastTick = await prisma.gameTick.findFirst({ orderBy: { tickNumber: "desc" }, select: { tickNumber: true } });
   const currentTick = lastTick?.tickNumber ?? 1n;
