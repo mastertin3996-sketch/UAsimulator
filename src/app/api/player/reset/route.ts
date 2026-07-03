@@ -22,6 +22,8 @@ export async function POST() {
     ? await prisma.workshop.findMany({ where: { enterpriseId: { in: entIds } }, select: { id: true } })
     : [];
   const wsIds = workshops.map((w) => w.id);
+  const rentalOffers = await prisma.warehouseRentalOffer.findMany({ where: { ownerId: playerId }, select: { id: true } });
+  const rentalOfferIds = rentalOffers.map((o) => o.id);
 
   await prisma.$transaction([
     prisma.marketOrder.deleteMany({ where: { playerId } }),
@@ -31,6 +33,32 @@ export async function POST() {
     prisma.financialLog.deleteMany({ where: { playerId } }),
     prisma.dailySnapshot.deleteMany({ where: { playerId } }),
     ...(entIds.length > 0 ? [prisma.productionLog.deleteMany({ where: { enterpriseId: { in: entIds } } })] : []),
+    // Заставні посилання на enterprise/ф'ючерс, які інакше заблокують видалення нижче
+    prisma.loan.updateMany({
+      where: { playerId, collateralEnterpriseId: { not: null } },
+      data:  { collateralEnterpriseId: null, collateralReleased: true },
+    }),
+    prisma.loan.updateMany({
+      where: { playerId, collateralForwardContractId: { not: null } },
+      data:  { collateralForwardContractId: null },
+    }),
+    prisma.warehouseRentalSubscription.deleteMany({ where: { offerId: { in: rentalOfferIds } } }),
+    prisma.warehouseRentalOffer.deleteMany({ where: { ownerId: playerId } }),
+    prisma.pendingDelivery.deleteMany({ where: { playerId } }),
+    prisma.replenishRule.deleteMany({ where: { playerId } }),
+    prisma.constructionProject.deleteMany({ where: { enterpriseId: { in: entIds } } }),
+    prisma.license.deleteMany({ where: { playerId } }),
+    prisma.subsidyApplication.deleteMany({ where: { playerId } }),
+    prisma.energyContract.deleteMany({ where: { playerId } }),
+    prisma.securitySystem.deleteMany({ where: { playerId } }),
+    prisma.farmMachinery.deleteMany({ where: { playerId } }),
+    prisma.livestockHerd.deleteMany({ where: { playerId } }),
+    prisma.grainForwardContract.deleteMany({ where: { playerId } }),
+    prisma.b2bTransferAgreement.deleteMany({ where: { playerId } }),
+    prisma.supplyRoute.deleteMany({ where: { playerId } }),
+    prisma.regulatoryInspection.deleteMany({ where: { playerId } }),
+    prisma.warehouse.deleteMany({ where: { playerId } }),
+    prisma.office.deleteMany({ where: { playerId } }),
     prisma.employee.deleteMany({ where: { enterpriseId: { in: entIds } } }),
     prisma.equipment.deleteMany({ where: { workshopId: { in: wsIds } } }),
     prisma.workshop.deleteMany({ where: { enterpriseId: { in: entIds } } }),
