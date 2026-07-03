@@ -993,6 +993,10 @@ model MarketTrade {
 
   sellOrder MarketOrder @relation("SellOrder", fields: [sellOrderId], references: [id])
   buyOrder  MarketOrder @relation("BuyOrder", fields: [buyOrderId], references: [id])
+
+  @@index([sellOrderId])
+  @@index([buyOrderId])
+  @@index([executedAt])
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

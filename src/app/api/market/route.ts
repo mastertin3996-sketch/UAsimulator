@@ -1,6 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+
+const createSellOrderSchema = z.object({
+  enterpriseId: z.string().min(1),
+  productId:    z.string().min(1),
+  quantity:     z.number().finite().positive(),
+  price:        z.number().finite().positive(),
+  minOrder:     z.number().finite().positive().optional(),
+  daysValid:    z.number().finite().int().optional(),
+});
 
 // GET — list OPEN sell orders
 export async function GET() {
@@ -66,12 +76,12 @@ export async function POST(req: NextRequest) {
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const playerId = session.user.id;
-  const body     = await req.json();
-  const { enterpriseId, productId, quantity, price, minOrder, daysValid } = body;
-
-  if (!enterpriseId || !productId || !quantity || !price) {
+  const rawBody  = await req.json().catch(() => null);
+  const parsed   = createSellOrderSchema.safeParse(rawBody);
+  if (!parsed.success) {
     return NextResponse.json({ error: "Заповніть всі обов'язкові поля" }, { status: 400 });
   }
+  const { enterpriseId, productId, quantity, price, daysValid } = parsed.data;
 
   // Verify enterprise belongs to player
   const enterprise = await prisma.enterprise.findFirst({
