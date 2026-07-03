@@ -121,7 +121,7 @@ function CreateListingModal({
           </div>
 
           <div>
-            <label className="text-xs text-gray-500 block mb-1">Нотатки (необов'язково)</label>
+            <label className="text-xs text-gray-500 block mb-1">Нотатки (необов&apos;язково)</label>
             <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2}
               placeholder="Причина продажу, особливості..."
               className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white resize-none focus:outline-none focus:border-emerald-500" />

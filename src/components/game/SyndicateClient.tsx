@@ -125,7 +125,7 @@ export default function SyndicateClient() {
           </div>
           <div>
             <h1 className="text-xl font-bold text-white">Синдикат</h1>
-            <p className="text-xs text-gray-500">Об'єднання гравців для спільних цілей</p>
+            <p className="text-xs text-gray-500">Об&apos;єднання гравців для спільних цілей</p>
           </div>
         </div>
         {!mySyndicate && (

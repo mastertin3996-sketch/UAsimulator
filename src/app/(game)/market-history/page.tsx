@@ -226,7 +226,10 @@ export default function MarketHistoryPage() {
   const [tab,       setTab]       = useState<"overview" | "list">("overview");
   const [role,      setRole]      = useState<Role>("all");
   const [search,    setSearch]    = useState("");
+  // skipRef drives the fetch logic (read inside callbacks, never during render);
+  // skipDisplay mirrors it purely so the JSX below can read a safe render-time value.
   const skipRef = useRef(0);
+  const [skipDisplay, setSkipDisplay] = useState(0);
 
   const fetchData = useCallback(async (reset: boolean) => {
     const skip = reset ? 0 : skipRef.current;
@@ -250,6 +253,7 @@ export default function MarketHistoryPage() {
         setTxs((prev) => [...prev, ...incoming]);
         skipRef.current += incoming.length;
       }
+      setSkipDisplay(skipRef.current);
       setTotal(data.total ?? 0);
     } finally {
       if (reset) setLoading(false); else setLoadMore(false);
@@ -268,7 +272,7 @@ export default function MarketHistoryPage() {
     );
   }, [txs, search]);
 
-  const hasMore = skipRef.current < total && !search.trim();
+  const hasMore = skipDisplay < total && !search.trim();
 
   return (
     <div className="space-y-5">
@@ -463,7 +467,7 @@ export default function MarketHistoryPage() {
                 >
                   {loadMore
                     ? <><Loader2 size={13} className="animate-spin" /> Завантаження…</>
-                    : <><ChevronDown size={13} /> Завантажити ще ({total - skipRef.current})</>
+                    : <><ChevronDown size={13} /> Завантажити ще ({total - skipDisplay})</>
                   }
                 </button>
               )}

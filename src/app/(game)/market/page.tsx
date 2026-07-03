@@ -961,7 +961,7 @@ function StateOrdersTab() {
     <div className="rounded-xl border border-dashed border-amber-800/40 py-16 text-center">
       <span className="text-4xl block mb-3">🏛️</span>
       <p className="text-gray-400 font-medium">Активних держзамовлень немає</p>
-      <p className="text-gray-600 text-sm mt-1">Нові замовлення з'являються кожні 24 тіки</p>
+      <p className="text-gray-600 text-sm mt-1">Нові замовлення з&apos;являються кожні 24 тіки</p>
     </div>
   );
 

@@ -81,7 +81,7 @@ export default function LivestockTab({ enterpriseId, employees }: { enterpriseId
                     <div className="flex items-center gap-2 flex-wrap">
                       {ageLabel}
                     </div>
-                    <p className={`text-xs ${healthColor(h.health)}`}>Здоров'я: {Math.round(h.health * 100)}% · Вік: {h.ageInTicks} тік(ів)
+                    <p className={`text-xs ${healthColor(h.health)}`}>Здоров&apos;я: {Math.round(h.health * 100)}% · Вік: {h.ageInTicks} тік(ів)
                       {h.feedSkippedTicks > 0 && <span className="ml-2 text-red-400">⚠ {h.feedSkippedTicks} тіки без корму</span>}
                     </p>
                     {h.species === 'CATTLE' && (

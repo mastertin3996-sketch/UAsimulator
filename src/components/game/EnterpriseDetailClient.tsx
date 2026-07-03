@@ -1380,7 +1380,7 @@ function WorkshopsTab({
                         );
                       })}
                       {avgHealth !== null && avgHealth < 0.5 && (
-                        <p className="text-[9px] text-red-400">⚠ Здоров'я &lt;50% — продуктивність впала. Поповніть RM-CORN.</p>
+                        <p className="text-[9px] text-red-400">⚠ Здоров&apos;я &lt;50% — продуктивність впала. Поповніть RM-CORN.</p>
                       )}
                     </div>
                   )}
@@ -2488,11 +2488,57 @@ function LogsTab({ logs }: { logs: FinancialLog[] }) {
 
 // ─── Supply Tab ────────────────────────────────────────────────────────────────
 
+interface SupplyRoute {
+  id: string; productName: string; unit: string; qtyPerTick: number; isActive: boolean;
+  sourceName: string; targetName: string; sourceEnterpriseId: string; targetEnterpriseId: string;
+}
+
+// Hoisted to module scope (was previously redefined on every SupplyTab render).
+function SupplyRouteSection({ title, items, dir, togglingId, onToggle, onRemove }: {
+  title: string; items: SupplyRoute[]; dir: "out" | "in";
+  togglingId: string | null; onToggle: (id: string, current: boolean) => void; onRemove: (id: string) => void;
+}) {
+  if (items.length === 0) return null;
+  return (
+    <div>
+      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">{title}</p>
+      <div className="space-y-2">
+        {items.map(r => (
+          <div key={r.id} className={cn("rounded-xl border bg-gray-900 px-4 py-3 flex items-center gap-3", r.isActive ? "border-gray-800" : "border-gray-800 opacity-50")}>
+            <div className={cn("p-1.5 rounded-lg", dir === "out" ? "bg-blue-950" : "bg-emerald-950")}>
+              <Truck size={13} className={dir === "out" ? "text-blue-400" : "text-emerald-400"} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm text-white truncate">
+                {dir === "out" ? `→ ${r.targetName}` : `← ${r.sourceName}`}
+              </p>
+              <p className="text-xs text-gray-500">{r.productName} · {formatNumber(r.qtyPerTick)} {r.unit}/тік</p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full", r.isActive ? "bg-emerald-950 text-emerald-400" : "bg-gray-800 text-gray-500")}>
+                {r.isActive ? "Активний" : "Пауза"}
+              </span>
+              <button
+                onClick={() => onToggle(r.id, r.isActive)}
+                disabled={togglingId === r.id}
+                className="text-xs text-gray-500 hover:text-amber-400 transition-colors"
+                title={r.isActive ? "Призупинити" : "Активувати"}
+              >
+                {togglingId === r.id ? <Loader2 size={12} className="animate-spin" /> : r.isActive ? "⏸" : "▶"}
+              </button>
+              <button onClick={() => onRemove(r.id)} aria-label="Видалити маршрут" className="text-gray-600 hover:text-red-400 transition-colors">
+                <Trash2 size={12} />
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function SupplyTab({ enterpriseId }: { enterpriseId: string }) {
-  const [routes, setRoutes]   = useState<{
-    id: string; productName: string; unit: string; qtyPerTick: number; isActive: boolean;
-    sourceName: string; targetName: string; sourceEnterpriseId: string; targetEnterpriseId: string;
-  }[]>([]);
+  const [routes, setRoutes]   = useState<SupplyRoute[]>([]);
   const [loading, setLoading] = useState(true);
   const [toggling, setToggling] = useState<string | null>(null);
 
@@ -2538,49 +2584,10 @@ function SupplyTab({ enterpriseId }: { enterpriseId: string }) {
     </div>
   );
 
-  const Section = ({ title, items, dir }: { title: string; items: typeof routes; dir: "out" | "in" }) => (
-    items.length > 0 ? (
-      <div>
-        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">{title}</p>
-        <div className="space-y-2">
-          {items.map(r => (
-            <div key={r.id} className={cn("rounded-xl border bg-gray-900 px-4 py-3 flex items-center gap-3", r.isActive ? "border-gray-800" : "border-gray-800 opacity-50")}>
-              <div className={cn("p-1.5 rounded-lg", dir === "out" ? "bg-blue-950" : "bg-emerald-950")}>
-                <Truck size={13} className={dir === "out" ? "text-blue-400" : "text-emerald-400"} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm text-white truncate">
-                  {dir === "out" ? `→ ${r.targetName}` : `← ${r.sourceName}`}
-                </p>
-                <p className="text-xs text-gray-500">{r.productName} · {formatNumber(r.qtyPerTick)} {r.unit}/тік</p>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full", r.isActive ? "bg-emerald-950 text-emerald-400" : "bg-gray-800 text-gray-500")}>
-                  {r.isActive ? "Активний" : "Пауза"}
-                </span>
-                <button
-                  onClick={() => toggle(r.id, r.isActive)}
-                  disabled={toggling === r.id}
-                  className="text-xs text-gray-500 hover:text-amber-400 transition-colors"
-                  title={r.isActive ? "Призупинити" : "Активувати"}
-                >
-                  {toggling === r.id ? <Loader2 size={12} className="animate-spin" /> : r.isActive ? "⏸" : "▶"}
-                </button>
-                <button onClick={() => remove(r.id)} aria-label="Видалити маршрут" className="text-gray-600 hover:text-red-400 transition-colors">
-                  <Trash2 size={12} />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    ) : null
-  );
-
   return (
     <div className="space-y-5">
-      <Section title="Вихідні маршрути (відправляє)" items={outgoing} dir="out" />
-      <Section title="Вхідні маршрути (отримує)"   items={incoming} dir="in" />
+      <SupplyRouteSection title="Вихідні маршрути (відправляє)" items={outgoing} dir="out" togglingId={toggling} onToggle={toggle} onRemove={remove} />
+      <SupplyRouteSection title="Вхідні маршрути (отримує)"   items={incoming} dir="in" togglingId={toggling} onToggle={toggle} onRemove={remove} />
       <div className="text-center pt-2">
         <a href="/warehouses" className="text-xs text-gray-500 hover:text-emerald-400 transition-colors">
           Керувати всіма маршрутами →
@@ -3132,7 +3139,7 @@ function FieldsTab({ enterprise, agroInfo, onRefresh }: { enterprise: Enterprise
       {/* Ф'ючерсні контракти */}
       <div className="rounded-lg border border-amber-900/40 bg-amber-950/10 p-3 space-y-3">
         <p className="text-xs font-semibold text-amber-400 flex items-center gap-1">
-          Ф'ючерси (фіксована ціна продажу)
+          Ф&apos;ючерси (фіксована ціна продажу)
           <InfoTooltip text="Контракт на продаж майбутнього врожаю за фіксованою ціною наперед. Якщо на момент постачання товару не вистачить — штраф 5% від суми угоди. Можна використати як заставу для агрокредиту." />
         </p>
 
@@ -3195,7 +3202,7 @@ function FieldsTab({ enterprise, agroInfo, onRefresh }: { enterprise: Enterprise
             })}
           </div>
         ) : (
-          <p className="text-xs text-gray-600">Немає активних ф'ючерсів</p>
+          <p className="text-xs text-gray-600">Немає активних ф&apos;ючерсів</p>
         )}
 
         {/* Виконані контракти */}
@@ -3335,7 +3342,7 @@ function FieldsTab({ enterprise, agroInfo, onRefresh }: { enterprise: Enterprise
       {contracts.length > 0 && (
         <div className="rounded-lg border border-blue-900/40 bg-blue-950/10 p-3 space-y-2">
           <p className="text-xs font-semibold text-blue-400">Аграрний кредит (8% річних)</p>
-          <p className="text-[10px] text-gray-500">Застава: активний ф'ючерсний контракт. Сума до 70% вартості контракту.</p>
+          <p className="text-[10px] text-gray-500">Застава: активний ф&apos;ючерсний контракт. Сума до 70% вартості контракту.</p>
           <div className="grid grid-cols-2 gap-2">
             <select value={loanContractId} onChange={e => setLoanContractId(e.target.value)}
               className="col-span-2 bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500">
@@ -3431,7 +3438,7 @@ function ExpandTab({ enterpriseId, enterpriseType }: { enterpriseId: string; ent
                 className="mt-1 w-full rounded-lg bg-gray-800 border border-gray-700 px-3 py-2 text-sm text-white" />
             </div>
             <div>
-              <label className="text-xs text-gray-400">Назва (необов'язково)</label>
+              <label className="text-xs text-gray-400">Назва (необов&apos;язково)</label>
               <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="автоматична"
                 className="mt-1 w-full rounded-lg bg-gray-800 border border-gray-700 px-3 py-2 text-sm text-white" />
             </div>

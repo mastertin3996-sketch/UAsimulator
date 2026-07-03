@@ -223,7 +223,7 @@ export default function ForeignTradePage() {
           </p>
           <div className="space-y-3">
             <div>
-              <label className="text-xs text-gray-400 mb-1 block">Місто доставки (необов'язково)</label>
+              <label className="text-xs text-gray-400 mb-1 block">Місто доставки (необов&apos;язково)</label>
               <select value={importCity} onChange={e => setImportCity(e.target.value)}
                 className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:border-emerald-500 outline-none">
                 <option value="">Загальний склад гравця</option>

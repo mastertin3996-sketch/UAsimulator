@@ -243,7 +243,10 @@ export default function NotificationsPage() {
   const [category,    setCategory]    = useState<Category>("all");
   const [unreadOnly,  setUnreadOnly]  = useState(false);
 
+  // skipRef drives the fetch logic (read inside callbacks, never during render);
+  // skipDisplay mirrors it purely so the JSX below can read a safe render-time value.
   const skipRef = useRef(0);
+  const [skipDisplay, setSkipDisplay] = useState(0);
 
   const catCfg = CAT_META.find((c) => c.key === category)!;
 
@@ -278,6 +281,7 @@ export default function NotificationsPage() {
         setNotes((prev) => [...prev, ...incoming]);
         skipRef.current += data.notifications?.length ?? incoming.length;
       }
+      setSkipDisplay(skipRef.current);
 
       setTotal(data.total ?? 0);
       setUnreadCount(data.unreadCount ?? 0);
@@ -321,7 +325,7 @@ export default function NotificationsPage() {
     : notes.filter((n) => !n.isRead && catCfg.types.includes(n.type)).length;
 
   const groups   = groupByDay(notes);
-  const hasMore  = skipRef.current < total;
+  const hasMore  = skipDisplay < total;
 
   return (
     <div className="max-w-2xl space-y-5">

@@ -1,10 +1,8 @@
 # Dependencies
 node_modules/
-client/node_modules/
 
 # Build output
 dist/
-client/dist/
 
 # Environment variables — never commit real secrets
 .env

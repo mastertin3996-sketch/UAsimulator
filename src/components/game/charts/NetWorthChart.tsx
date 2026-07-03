@@ -54,7 +54,7 @@ export function NetWorthChart({ data }: { data: SnapshotPoint[] }) {
   if (!data.length) {
     return (
       <div className="flex items-center justify-center h-36 text-gray-600 text-xs">
-        Дані з'являться після першого snapshot (кожні 24 дні)
+        Дані з&apos;являться після першого snapshot (кожні 24 дні)
       </div>
     );
   }

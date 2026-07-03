@@ -221,6 +221,25 @@ function TrendIcon({ first, last }: { first: number; last: number }) {
   return <Minus size={11} className="text-gray-500" />;
 }
 
+type SortKey = "rev" | "qty" | "sat" | "price";
+
+// Hoisted to module scope (was previously redefined on every ProductAnalyticsTab render).
+function SortBtn({ k, label, sort, asc, onSort }: {
+  k: SortKey; label: string; sort: SortKey; asc: boolean; onSort: (k: SortKey) => void;
+}) {
+  return (
+    <button
+      onClick={() => onSort(k)}
+      className={cn(
+        "text-right pb-1.5 font-normal cursor-pointer hover:text-white transition-colors select-none",
+        sort === k ? "text-white" : "text-gray-600",
+      )}
+    >
+      {label}{sort === k ? (asc ? " ↑" : " ↓") : ""}
+    </button>
+  );
+}
+
 function ProductAnalyticsTab({
   analytics,
   totalRevenue,
@@ -228,8 +247,12 @@ function ProductAnalyticsTab({
   analytics   : ProductAnalytics[];
   totalRevenue: number;
 }) {
-  const [sort, setSort] = useState<"rev" | "qty" | "sat" | "price">("rev");
+  const [sort, setSort] = useState<SortKey>("rev");
   const [asc,  setAsc]  = useState(false);
+
+  function handleSort(k: SortKey) {
+    if (sort === k) setAsc((v) => !v); else { setSort(k); setAsc(false); }
+  }
 
   const sorted = useMemo(() => {
     return [...analytics].sort((a, b) => {
@@ -243,20 +266,6 @@ function ProductAnalyticsTab({
       return asc ? diff : -diff;
     });
   }, [analytics, sort, asc]);
-
-  function SortBtn({ k, label }: { k: typeof sort; label: string }) {
-    return (
-      <button
-        onClick={() => { if (sort === k) setAsc((v) => !v); else { setSort(k); setAsc(false); } }}
-        className={cn(
-          "text-right pb-1.5 font-normal cursor-pointer hover:text-white transition-colors select-none",
-          sort === k ? "text-white" : "text-gray-600",
-        )}
-      >
-        {label}{sort === k ? (asc ? " ↑" : " ↓") : ""}
-      </button>
-    );
-  }
 
   return (
     <div className="rounded-xl border border-gray-800 bg-gray-900 overflow-hidden">
@@ -272,10 +281,10 @@ function ProductAnalyticsTab({
               <th className="text-left pb-1.5 font-normal pl-4 pt-2">#</th>
               <th className="text-left pb-1.5 font-normal pt-2">Товар</th>
               <th className="text-right pb-1.5 font-normal pt-2">Частка</th>
-              <SortBtn k="rev"   label="Виручка" />
-              <SortBtn k="qty"   label="Продано" />
-              <SortBtn k="price" label="Сер. ціна" />
-              <SortBtn k="sat"   label="Насичення" />
+              <SortBtn k="rev"   label="Виручка"   sort={sort} asc={asc} onSort={handleSort} />
+              <SortBtn k="qty"   label="Продано"   sort={sort} asc={asc} onSort={handleSort} />
+              <SortBtn k="price" label="Сер. ціна" sort={sort} asc={asc} onSort={handleSort} />
+              <SortBtn k="sat"   label="Насичення" sort={sort} asc={asc} onSort={handleSort} />
               <th className="text-right pb-1.5 font-normal pt-2 pr-4">Тренд ціни</th>
             </tr>
           </thead>

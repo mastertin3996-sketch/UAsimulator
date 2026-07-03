@@ -45,7 +45,7 @@ export function RevenueChart({ data, compact = false }: { data: TickData[]; comp
         <CardHeader><CardTitle>Дохід / Витрати</CardTitle></CardHeader>
         <CardContent>
           <div className="flex items-center justify-center h-52 text-gray-600 text-sm">
-            Дані з'являться після першого ігрового дня
+            Дані з&apos;являться після першого ігрового дня
           </div>
         </CardContent>
       </Card>

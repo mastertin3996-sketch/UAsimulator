@@ -68,6 +68,37 @@ const MAX_SYMBOL_LEN            = 8;
 // ── NPC-корекція ──────────────────────────────────────────────────────────────
 const NPC_UNDERVALUED_THRESHOLD = 0.85;   // ринок < фундаментал × 0.85 → undervalued
 const NPC_OVERVALUED_THRESHOLD  = 1.20;   // ринок > фундаментал × 1.20 → overvalued
+
+/**
+ * Pure NPC price-nudge calculation, extracted from processStockMarketTick for
+ * unit testing. Nudges currentPrice toward impliedPrice (fundamental value ÷
+ * shares issued) by NPC_NUDGE_RATE per tick when the market has drifted past
+ * the under/overvalued thresholds, capped so it never overshoots impliedPrice.
+ */
+export function calculateNpcPriceCorrection(
+  currentPrice:  Decimal,
+  fundamentalVal: Decimal,
+  totalShares:   bigint,
+): { newPrice: Decimal; npcCorrected: boolean } {
+  const impliedPrice = totalShares > 0n
+    ? fundamentalVal.dividedBy(totalShares.toString())
+    : currentPrice;
+
+  if (!(impliedPrice.gt(0) && currentPrice.gt(0))) {
+    return { newPrice: currentPrice, npcCorrected: false };
+  }
+
+  const ratio = currentPrice.dividedBy(impliedPrice).toNumber();
+  const nudge = currentPrice.times(NPC_NUDGE_RATE);
+
+  if (ratio < NPC_UNDERVALUED_THRESHOLD) {
+    return { newPrice: Decimal.min(currentPrice.plus(nudge), impliedPrice), npcCorrected: true };
+  }
+  if (ratio > NPC_OVERVALUED_THRESHOLD) {
+    return { newPrice: Decimal.max(currentPrice.minus(nudge), impliedPrice), npcCorrected: true };
+  }
+  return { newPrice: currentPrice, npcCorrected: false };
+}
 const NPC_NUDGE_RATE            = 0.02;   // 2% наближення до fair value за тік
 
 // ── Типи результатів ──────────────────────────────────────────────────────────
@@ -790,31 +821,7 @@ export class StockExchangeService {
       const currentPrice   = new Decimal(ticker.lastTradedPriceUah.toString());
       const totalShares    = BigInt(ticker.totalSharesIssued);
 
-      // impliedPrice = fundamental / shares; guard для нульового випуску
-      const impliedPrice = totalShares > 0n
-        ? fundamentalVal.dividedBy(totalShares.toString())
-        : currentPrice;
-
-      // ── NPC price nudge ──────────────────────────────────────────────────
-      let newPrice    = currentPrice;
-      let npcCorrected = false;
-
-      if (impliedPrice.gt(0) && currentPrice.gt(0)) {
-        const ratio = currentPrice.dividedBy(impliedPrice).toNumber();
-
-        if (ratio < NPC_UNDERVALUED_THRESHOLD) {
-          // Недооцінений: підтягуємо ціну вгору на NPC_NUDGE_RATE
-          const nudge = currentPrice.times(NPC_NUDGE_RATE);
-          newPrice    = Decimal.min(currentPrice.plus(nudge), impliedPrice);
-          npcCorrected = true;
-        } else if (ratio > NPC_OVERVALUED_THRESHOLD) {
-          // Переоцінений: тиснемо ціну вниз на NPC_NUDGE_RATE
-          const nudge = currentPrice.times(NPC_NUDGE_RATE);
-          newPrice    = Decimal.max(currentPrice.minus(nudge), impliedPrice);
-          npcCorrected = true;
-        }
-      }
-
+      const { newPrice, npcCorrected } = calculateNpcPriceCorrection(currentPrice, fundamentalVal, totalShares);
       const newMarketCap = newPrice.times(totalShares.toString());
 
       await this.db.stockTicker.update({

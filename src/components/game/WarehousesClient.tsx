@@ -492,7 +492,7 @@ export default function WarehousesClient() {
           <div className="rounded-xl border border-dashed border-gray-700 py-12 text-center">
             <Package size={24} className="text-gray-700 mx-auto mb-3" />
             <p className="text-gray-500 text-sm">
-              Товар <span className="text-white">"{search}"</span> не знайдено
+              Товар <span className="text-white">&quot;{search}&quot;</span> не знайдено
             </p>
             <Button
               variant="outline"

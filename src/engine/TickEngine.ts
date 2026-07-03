@@ -69,6 +69,22 @@ interface TickSummary {
 // вважаємо його "завислим" (напр. впав через необроблений виняток) і дозволяємо новий запуск.
 const STALE_TICK_MS = 55 * 60 * 1000; // 55 хв — трохи менше за годинний інтервал крону
 
+// Pure guard, extracted for unit testing: decides whether a new tick may start
+// given the most recent GameTick row. Prevents parallel cron invocations from
+// processing two ticks at once (they'd otherwise race on the same player rows).
+export function shouldSkipTick(
+  lastTick: { tickNumber: bigint; completedAt: Date | null; startedAt: Date } | null,
+  now: number = Date.now(),
+): { skip: boolean; reason?: string } {
+  if (!lastTick || lastTick.completedAt !== null) return { skip: false };
+  const ageMs = now - lastTick.startedAt.getTime();
+  if (ageMs < STALE_TICK_MS) {
+    return { skip: true, reason: `Попередній тік #${lastTick.tickNumber} ще виконується (${Math.round(ageMs / 1000)}с)` };
+  }
+  // Stale — previous tick crashed without recording completion; allow the next one through.
+  return { skip: false };
+}
+
 export class TickEngine {
   private readonly production:  ProductionService;
   private readonly energy:      EnergyBillingService;
@@ -150,23 +166,23 @@ export class TickEngine {
 
     // ── Guard: не запускати новий тік, якщо попередній ще виконується ────
     // (запобігає паралельним crон-викликам, що інакше одночасно пишуть у ті самі рядки гравців)
+    const guard = shouldSkipTick(lastTick);
+    if (guard.skip) {
+      return {
+        tickNumber: lastTick!.tickNumber,
+        gameDay:    lastTick!.gameDay,
+        durationMs: 0,
+        playersProcessed: 0,
+        ordersExpired:  0,
+        tradesExecuted: 0,
+        errors:   [],
+        timings:  {},
+        skipped:    true,
+        skipReason: guard.reason,
+      };
+    }
     if (lastTick && lastTick.completedAt === null) {
-      const ageMs = Date.now() - lastTick.startedAt.getTime();
-      if (ageMs < STALE_TICK_MS) {
-        return {
-          tickNumber: lastTick.tickNumber,
-          gameDay:    lastTick.gameDay,
-          durationMs: 0,
-          playersProcessed: 0,
-          ordersExpired:  0,
-          tradesExecuted: 0,
-          errors:   [],
-          timings:  {},
-          skipped:    true,
-          skipReason: `Попередній тік #${lastTick.tickNumber} ще виконується (${Math.round(ageMs / 1000)}с)`,
-        };
-      }
-      console.warn(`[TickEngine] Тік #${lastTick.tickNumber} завис без completedAt (${Math.round(ageMs / 1000)}с) — запускаю наступний.`);
+      console.warn(`[TickEngine] Тік #${lastTick.tickNumber} завис без completedAt — запускаю наступний.`);
     }
 
     const tickNumber = lastTick ? lastTick.tickNumber + 1n : 1n;
@@ -196,32 +212,18 @@ export class TickEngine {
     await this.rd.warmTickCache(players.map(p => p.id));
 
     // ── 1b. ERP: HR automation — adjust salaries BEFORE HR tick runs ─────
-    const hrPolicySummary = await this.erp.processAutomatedHRPolicyTick(tickNumber)
+    await this.erp.processAutomatedHRPolicyTick(tickNumber)
       .catch(e => {
         console.error(`[Tick ${tickNumber}] HR automation failed:`, e);
         return null;
       });
-    if (hrPolicySummary) {
-      console.log(
-        `[Tick ${tickNumber}] HR Policy: ${hrPolicySummary.policiesApplied} policies, ` +
-        `${hrPolicySummary.salaryAdjustments} salary bumps ` +
-        `(+₴${hrPolicySummary.totalSalaryIncrementUah.toFixed(0)} total).`,
-      );
-    }
 
     // ── 1c. ERP: Auto-procurement — B2B auto-contracts for all players ───
-    const procurementSummary = await this.erp.processAutoProcurementTick(tickNumber)
+    await this.erp.processAutoProcurementTick(tickNumber)
       .catch(e => {
         console.error(`[Tick ${tickNumber}] Auto-procurement failed:`, e);
         return null;
       });
-    if (procurementSummary) {
-      console.log(
-        `[Tick ${tickNumber}] Auto-procurement: ${procurementSummary.contractsProcessed} contracts, ` +
-        `${procurementSummary.totalTradesExecuted} trades, ` +
-        `₴${procurementSummary.totalSpentUah.toFixed(0)} spent.`,
-      );
-    }
 
     // Parallel player processing — players operate on disjoint data rows
     await Promise.all(players.map(async ({ id: playerId }) => {
@@ -236,7 +238,7 @@ export class TickEngine {
     T('playerTicks');
 
     // ── 2b-2d. Глобальні операції — паралельно ───────────────────────────
-    const [retailSummary, supplyTransfers] = await Promise.all([
+    await Promise.all([
       this.market.processAllNpcSales(tickNumber)
         .catch(e => { console.error(`[Tick ${tickNumber}] Retail NPC sales failed:`, e); return null; }),
       this.processSupplyRoutes()
@@ -277,12 +279,6 @@ export class TickEngine {
       }).catch(e => console.error(`[Tick ${tickNumber}] Promo expiry failed:`, e)),
     ]);
     T('globalParallelOps');
-    if (retailSummary && retailSummary.totalSold > 0) {
-      console.log(`[Tick ${tickNumber}] Retail: ${retailSummary.totalSold.toFixed(0)} od. sold, ₴${retailSummary.totalRevenue.toFixed(0)} revenue.`);
-    }
-    if (supplyTransfers > 0) {
-      console.log(`[Tick ${tickNumber}] Supply routes: ${supplyTransfers} transfers executed.`);
-    }
 
     // ── Активація нових цехів ─────────────────────────────────────────────
     const newWorkshops = await this.db.workshop.findMany({
@@ -307,23 +303,19 @@ export class TickEngine {
         .then(() => this.npcCompetitors.tick(tickNumber))
         .catch(e => console.error(`[Tick ${tickNumber}] NPC competitors failed:`, e)) : Promise.resolve(),
       Number(tickNumber) % 30 === 0 ? this.ratings.processAwards(tickNumber)
-        .then(n => n > 0 && console.log(`[Tick ${tickNumber}] Рейтинги: ${n} нагород.`))
         .catch(e => console.error(`[Tick ${tickNumber}] Ratings failed:`, e)) : Promise.resolve(),
       Number(tickNumber) % 10 === 0 ? this.achievements.processAchievements(tickNumber)
-        .then(n => n > 0 && console.log(`[Tick ${tickNumber}] Досягнення: ${n} розблоковано.`))
         .catch(e => console.error(`[Tick ${tickNumber}] Achievements failed:`, e)) : Promise.resolve(),
       this.tenders.expireTenders(tickNumber)
         .catch(e => console.error(`[Tick ${tickNumber}] Tender expiry failed:`, e)),
     ]);
     if (Number(tickNumber) % 15 === 0) {
-      const newTenders = await this.tenders.generateTenders(tickNumber)
+      await this.tenders.generateTenders(tickNumber)
         .catch(e => { console.error(`[Tick ${tickNumber}] Tender generation failed:`, e); return 0; });
-      if (newTenders > 0) console.log(`[Tick ${tickNumber}] Тендери: ${newTenders} нових.`);
     }
     if (Number(tickNumber) % 30 === 0) {
-      const subsidyCount = await this.agro.payAgroSubsidies(tickNumber)
+      await this.agro.payAgroSubsidies(tickNumber)
         .catch(e => { console.error(`[Tick ${tickNumber}] Agro subsidies failed:`, e); return 0; });
-      if (subsidyCount > 0) console.log(`[Tick ${tickNumber}] Агро-субсидії: ${subsidyCount} фермерів.`);
       await this.agro.chargeExtraFieldRents(tickNumber)
         .catch(e => console.error(`[Tick ${tickNumber}] Extra field rent failed:`, e));
       await this.agro.processSeasonalSoilAndPests(tickNumber)
@@ -336,7 +328,7 @@ export class TickEngine {
 
     // ── 3a1j. B2B + логіст. + інспекції + 8-тічні операції — всі паралельно ──
     const is8tick = Number(tickNumber) % 8 === 0;
-    const [stateOrderCount, npcSellCount] = await Promise.all([
+    await Promise.all([
       this.b2bTransfer.processTransfers(tickNumber)
         .catch(e => console.error(`[Tick ${tickNumber}] B2B transfer failed:`, e)),
       this.freightSvc.processCompletedOrders(tickNumber)
@@ -357,10 +349,6 @@ export class TickEngine {
         ? this.market.processPriceAlerts().catch(e => console.error(`[Tick ${tickNumber}] Price alerts failed:`, e))
         : Promise.resolve(),
     ]);
-    if (is8tick) {
-      if ((stateOrderCount as unknown as number) > 0) console.log(`[Tick ${tickNumber}] Держзамовлення: ${stateOrderCount}.`);
-      if ((npcSellCount as unknown as number) > 0) console.log(`[Tick ${tickNumber}] NPC продаж: ${npcSellCount} ордерів.`);
-    }
 
     T('globalParallelOps + b2b + market orders');
     // ── 3. Global B2B market matching ────────────────────────────────────
@@ -398,11 +386,8 @@ export class TickEngine {
 
     T('matchOrders');
     // ── 3a2. NPC market buying — скуповує SELL-ордери до referencePrice ──
-    const npcMarketUnits = await this.market.matchNpcMarketOrders(tickNumber)
+    await this.market.matchNpcMarketOrders(tickNumber)
       .catch(e => { console.error(`[Tick ${tickNumber}] NPC market buy failed:`, e); return 0; });
-    if (npcMarketUnits > 0) {
-      console.log(`[Tick ${tickNumber}] NPC market: bought ${npcMarketUnits.toFixed(0)} units.`);
-    }
 
     T('matchNpcMarketOrders');
     // ── 3a3. Dynamic NPC price update — реагує на supply/demand поточного тіку ──
@@ -410,7 +395,7 @@ export class TickEngine {
       .catch(e => console.error(`[Tick ${tickNumber}] NPC price update failed:`, e));
 
     // ── 3b–3i. Independent global services in parallel ───────────────────
-    const [logisticsSummary, financeSummary, regulationSummary, energySummary, securitySummary, tradeSummary] =
+    const [, , regulationSummary, , , ] =
       await Promise.all([
         this.logistics.processLogisticsTick(tickNumber)
           .catch(e => { console.error(`[Tick ${tickNumber}] Logistics tick failed:`, e); return null; }),
@@ -426,10 +411,7 @@ export class TickEngine {
           .catch(e => { console.error(`[Tick ${tickNumber}] ForeignTrade tick failed:`, e); return null; }),
       ]);
 
-    if (logisticsSummary) console.log(`[Tick ${tickNumber}] Logistics: ${logisticsSummary.arrivals} arrivals, ${logisticsSummary.spoilageEvents} spoilage, ${logisticsSummary.failedDeliveries} failed.`);
-    if (financeSummary)  console.log(`[Tick ${tickNumber}] Finance: ${financeSummary.loanPaymentsCount} loans (₴${financeSummary.totalDeductedUah.toFixed(0)}), ${financeSummary.newInsolvencies} insolvencies, ${financeSummary.newBankruptcies} bankruptcies, ${financeSummary.recoveries} recoveries.`);
     if (regulationSummary) {
-      console.log(`[Tick ${tickNumber}] Regulation: ${regulationSummary.auditsTriggered} audits, ${regulationSummary.licenseExpiries} expired, ${regulationSummary.enterprisesUnfrozen} unfrozen${regulationSummary.macroEvent.fired ? `, macro: ${regulationSummary.macroEvent.type}` : ''}.`);
       // Write regulation notifications
       const regNotifs: { playerId: string; type: string; title: string; body: string; entityId?: string }[] = [];
       for (const audit of regulationSummary.auditResults) {
@@ -477,12 +459,8 @@ export class TickEngine {
         await this.db.notification.createMany({ data: regNotifs });
       }
     }
-    if (energySummary)   console.log(`[Tick ${tickNumber}] EnergyMarket: ☀${energySummary.sunCoefficient.toFixed(3)} | solar ${energySummary.solarEnterprisesCount}ent | diesel ₴${energySummary.totalDieselCostUah.toFixed(0)} | saved ₴${energySummary.totalSolarSavingsUah.toFixed(0)}.`);
-    if (securitySummary) console.log(`[Tick ${tickNumber}] CorpSecurity: ${securitySummary.systemsCharged} systems ₴${securitySummary.totalMaintenanceUah.toFixed(0)} | +${securitySummary.newFreezes} freezes | −${securitySummary.liftedFreezes} lifted.`);
-    if (tradeSummary)    console.log(`[Tick ${tickNumber}] ForeignTrade: FX ₴${tradeSummary.fxRate.toFixed(4)}/$ | exports ${tradeSummary.exportsCleared} | imports ${tradeSummary.importsCleared} | storage ${tradeSummary.storageFeesCharged}.`);
-
     // ── 3e/3f. Fiscal + inflation (conditional, can run together) ──────────
-    const [fiscalSummary, inflationResult] = await Promise.all([
+    await Promise.all([
       (tickNumber % TICKS_PER_SNAPSHOT === 0n)
         ? this.fiscal.collectTaxesAndAggregate(tickNumber).catch(e => { console.error(`[Tick ${tickNumber}] Fiscal aggregation failed:`, e); return null; })
         : Promise.resolve(null),
@@ -490,12 +468,10 @@ export class TickEngine {
         ? this.fiscal.calculateInflationAndTariffIndex().catch(e => { console.error(`[Tick ${tickNumber}] Inflation calc failed:`, e); return null; })
         : Promise.resolve(null),
     ]);
-    if (fiscalSummary)    console.log(`[Tick ${tickNumber}] Fiscal: +₴${fiscalSummary.newTotalUah.toFixed(0)} (ПДВ ₴${fiscalSummary.newVatUah.toFixed(0)} + OPEX ₴${fiscalSummary.newOpexTaxUah.toFixed(0)}), net ₴${fiscalSummary.budgetBalance.toFixed(0)}.`);
-    if (inflationResult)  console.log(`[Tick ${tickNumber}] Inflation [${inflationResult.pressureCategory}]: tariff ${inflationResult.tariffDeltaPct >= 0 ? '+' : ''}${inflationResult.tariffDeltaPct.toFixed(1)}%, wage ${inflationResult.wageDeltaPct >= 0 ? '+' : ''}${inflationResult.wageDeltaPct.toFixed(1)}%.`);
 
     // ── 3j. Company valuation + 3k. Banking in parallel ──────────────────
     // Banking runs last to capture overdrafts from billing; valuation is independent.
-    const [, bankingSummary, stockSummary] = await Promise.all([
+    await Promise.all([
       (tickNumber % TICKS_PER_SNAPSHOT === 0n)
         ? Promise.all(players.map(({ id: playerId }) =>
             this.valuation.calculateCompanyValuation(playerId).catch(e =>
@@ -507,18 +483,6 @@ export class TickEngine {
       this.banking.processBankingTick(tickNumber).catch(e => { console.error(`[Tick ${tickNumber}] Banking tick failed:`, e); return null; }),
       this.stockExchange.processStockMarketTick(tickNumber).catch(e => { console.error(`[Tick ${tickNumber}] StockExchange tick failed:`, e); return null; }),
     ]);
-
-    if (bankingSummary) {
-      const msgs: string[] = [];
-      if (bankingSummary.depositsMatured > 0)      msgs.push(`${bankingSummary.depositsMatured} dep matured (UAH ₴${bankingSummary.interestPaidUah.toFixed(0)} + USD $${bankingSummary.interestPaidUsd.toFixed(2)})`);
-      if (bankingSummary.overdraftDrawdowns > 0)   msgs.push(`${bankingSummary.overdraftDrawdowns} OD draws ₴${bankingSummary.overdraftDrawnUah.toFixed(0)}`);
-      if (bankingSummary.overdraftInterestUah.gt(0)) msgs.push(`OD interest ₴${bankingSummary.overdraftInterestUah.toFixed(2)}`);
-      if (bankingSummary.limitBreachPlayers.length > 0) msgs.push(`LIMIT BREACH: ${bankingSummary.limitBreachPlayers.join(', ')}`);
-      if (msgs.length > 0) console.log(`[Tick ${tickNumber}] Banking: ${msgs.join(' | ')}.`);
-    }
-    if (stockSummary && (stockSummary.totalTradesExecuted > 0 || stockSummary.npcCorrections > 0)) {
-      console.log(`[Tick ${tickNumber}] StockExchange: ${stockSummary.tickersProcessed} tickers | ${stockSummary.totalTradesExecuted} trades ₴${stockSummary.totalVolumeUah.toFixed(0)} | ${stockSummary.npcCorrections} NPC corrections.`);
-    }
 
     // ── 4. Collect overdue taxes — parallel per player ────────────────────
     await Promise.all(players.map(({ id: playerId }) =>
@@ -533,11 +497,6 @@ export class TickEngine {
       where: { id: tickRecord.id },
       data:  { completedAt: new Date(), durationMs },
     });
-
-    console.log(
-      `[Tick ${tickNumber}] Done in ${durationMs}ms. ` +
-      `Players: ${players.length}, Trades: ${trades.length}, Expired: ${ordersExpired}`,
-    );
 
     return {
       tickNumber,
