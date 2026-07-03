@@ -71,8 +71,8 @@ export default function LivestockTab({ enterpriseId, employees }: { enterpriseId
           {data.herds.map((h: any) => {
             const slaughterCount = parseInt(slaughterQty[h.id] || "1");
             const ageLabel = h.ageInTicks < (AGE_MIN[h.species] ?? 0)
-              ? <span className="text-amber-400 text-[9px]">⏳ До зрілості: {(AGE_MIN[h.species] ?? 0) - h.ageInTicks} д.</span>
-              : <span className="text-emerald-400 text-[9px]">✓ Зрілі</span>;
+              ? <span className="text-amber-400 text-xs">⏳ До зрілості: {(AGE_MIN[h.species] ?? 0) - h.ageInTicks} д.</span>
+              : <span className="text-emerald-400 text-xs">✓ Зрілі</span>;
             return (
               <div key={h.id} className="rounded-lg border border-gray-800 bg-gray-900 p-3 space-y-2">
                 <div className="flex items-center justify-between gap-3">
@@ -85,7 +85,7 @@ export default function LivestockTab({ enterpriseId, employees }: { enterpriseId
                       {h.feedSkippedTicks > 0 && <span className="ml-2 text-red-400">⚠ {h.feedSkippedTicks} тіки без корму</span>}
                     </p>
                     {h.species === 'CATTLE' && (
-                      <p className="text-[9px] text-blue-300">
+                      <p className="text-xs text-blue-300">
                         🥛 Доїння: {milkmaids > 0 ? `${milkmaids} доярка (до ${milkmaids * 250} л/д)` : 'немає доярки'}
                         {milkingOps > 0 ? ` | Апарат: ${milkingOps} оп. (до ${milkingOps * 2400} л/д)` : ''}
                       </p>
@@ -107,7 +107,7 @@ export default function LivestockTab({ enterpriseId, employees }: { enterpriseId
                   </div>
                 </div>
                 <p className="text-xs text-gray-500">{h.config?.outputDesc}</p>
-                {msgs[h.id] && <p className={`text-[10px] ${msgs[h.id].startsWith("✓") ? "text-emerald-400" : "text-red-400"}`}>{msgs[h.id]}</p>}
+                {msgs[h.id] && <p className={`text-xs ${msgs[h.id].startsWith("✓") ? "text-emerald-400" : "text-red-400"}`}>{msgs[h.id]}</p>}
               </div>
             );
           })}
@@ -116,8 +116,8 @@ export default function LivestockTab({ enterpriseId, employees }: { enterpriseId
 
       {/* Slaughter requirements info */}
       <div className="bg-gray-900 rounded-lg p-2">
-        <p className="text-[9px] text-gray-400 font-semibold mb-1">Вимоги для забою:</p>
-        <table className="text-[9px] w-full">
+        <p className="text-xs text-gray-400 font-semibold mb-1">Вимоги для забою:</p>
+        <table className="text-xs w-full">
           <tbody>
             <tr><td className="text-gray-400 pr-2">🐔 Птиця</td><td>EQ-SLAUGHTER_POULTRY + Обвалювальник + Технік</td><td className="text-right text-gray-500">до 200 гол/д</td></tr>
             <tr><td className="text-gray-400 pr-2">🐷 Свині</td><td>EQ-SLAUGHTER_PIGS + Обвалювальник + Технік</td><td className="text-right text-gray-500">до 6 гол/д</td></tr>

@@ -69,7 +69,7 @@ const STATUS_CFG = {
 function MarketBadge({ status }: { status: RecipeRow["market"]["status"] }) {
   const { label, cls, Icon } = STATUS_CFG[status];
   return (
-    <span className={cn("inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border font-medium", cls)}>
+    <span className={cn("inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border font-medium", cls)}>
       <Icon size={9} />{label}
     </span>
   );
@@ -113,7 +113,7 @@ function RecipeCard({ recipe, rank }: { recipe: RecipeRow; rank: number }) {
       {isOpportunity && (
         <div className="flex items-center gap-1.5 px-4 pt-2.5 pb-0">
           <Flame size={11} className="text-emerald-400" />
-          <span className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wide">Можливість — дефіцит + прибуток</span>
+          <span className="text-xs font-semibold text-emerald-400 uppercase tracking-wide">Можливість — дефіцит + прибуток</span>
         </div>
       )}
 
@@ -129,12 +129,12 @@ function RecipeCard({ recipe, rank }: { recipe: RecipeRow; rank: number }) {
               <div className="flex items-center gap-1.5 flex-wrap">
                 <p className="font-semibold text-white text-sm">{recipe.outputProduct.name}</p>
                 {recipe.isUsedByMe && (
-                  <span className="inline-flex items-center gap-0.5 text-[9px] bg-violet-900 text-violet-300 border border-violet-700 px-1.5 py-0.5 rounded font-semibold">
+                  <span className="inline-flex items-center gap-0.5 text-xs bg-violet-900 text-violet-300 border border-violet-700 px-1.5 py-0.5 rounded font-semibold">
                     <Factory size={8} /> {recipe.myLinesCount} ліній
                   </span>
                 )}
               </div>
-              <p className="text-[10px] text-gray-500">{recipe.name} · {recipe.outputProduct.category}</p>
+              <p className="text-xs text-gray-500">{recipe.name} · {recipe.outputProduct.category}</p>
             </div>
           </div>
           <MarketBadge status={mkt.status} />
@@ -143,21 +143,21 @@ function RecipeCard({ recipe, rank }: { recipe: RecipeRow; rank: number }) {
         {/* Economics strip */}
         <div className="grid grid-cols-3 gap-2 text-center">
           <div className="rounded-lg bg-gray-800/50 px-2 py-2">
-            <p className="text-[9px] text-gray-600 uppercase tracking-wide mb-0.5">Виручка</p>
+            <p className="text-xs text-gray-600 uppercase tracking-wide mb-0.5">Виручка</p>
             <p className="text-xs font-mono text-white">{formatNumber(Math.round(eco.grossRevenue))}</p>
-            <p className="text-[9px] text-gray-600">GC / цикл</p>
+            <p className="text-xs text-gray-600">GC / цикл</p>
           </div>
           <div className="rounded-lg bg-gray-800/50 px-2 py-2">
-            <p className="text-[9px] text-gray-600 uppercase tracking-wide mb-0.5">Витрати</p>
+            <p className="text-xs text-gray-600 uppercase tracking-wide mb-0.5">Витрати</p>
             <p className="text-xs font-mono text-gray-400">−{formatNumber(Math.round(eco.totalInputCost))}</p>
-            <p className="text-[9px] text-gray-600">GC / цикл</p>
+            <p className="text-xs text-gray-600">GC / цикл</p>
           </div>
           <div className={cn("rounded-lg px-2 py-2", isProfit ? "bg-emerald-950/40" : "bg-red-950/30")}>
-            <p className="text-[9px] text-gray-600 uppercase tracking-wide mb-0.5">Маржа</p>
+            <p className="text-xs text-gray-600 uppercase tracking-wide mb-0.5">Маржа</p>
             <p className={cn("text-xs font-bold font-mono", isProfit ? "text-emerald-400" : "text-red-400")}>
               {isProfit ? "+" : ""}{formatNumber(Math.round(eco.grossMargin))}
             </p>
-            <p className={cn("text-[9px]", isProfit ? "text-emerald-600" : "text-red-600")}>
+            <p className={cn("text-xs", isProfit ? "text-emerald-600" : "text-red-600")}>
               {eco.marginPct.toFixed(1)}%
             </p>
           </div>
@@ -165,7 +165,7 @@ function RecipeCard({ recipe, rank }: { recipe: RecipeRow; rank: number }) {
 
         {/* Margin bar */}
         <div>
-          <div className="flex justify-between text-[9px] text-gray-600 mb-0.5">
+          <div className="flex justify-between text-xs text-gray-600 mb-0.5">
             <span>Маржинальність</span>
             {eco.roi !== null && (
               <span>ROI: <span className={eco.roi >= 0 ? "text-emerald-500" : "text-red-500"}>{eco.roi.toFixed(0)}%</span></span>
@@ -180,14 +180,14 @@ function RecipeCard({ recipe, rank }: { recipe: RecipeRow; rank: number }) {
             {mkt.retailPrice != null ? (
               <>
                 <span className="text-white font-mono">{mkt.retailPrice.toFixed(2)} GC/{recipe.outputProduct.unit}</span>
-                {mkt.priceVsBase >= 1.1 && <span className="text-amber-400 text-[10px]">+{((mkt.priceVsBase - 1) * 100).toFixed(0)}% до бази</span>}
-                {mkt.priceVsBase <= 0.9 && <span className="text-red-400 text-[10px]">{((mkt.priceVsBase - 1) * 100).toFixed(0)}% до бази</span>}
+                {mkt.priceVsBase >= 1.1 && <span className="text-amber-400 text-xs">+{((mkt.priceVsBase - 1) * 100).toFixed(0)}% до бази</span>}
+                {mkt.priceVsBase <= 0.9 && <span className="text-red-400 text-xs">{((mkt.priceVsBase - 1) * 100).toFixed(0)}% до бази</span>}
               </>
             ) : (
               <span className="text-gray-600 text-[11px]">Роздрібна ціна: база {recipe.outputProduct.basePrice.toFixed(2)} GC</span>
             )}
           </div>
-          <span className="text-gray-600 text-[10px]">вихід: {recipe.outputAmount} {recipe.outputProduct.unit}</span>
+          <span className="text-gray-600 text-xs">вихід: {recipe.outputAmount} {recipe.outputProduct.unit}</span>
         </div>
 
         {/* Inputs toggle */}
@@ -207,20 +207,20 @@ function RecipeCard({ recipe, rank }: { recipe: RecipeRow; rank: number }) {
                   {inp.productIcon && <span className="text-sm">{inp.productIcon}</span>}
                   <div>
                     <span className="text-white">{inp.productName}</span>
-                    <span className="text-gray-600 ml-1.5 text-[10px]">{inp.amount} {inp.unit}</span>
+                    <span className="text-gray-600 ml-1.5 text-xs">{inp.amount} {inp.unit}</span>
                   </div>
                 </div>
                 <div className="text-right">
                   <span className="font-mono text-gray-300">{inp.bestPrice.toFixed(2)} GC/{inp.unit}</span>
-                  <span className="text-gray-600 ml-1 text-[10px]">= {formatNumber(Math.round(inp.lineCost))} GC</span>
+                  <span className="text-gray-600 ml-1 text-xs">= {formatNumber(Math.round(inp.lineCost))} GC</span>
                   {inp.wsPrice !== null && inp.wsPrice < inp.basePrice && (
-                    <div className="text-[9px] text-emerald-500">оптова (дешевша)</div>
+                    <div className="text-xs text-emerald-500">оптова (дешевша)</div>
                   )}
                   {inp.wsPrice !== null && inp.wsPrice > inp.basePrice * 1.2 && (
-                    <div className="text-[9px] text-amber-500">оптова (дорога)</div>
+                    <div className="text-xs text-amber-500">оптова (дорога)</div>
                   )}
                   {inp.wsPrice === null && (
-                    <div className="text-[9px] text-gray-600">баз. ціна</div>
+                    <div className="text-xs text-gray-600">баз. ціна</div>
                   )}
                 </div>
               </div>
@@ -350,27 +350,27 @@ export default function ProductionOptimizerClient() {
       {data && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="rounded-xl border border-gray-800 bg-gray-900/60 px-4 py-3">
-            <p className="text-[10px] text-gray-600 uppercase tracking-wide mb-1">Всього рецептів</p>
+            <p className="text-xs text-gray-600 uppercase tracking-wide mb-1">Всього рецептів</p>
             <p className="text-2xl font-bold text-white">{data.summary.total}</p>
           </div>
           <div className="rounded-xl border border-emerald-900/30 bg-emerald-950/10 px-4 py-3">
             <div className="flex items-center gap-1.5 mb-1">
               <CheckCircle2 size={11} className="text-emerald-400" />
-              <p className="text-[10px] text-emerald-400 uppercase tracking-wide">Прибуткових</p>
+              <p className="text-xs text-emerald-400 uppercase tracking-wide">Прибуткових</p>
             </div>
             <p className="text-2xl font-bold text-emerald-300">{data.summary.profitable}</p>
           </div>
           <div className="rounded-xl border border-red-900/30 bg-red-950/10 px-4 py-3">
             <div className="flex items-center gap-1.5 mb-1">
               <AlertTriangle size={11} className="text-red-400" />
-              <p className="text-[10px] text-red-400 uppercase tracking-wide">Дефіцитних</p>
+              <p className="text-xs text-red-400 uppercase tracking-wide">Дефіцитних</p>
             </div>
             <p className="text-2xl font-bold text-red-300">{data.summary.deficit}</p>
           </div>
           <div className="rounded-xl border border-violet-900/30 bg-violet-950/10 px-4 py-3">
             <div className="flex items-center gap-1.5 mb-1">
               <Factory size={11} className="text-violet-400" />
-              <p className="text-[10px] text-violet-400 uppercase tracking-wide">Мої рецепти</p>
+              <p className="text-xs text-violet-400 uppercase tracking-wide">Мої рецепти</p>
             </div>
             <p className="text-2xl font-bold text-violet-300">{data.summary.myRecipes}</p>
           </div>

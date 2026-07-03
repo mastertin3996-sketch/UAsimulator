@@ -317,7 +317,7 @@ function ProductAnalyticsTab({
                   </td>
                   <td className="py-2.5 text-right">
                     {p.avgSat > 0 ? (
-                      <span className={cn("text-[10px] px-1.5 py-0.5 rounded border font-medium", satInfo.bg, satInfo.color)}>
+                      <span className={cn("text-xs px-1.5 py-0.5 rounded border font-medium", satInfo.bg, satInfo.color)}>
                         {satInfo.label} {p.avgSat.toFixed(2)}
                       </span>
                     ) : <span className="text-gray-700">—</span>}
@@ -328,7 +328,7 @@ function ProductAnalyticsTab({
                         <TrendIcon first={p.priceFirst} last={p.priceLast} />
                         {priceChangePct !== null && Math.abs(priceChangePct) >= 1 && (
                           <span className={cn(
-                            "text-[10px] font-mono",
+                            "text-xs font-mono",
                             priceChangePct > 0 ? "text-red-400" : "text-emerald-400",
                           )}>
                             {priceChangePct > 0 ? "+" : ""}{priceChangePct.toFixed(1)}%
@@ -491,13 +491,13 @@ export default function ProductionHistoryPage() {
           {/* Stats strip */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div className="rounded-xl border border-gray-800 bg-gray-900 px-4 py-3">
-              <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Виручка (всього)</p>
+              <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Виручка (всього)</p>
               <p className="text-xl font-bold text-emerald-400 font-mono">₴{formatNumber(Math.round(s.totalRevenue))}</p>
               <div className="flex items-center gap-1 mt-0.5">
-                <span className="text-[10px] text-gray-600">за {s.tickCount} тіків</span>
+                <span className="text-xs text-gray-600">за {s.tickCount} тіків</span>
                 {revenueTrend !== null && Math.abs(revenueTrend) >= 1 && (
                   <span className={cn(
-                    "flex items-center gap-0.5 text-[10px] font-medium",
+                    "flex items-center gap-0.5 text-xs font-medium",
                     revenueTrend > 0 ? "text-emerald-400" : "text-red-400",
                   )}>
                     {revenueTrend > 0 ? <TrendingUp size={9} /> : <TrendingDown size={9} />}
@@ -507,18 +507,18 @@ export default function ProductionHistoryPage() {
               </div>
             </div>
             <div className="rounded-xl border border-gray-800 bg-gray-900 px-4 py-3">
-              <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Продано (всього)</p>
+              <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Продано (всього)</p>
               <p className="text-xl font-bold text-white font-mono">{formatNumber(Math.round(s.totalQtySold))}</p>
-              <p className="text-[10px] text-gray-600 mt-0.5">одиниць</p>
+              <p className="text-xs text-gray-600 mt-0.5">одиниць</p>
             </div>
             <div className="rounded-xl border border-gray-800 bg-gray-900 px-4 py-3">
-              <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Середня / тік</p>
+              <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Середня / тік</p>
               <p className="text-xl font-bold text-blue-400 font-mono">₴{formatNumber(Math.round(s.totalRevenue / s.tickCount))}</p>
             </div>
             <div className="rounded-xl border border-gray-800 bg-gray-900 px-4 py-3">
-              <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Кращий тік</p>
+              <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Кращий тік</p>
               <p className="text-xl font-bold text-amber-400 font-mono">#{s.bestTickNumber ?? "—"}</p>
-              <p className="text-[10px] text-gray-600 mt-0.5">₴{formatNumber(Math.round(s.bestTickRevenue))}</p>
+              <p className="text-xs text-gray-600 mt-0.5">₴{formatNumber(Math.round(s.bestTickRevenue))}</p>
             </div>
           </div>
 
@@ -569,7 +569,7 @@ export default function ProductionHistoryPage() {
                   </div>
                 </div>
                 <BarChart ticks={ticks} metric={metric} />
-                <p className="text-[10px] text-gray-700 mt-1">— пунктирна лінія = середнє значення</p>
+                <p className="text-xs text-gray-700 mt-1">— пунктирна лінія = середнє значення</p>
               </div>
 
               {/* Top products quick view */}
@@ -594,7 +594,7 @@ export default function ProductionHistoryPage() {
                           <span className="text-xs text-gray-600 w-4 shrink-0">{i + 1}</span>
                           <span className="text-sm text-white flex-1 min-w-0 truncate">{p.name}</span>
                           {satInfo && (
-                            <span className={cn("text-[10px] px-1.5 py-0.5 rounded border hidden sm:block", satInfo.bg, satInfo.color)}>
+                            <span className={cn("text-xs px-1.5 py-0.5 rounded border hidden sm:block", satInfo.bg, satInfo.color)}>
                               {satInfo.label}
                             </span>
                           )}
@@ -608,7 +608,7 @@ export default function ProductionHistoryPage() {
                             <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
                               <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${pct}%` }} />
                             </div>
-                            <span className="text-[10px] text-gray-600">{pct.toFixed(0)}%</span>
+                            <span className="text-xs text-gray-600">{pct.toFixed(0)}%</span>
                           </div>
                         </div>
                       );

@@ -99,16 +99,16 @@ export default function ResearchClient() {
       {/* Stats strip */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <div className="rounded-xl border border-gray-800 bg-gray-900 px-4 py-3">
-          <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">RP / тік</p>
+          <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">RP / тік</p>
           <p className="text-xl font-bold text-purple-400 font-mono">+{rpPerTick.toFixed(1)}</p>
-          <p className="text-[10px] text-gray-600 mt-0.5">очки досліджень</p>
+          <p className="text-xs text-gray-600 mt-0.5">очки досліджень</p>
         </div>
         <div className="rounded-xl border border-emerald-900/30 bg-emerald-950/10 px-4 py-3">
-          <p className="text-[10px] text-emerald-500/70 uppercase tracking-wider mb-1">Відкрито</p>
+          <p className="text-xs text-emerald-500/70 uppercase tracking-wider mb-1">Відкрито</p>
           <p className="text-xl font-bold text-emerald-400 font-mono">{summary.unlocked} / {summary.total}</p>
         </div>
         <div className="rounded-xl border border-gray-800 bg-gray-900 px-4 py-3 col-span-2 sm:col-span-1">
-          <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Зараз досліджується</p>
+          <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Зараз досліджується</p>
           {summary.inProgress ? (
             <>
               <p className="text-sm font-semibold text-white truncate">{summary.inProgress.name}</p>
@@ -118,7 +118,7 @@ export default function ResearchClient() {
                   style={{ width: `${Math.min(100, (summary.inProgress.progress / summary.inProgress.required) * 100)}%` }}
                 />
               </div>
-              <p className="text-[10px] text-gray-500 mt-1">
+              <p className="text-xs text-gray-500 mt-1">
                 {formatNumber(Math.round(summary.inProgress.progress))} / {formatNumber(summary.inProgress.required)} RP
                 {summary.inProgress.eta !== null && ` · ~${summary.inProgress.eta} тіків`}
               </p>
@@ -161,7 +161,7 @@ export default function ResearchClient() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-sm font-semibold text-white">{node.name}</span>
-                          <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded", cfg.badge)}>
+                          <span className={cn("text-xs font-bold px-1.5 py-0.5 rounded", cfg.badge)}>
                             {cfg.badgeText}
                           </span>
                         </div>
@@ -174,7 +174,7 @@ export default function ResearchClient() {
                     {/* Progress bar */}
                     {(node.status === "IN_PROGRESS" || (node.currentProgressPoints > 0 && node.status !== "UNLOCKED")) && (
                       <div>
-                        <div className="flex justify-between text-[10px] text-gray-500 mb-1">
+                        <div className="flex justify-between text-xs text-gray-500 mb-1">
                           <span>{formatNumber(Math.round(node.currentProgressPoints))} / {formatNumber(node.requiredResearchPoints)} RP</span>
                           <span>{pct.toFixed(0)}%</span>
                         </div>
@@ -185,7 +185,7 @@ export default function ResearchClient() {
                           />
                         </div>
                         {isActive && rpPerTick > 0 && (
-                          <p className="text-[10px] text-blue-400 mt-1 flex items-center gap-1">
+                          <p className="text-xs text-blue-400 mt-1 flex items-center gap-1">
                             <Clock size={9} />
                             ~{Math.ceil((node.requiredResearchPoints - node.currentProgressPoints) / rpPerTick)} тіків до відкриття
                           </p>
@@ -195,7 +195,7 @@ export default function ResearchClient() {
 
                     {/* Cost for not-started available */}
                     {node.status === "AVAILABLE" && node.currentProgressPoints === 0 && (
-                      <p className="text-[10px] text-gray-500">
+                      <p className="text-xs text-gray-500">
                         Потрібно:{" "}
                         <span className="text-purple-400 font-mono">{formatNumber(node.requiredResearchPoints)} RP</span>
                         {rpPerTick > 0 && ` · ~${Math.ceil(node.requiredResearchPoints / rpPerTick)} тіків`}
@@ -204,12 +204,12 @@ export default function ResearchClient() {
 
                     {/* Prerequisites info for locked */}
                     {node.status === "LOCKED" && node.prerequisites.length > 0 && (
-                      <p className="text-[10px] text-gray-600">Потребує: {node.prerequisites.join(", ")}</p>
+                      <p className="text-xs text-gray-600">Потребує: {node.prerequisites.join(", ")}</p>
                     )}
 
                     {/* Unlocked tick */}
                     {node.status === "UNLOCKED" && node.unlockedAtTick && (
-                      <p className="text-[10px] text-gray-600">Відкрито на тіку #{node.unlockedAtTick}</p>
+                      <p className="text-xs text-gray-600">Відкрито на тіку #{node.unlockedAtTick}</p>
                     )}
 
                     {/* Actions */}

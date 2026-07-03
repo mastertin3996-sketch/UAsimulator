@@ -79,10 +79,10 @@ export default function B2bTab({ enterpriseId }: { enterpriseId: string }) {
                 <span className="text-gray-600 ml-2">{a.sourceEnterprise.name} → {a.targetEnterprise.name}</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-gray-600 text-[10px]">{a.totalTransferred.toFixed(0)} перенесено</span>
+                <span className="text-gray-600 text-xs">{a.totalTransferred.toFixed(0)} перенесено</span>
                 {a.isActive && a.sourceEnterprise.id === enterpriseId
-                  ? <button onClick={() => deactivate(a.id)} className="text-red-500 hover:text-red-400 text-[10px]">Зупинити</button>
-                  : <span className="text-gray-600 text-[10px]">{a.isActive ? "активна" : "зупинена"}</span>}
+                  ? <button onClick={() => deactivate(a.id)} className="text-red-500 hover:text-red-400 text-xs">Зупинити</button>
+                  : <span className="text-gray-600 text-xs">{a.isActive ? "активна" : "зупинена"}</span>}
               </div>
             </div>
           ))}

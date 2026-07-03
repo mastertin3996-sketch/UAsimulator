@@ -49,8 +49,8 @@ export default function StaffTab({ enterpriseId }: { enterpriseId: string }) {
               <p className="text-xs text-gray-500">{e.profession} · ₴{e.salary.toLocaleString("uk-UA")}/міс</p>
             </div>
             <div className="flex items-center gap-2">
-              {e.isOnStrike && <span className="text-[10px] bg-red-950 text-red-400 px-1.5 py-0.5 rounded-full">СТРАЙК</span>}
-              <span className="text-[10px] bg-blue-950 text-blue-300 px-1.5 py-0.5 rounded-full">Кваліфікація {e.qualificationLevel}/5</span>
+              {e.isOnStrike && <span className="text-xs bg-red-950 text-red-400 px-1.5 py-0.5 rounded-full">СТРАЙК</span>}
+              <span className="text-xs bg-blue-950 text-blue-300 px-1.5 py-0.5 rounded-full">Кваліфікація {e.qualificationLevel}/5</span>
             </div>
           </div>
 

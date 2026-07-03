@@ -100,7 +100,7 @@ export function IntelligenceClient() {
                       {e.prices.length > 0 && (
                         <div className="flex flex-wrap gap-2">
                           {e.prices.map((p, pi) => (
-                            <span key={pi} className="text-[10px] bg-blue-950/50 border border-blue-800/30 rounded px-1.5 py-0.5 text-blue-300">
+                            <span key={pi} className="text-xs bg-blue-950/50 border border-blue-800/30 rounded px-1.5 py-0.5 text-blue-300">
                               {p.sku} ₴{p.price.toFixed(2)}
                             </span>
                           ))}
@@ -109,7 +109,7 @@ export function IntelligenceClient() {
                       {e.inventory.length > 0 && (
                         <div className="flex flex-wrap gap-2">
                           {e.inventory.map((i, ii) => (
-                            <span key={ii} className="text-[10px] bg-gray-800 rounded px-1.5 py-0.5 text-gray-400">
+                            <span key={ii} className="text-xs bg-gray-800 rounded px-1.5 py-0.5 text-gray-400">
                               {i.sku} {i.qty.toFixed(0)} од.
                             </span>
                           ))}

@@ -48,7 +48,7 @@ export default function FreightTab({ enterpriseId }: { enterpriseId: string }) {
                 <div className="flex items-center gap-2 shrink-0">
                   <span className="text-emerald-400 font-mono">₴{o.totalValueUah.toLocaleString()}</span>
                   <button onClick={() => accept(o.id)} disabled={!info.hasHub || accepting === o.id}
-                    className="px-2 py-0.5 bg-blue-700 hover:bg-blue-600 disabled:opacity-50 text-white text-[10px] rounded">
+                    className="px-2 py-0.5 bg-blue-700 hover:bg-blue-600 disabled:opacity-50 text-white text-xs rounded">
                     {accepting === o.id ? "..." : "Взяти"}
                   </button>
                 </div>

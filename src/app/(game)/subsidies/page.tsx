@@ -138,11 +138,11 @@ export default function SubsidiesPage() {
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-lg">{cfg.icon}</span>
                     <span className="text-sm font-bold text-white">{label}</span>
-                    <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded", cfg.badge)}>
+                    <span className={cn("text-xs font-bold px-1.5 py-0.5 rounded", cfg.badge)}>
                       +{Math.round(prog.subsidyPercentage * 100)}% cashback
                     </span>
                     {exhausted && (
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-800 text-gray-500">
+                      <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-gray-800 text-gray-500">
                         Вичерпано
                       </span>
                     )}
@@ -153,7 +153,7 @@ export default function SubsidiesPage() {
 
               {/* Budget bar */}
               <div>
-                <div className="flex justify-between text-[10px] text-gray-500 mb-1">
+                <div className="flex justify-between text-xs text-gray-500 mb-1">
                   <span>Залишок фонду</span>
                   <span>₴{formatNumber(Math.round(prog.availableFundsUah))}</span>
                 </div>
@@ -165,9 +165,9 @@ export default function SubsidiesPage() {
               {/* Eligible types */}
               {prog.eligibleTypes.length > 0 && (
                 <div className="flex flex-wrap gap-1">
-                  <span className="text-[10px] text-gray-600">Для:</span>
+                  <span className="text-xs text-gray-600">Для:</span>
                   {prog.eligibleTypes.map(t => (
-                    <span key={t} className="text-[10px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-400">
+                    <span key={t} className="text-xs px-1.5 py-0.5 rounded bg-gray-800 text-gray-400">
                       {TYPE_UA[t] ?? t}
                     </span>
                   ))}

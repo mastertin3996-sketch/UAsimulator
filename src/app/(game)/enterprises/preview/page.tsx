@@ -130,17 +130,17 @@ function VariantA() {
             </div>
             <div className="min-w-0">
               <p className="text-xs font-bold text-white truncate">Агроферма</p>
-              <p className="text-[10px] text-gray-500">{MOCK.city}</p>
+              <p className="text-xs text-gray-500">{MOCK.city}</p>
             </div>
           </div>
           <div className="flex items-center gap-3 bg-gray-800/60 rounded-lg p-2">
             <div className="relative">
               <ProgressRing pct={MOCK.efficiency} size={40} stroke={3} color="#10b981" />
-              <span className="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-emerald-400">{MOCK.efficiency}%</span>
+              <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-emerald-400">{MOCK.efficiency}%</span>
             </div>
             <div>
-              <p className="text-[10px] text-gray-400">Ефективність</p>
-              <p className="text-[10px] text-emerald-400 font-medium">Відмінно</p>
+              <p className="text-xs text-gray-400">Ефективність</p>
+              <p className="text-xs text-emerald-400 font-medium">Відмінно</p>
             </div>
           </div>
         </div>
@@ -157,7 +157,7 @@ function VariantA() {
               <Icon size={14} />
               <span>{label}</span>
               {key === "people" && (
-                <span className="ml-auto text-[10px] bg-amber-500/20 text-amber-400 rounded-full px-1.5 py-0.5">!</span>
+                <span className="ml-auto text-xs bg-amber-500/20 text-amber-400 rounded-full px-1.5 py-0.5">!</span>
               )}
             </button>
           ))}
@@ -165,9 +165,9 @@ function VariantA() {
 
         {/* Alerts */}
         <div className="p-3 border-t border-gray-800 space-y-1.5">
-          <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-2">Сповіщення</p>
+          <p className="text-xs text-gray-600 uppercase tracking-wider mb-2">Сповіщення</p>
           {MOCK_ALERTS.map((a, i) => (
-            <div key={i} className={`text-[10px] rounded-lg p-2 ${
+            <div key={i} className={`text-xs rounded-lg p-2 ${
               a.type === "danger"  ? "bg-red-500/10 text-red-400 border border-red-500/20" :
               a.type === "warning" ? "bg-amber-500/10 text-amber-400 border border-amber-500/20" :
               "bg-blue-500/10 text-blue-400 border border-blue-500/20"
@@ -203,24 +203,24 @@ function VariantA() {
               {/* KPI Row */}
               <div className="grid grid-cols-4 gap-3">
                 <div className="rounded-xl border border-emerald-500/15 bg-emerald-500/5 p-3">
-                  <div className="flex items-center gap-2 mb-2"><TrendingUp size={13} className="text-emerald-400" /><span className="text-[10px] text-gray-500 uppercase tracking-wider">Дохід/тік</span></div>
+                  <div className="flex items-center gap-2 mb-2"><TrendingUp size={13} className="text-emerald-400" /><span className="text-xs text-gray-500 uppercase tracking-wider">Дохід/тік</span></div>
                   <p className="text-xl font-bold font-mono text-white">₴{(MOCK.revenue / 1000).toFixed(1)}к</p>
-                  <p className="text-[10px] text-gray-500 mt-0.5">+12% vs минулий</p>
+                  <p className="text-xs text-gray-500 mt-0.5">+12% vs минулий</p>
                 </div>
                 <div className="rounded-xl border border-orange-500/15 bg-orange-500/5 p-3">
-                  <div className="flex items-center gap-2 mb-2"><DollarSign size={13} className="text-orange-400" /><span className="text-[10px] text-gray-500 uppercase tracking-wider">Витрати/тік</span></div>
+                  <div className="flex items-center gap-2 mb-2"><DollarSign size={13} className="text-orange-400" /><span className="text-xs text-gray-500 uppercase tracking-wider">Витрати/тік</span></div>
                   <p className="text-xl font-bold font-mono text-orange-400">₴{(MOCK.costPerTick / 1000).toFixed(1)}к</p>
-                  <p className="text-[10px] text-gray-500 mt-0.5">зарплата+оренда</p>
+                  <p className="text-xs text-gray-500 mt-0.5">зарплата+оренда</p>
                 </div>
                 <div className="rounded-xl border border-blue-500/15 bg-blue-500/5 p-3">
-                  <div className="flex items-center gap-2 mb-2"><Activity size={13} className="text-blue-400" /><span className="text-[10px] text-gray-500 uppercase tracking-wider">Прибуток</span></div>
+                  <div className="flex items-center gap-2 mb-2"><Activity size={13} className="text-blue-400" /><span className="text-xs text-gray-500 uppercase tracking-wider">Прибуток</span></div>
                   <p className="text-xl font-bold font-mono text-white">₴{(MOCK.profit / 1000).toFixed(1)}к</p>
-                  <p className="text-[10px] text-gray-500 mt-0.5">чистий</p>
+                  <p className="text-xs text-gray-500 mt-0.5">чистий</p>
                 </div>
                 <div className="rounded-xl border border-emerald-500/15 bg-emerald-500/5 p-3">
-                  <div className="flex items-center gap-2 mb-2"><Leaf size={13} className="text-emerald-400" /><span className="text-[10px] text-gray-500 uppercase tracking-wider">Якість ґрунту</span></div>
+                  <div className="flex items-center gap-2 mb-2"><Leaf size={13} className="text-emerald-400" /><span className="text-xs text-gray-500 uppercase tracking-wider">Якість ґрунту</span></div>
                   <p className="text-xl font-bold font-mono text-white">{MOCK.soilQuality}/10</p>
-                  <p className="text-[10px] text-gray-500 mt-0.5">добре</p>
+                  <p className="text-xs text-gray-500 mt-0.5">добре</p>
                 </div>
               </div>
 
@@ -239,15 +239,15 @@ function VariantA() {
                       </div>
                       <div className="flex items-center gap-2 mb-2">
                         <span className="font-mono text-[11px] text-emerald-300 bg-emerald-900/30 rounded px-1.5 py-0.5">{w.recipe}</span>
-                        <span className="text-[10px] text-gray-500">{w.efficiency}%</span>
+                        <span className="text-xs text-gray-500">{w.efficiency}%</span>
                       </div>
                       {w.status === "active" ? (
                         <>
                           <div className="flex items-center gap-2 mb-1">
                             <Bar pct={w.progress} />
-                            <span className="text-[10px] font-mono text-gray-400 w-8 text-right">{w.progress}%</span>
+                            <span className="text-xs font-mono text-gray-400 w-8 text-right">{w.progress}%</span>
                           </div>
-                          <p className="text-[10px] text-gray-500">{w.output} од./тік · {w.numWorkers} прац.</p>
+                          <p className="text-xs text-gray-500">{w.output} од./тік · {w.numWorkers} прац.</p>
                         </>
                       ) : (
                         <button className="w-full mt-1 py-1 text-[11px] border border-dashed border-gray-700 rounded text-gray-500 hover:text-emerald-400 hover:border-emerald-700 transition-colors">
@@ -277,7 +277,7 @@ function VariantA() {
                       <span className="text-xs text-white w-32 truncate">{w.name}</span>
                       <span className="text-[11px] text-gray-500 w-28">{w.role}</span>
                       <Bar pct={w.mood} color={moodBar(w.mood)} />
-                      <span className={`text-[10px] font-mono w-8 text-right ${moodColor(w.mood)}`}>{w.mood}%</span>
+                      <span className={`text-xs font-mono w-8 text-right ${moodColor(w.mood)}`}>{w.mood}%</span>
                     </div>
                   ))}
                 </div>
@@ -312,15 +312,15 @@ function VariantA() {
                       </div>
                       <div className="grid grid-cols-3 gap-3 mt-2">
                         <div className="text-center p-2 bg-gray-800 rounded-lg">
-                          <p className="text-[10px] text-gray-500">Вихід/тік</p>
+                          <p className="text-xs text-gray-500">Вихід/тік</p>
                           <p className="text-sm font-bold text-white">{w.output}</p>
                         </div>
                         <div className="text-center p-2 bg-gray-800 rounded-lg">
-                          <p className="text-[10px] text-gray-500">Працівники</p>
+                          <p className="text-xs text-gray-500">Працівники</p>
                           <p className="text-sm font-bold text-white">{w.numWorkers}</p>
                         </div>
                         <div className="text-center p-2 bg-gray-800 rounded-lg">
-                          <p className="text-[10px] text-gray-500">Змін/добу</p>
+                          <p className="text-xs text-gray-500">Змін/добу</p>
                           <p className="text-sm font-bold text-white">2</p>
                         </div>
                       </div>
@@ -355,7 +355,7 @@ function VariantA() {
                     </div>
                     <div className="flex items-center gap-3">
                       <div className="text-right mr-2">
-                        <p className="text-[10px] text-gray-500">Настрій</p>
+                        <p className="text-xs text-gray-500">Настрій</p>
                         <p className={`text-sm font-bold ${moodColor(w.mood)}`}>{w.mood}%</p>
                       </div>
                       <div className="w-20"><Bar pct={w.mood} color={moodBar(w.mood)} /></div>
@@ -468,7 +468,7 @@ function VariantB() {
               <div key={label} className="text-center">
                 <div className="flex items-center gap-1 mb-0.5">
                   <Icon size={10} className={color} />
-                  <span className="text-[10px] text-gray-500">{label}</span>
+                  <span className="text-xs text-gray-500">{label}</span>
                 </div>
                 <p className={`text-sm font-bold font-mono ${color}`}>{value}</p>
               </div>
@@ -476,9 +476,9 @@ function VariantB() {
           </div>
 
           <div className="flex items-center gap-2">
-            <button className="relative p-2 rounded-lg bg-amber-900/30 border border-amber-800/40 text-amber-400 hover:bg-amber-800/30 transition-colors">
+            <button aria-label="Сповіщення" className="relative p-2 rounded-lg bg-amber-900/30 border border-amber-800/40 text-amber-400 hover:bg-amber-800/30 transition-colors">
               <Bell size={14} />
-              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-500 text-black text-[9px] font-bold flex items-center justify-center">2</span>
+              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-500 text-black text-xs font-bold flex items-center justify-center">2</span>
             </button>
             <button className="px-3 py-1.5 rounded-lg bg-red-900/30 border border-red-800/30 text-red-400 text-xs hover:bg-red-800/30 transition-colors">Пауза</button>
           </div>
@@ -515,7 +515,7 @@ function VariantB() {
                   <ProgressRing pct={MOCK.efficiency} size={90} stroke={6} color="#10b981" />
                   <div className="absolute inset-0 flex flex-col items-center justify-center">
                     <span className="text-xl font-bold text-emerald-400">{MOCK.efficiency}%</span>
-                    <span className="text-[10px] text-gray-500">ефект.</span>
+                    <span className="text-xs text-gray-500">ефект.</span>
                   </div>
                 </div>
                 <div className="text-center">
@@ -526,21 +526,21 @@ function VariantB() {
 
               <div className="col-span-2 grid grid-cols-2 gap-3">
                 <div className="rounded-xl border border-emerald-800/30 bg-emerald-950/10 p-3">
-                  <div className="flex items-center gap-1.5 mb-1.5"><Leaf size={12} className="text-emerald-400" /><span className="text-[10px] text-gray-500">Якість ґрунту</span></div>
+                  <div className="flex items-center gap-1.5 mb-1.5"><Leaf size={12} className="text-emerald-400" /><span className="text-xs text-gray-500">Якість ґрунту</span></div>
                   <p className="text-lg font-bold text-emerald-300 font-mono">{MOCK.soilQuality}/10</p>
                   <div className="mt-2"><Bar pct={MOCK.soilQuality * 10} color="bg-emerald-500" /></div>
                 </div>
                 <div className="rounded-xl border border-purple-800/30 bg-purple-950/10 p-3">
-                  <div className="flex items-center gap-1.5 mb-1.5"><Star size={12} className="text-purple-400" /><span className="text-[10px] text-gray-500">Настрій команди</span></div>
+                  <div className="flex items-center gap-1.5 mb-1.5"><Star size={12} className="text-purple-400" /><span className="text-xs text-gray-500">Настрій команди</span></div>
                   <p className="text-lg font-bold text-purple-300 font-mono">{MOCK.mood}%</p>
                   <div className="mt-2"><Bar pct={MOCK.mood} color="bg-purple-500" /></div>
                 </div>
                 <div className="rounded-xl border border-amber-800/30 bg-amber-950/10 p-3">
-                  <div className="flex items-center gap-1.5 mb-1.5"><Leaf size={12} className="text-amber-400" /><span className="text-[10px] text-gray-500">Сезон</span></div>
+                  <div className="flex items-center gap-1.5 mb-1.5"><Leaf size={12} className="text-amber-400" /><span className="text-xs text-gray-500">Сезон</span></div>
                   <p className="text-lg font-bold text-amber-300 font-mono">{MOCK.season}</p>
                 </div>
                 <div className="rounded-xl border border-blue-800/30 bg-blue-950/10 p-3">
-                  <div className="flex items-center gap-1.5 mb-1.5"><Clock size={12} className="text-blue-400" /><span className="text-[10px] text-gray-500">Тік</span></div>
+                  <div className="flex items-center gap-1.5 mb-1.5"><Clock size={12} className="text-blue-400" /><span className="text-xs text-gray-500">Тік</span></div>
                   <p className="text-lg font-bold text-blue-300 font-mono">#{MOCK.tick}</p>
                 </div>
               </div>
@@ -572,7 +572,7 @@ function VariantB() {
                     <p className="font-mono text-[11px] text-emerald-300 mb-2">{w.recipe}</p>
                     {w.status === "active" ? (
                       <>
-                        <div className="flex justify-between text-[10px] text-gray-500 mb-1"><span>Прогрес</span><span>{w.progress}%</span></div>
+                        <div className="flex justify-between text-xs text-gray-500 mb-1"><span>Прогрес</span><span>{w.progress}%</span></div>
                         <Bar pct={w.progress} />
                       </>
                     ) : (
@@ -646,15 +646,15 @@ function VariantB() {
           <div className="space-y-3">
             <div className="grid grid-cols-3 gap-3 mb-4">
               <div className="rounded-xl border border-gray-800 bg-gray-900 p-3 text-center">
-                <p className="text-[10px] text-gray-500 mb-1">Всього</p>
+                <p className="text-xs text-gray-500 mb-1">Всього</p>
                 <p className="text-xl font-bold text-white">{MOCK_WORKERS.length}</p>
               </div>
               <div className="rounded-xl border border-gray-800 bg-gray-900 p-3 text-center">
-                <p className="text-[10px] text-gray-500 mb-1">Попередження</p>
+                <p className="text-xs text-gray-500 mb-1">Попередження</p>
                 <p className="text-xl font-bold text-amber-400">1</p>
               </div>
               <div className="rounded-xl border border-gray-800 bg-gray-900 p-3 text-center">
-                <p className="text-[10px] text-gray-500 mb-1">Критично</p>
+                <p className="text-xs text-gray-500 mb-1">Критично</p>
                 <p className="text-xl font-bold text-red-400">1</p>
               </div>
             </div>
@@ -677,7 +677,7 @@ function VariantB() {
                 </div>
                 <div className="text-right flex-shrink-0">
                   <p className="text-xs font-mono text-gray-300">₴{w.salary.toLocaleString()}</p>
-                  <p className="text-[10px] text-gray-600">/місяць</p>
+                  <p className="text-xs text-gray-600">/місяць</p>
                 </div>
               </div>
             ))}
@@ -738,7 +738,7 @@ function VariantC() {
           ))}
         </div>
         <div className="flex items-center gap-1 px-3 border-l border-gray-800">
-          <button className="px-2.5 py-1.5 text-amber-400 bg-amber-900/30 border border-amber-800/30 rounded hover:bg-amber-800/30 transition-colors flex items-center gap-1">
+          <button aria-label="Сповіщення" className="px-2.5 py-1.5 text-amber-400 bg-amber-900/30 border border-amber-800/30 rounded hover:bg-amber-800/30 transition-colors flex items-center gap-1">
             <Bell size={11} /><span>2</span>
           </button>
           <button className="px-2.5 py-1.5 text-red-400 bg-red-900/20 border border-red-900/30 rounded hover:bg-red-800/20 transition-colors text-[11px]">Пауза</button>
@@ -771,23 +771,23 @@ function VariantC() {
                       <StatusDot status={w.status === "active" ? "ok" : "idle"} />
                     </div>
                     <div className="flex items-center gap-2 mt-0.5">
-                      <span className="font-mono text-[10px] text-emerald-300">{w.recipe}</span>
-                      <span className="text-[10px] text-gray-600">·</span>
-                      <span className="text-[10px] text-gray-500">{w.numWorkers} прац.</span>
+                      <span className="font-mono text-xs text-emerald-300">{w.recipe}</span>
+                      <span className="text-xs text-gray-600">·</span>
+                      <span className="text-xs text-gray-500">{w.numWorkers} прац.</span>
                       {w.status === "active" && <>
-                        <span className="text-[10px] text-gray-600">·</span>
-                        <span className="text-[10px] text-gray-500">{w.efficiency}%</span>
+                        <span className="text-xs text-gray-600">·</span>
+                        <span className="text-xs text-gray-500">{w.efficiency}%</span>
                       </>}
                     </div>
                   </div>
                   <div className="flex-shrink-0 w-20">
                     {w.status === "active" ? (
                       <div className="space-y-0.5">
-                        <div className="flex justify-between text-[9px] text-gray-600"><span>прогрес</span><span>{w.progress}%</span></div>
+                        <div className="flex justify-between text-xs text-gray-600"><span>прогрес</span><span>{w.progress}%</span></div>
                         <Bar pct={w.progress} />
                       </div>
                     ) : (
-                      <span className="text-[10px] text-gray-600 italic">Простоює</span>
+                      <span className="text-xs text-gray-600 italic">Простоює</span>
                     )}
                   </div>
                   <ChevronRight size={12} className={`text-gray-700 flex-shrink-0 transition-transform ${focus === w.id ? "rotate-90" : ""}`} />
@@ -798,15 +798,15 @@ function VariantC() {
                 <div className="px-4 pb-3 pt-2 border-b border-gray-800 bg-emerald-950/5 space-y-2">
                   <div className="grid grid-cols-3 gap-2">
                     <div className="text-center p-2 bg-gray-800/60 rounded">
-                      <p className="text-[9px] text-gray-500">Вихід</p>
+                      <p className="text-xs text-gray-500">Вихід</p>
                       <p className="text-xs font-mono text-white">{w.output}</p>
                     </div>
                     <div className="text-center p-2 bg-gray-800/60 rounded">
-                      <p className="text-[9px] text-gray-500">Ефект.</p>
+                      <p className="text-xs text-gray-500">Ефект.</p>
                       <p className="text-xs font-mono text-emerald-400">{w.efficiency}%</p>
                     </div>
                     <div className="text-center p-2 bg-gray-800/60 rounded">
-                      <p className="text-[9px] text-gray-500">Прац.</p>
+                      <p className="text-xs text-gray-500">Прац.</p>
                       <p className="text-xs font-mono text-white">{w.numWorkers}</p>
                     </div>
                   </div>
@@ -836,15 +836,15 @@ function VariantC() {
               <div className="flex items-center gap-2 mb-1.5">
                 <StatusDot status={w.status} />
                 <span className="text-xs font-medium text-white truncate flex-1">{w.name}</span>
-                <span className="text-[10px] text-gray-500 font-mono shrink-0">₴{(w.salary / 1000).toFixed(0)}к</span>
+                <span className="text-xs text-gray-500 font-mono shrink-0">₴{(w.salary / 1000).toFixed(0)}к</span>
               </div>
-              <p className="text-[10px] text-gray-600 mb-1.5 ml-4">{w.role}</p>
+              <p className="text-xs text-gray-600 mb-1.5 ml-4">{w.role}</p>
               <div className="flex items-center gap-1.5 ml-4">
                 <Bar pct={w.mood} color={moodBar(w.mood)} />
-                <span className={`text-[10px] font-mono w-7 text-right shrink-0 ${moodColor(w.mood)}`}>{w.mood}%</span>
+                <span className={`text-xs font-mono w-8 text-right shrink-0 ${moodColor(w.mood)}`}>{w.mood}%</span>
               </div>
               {w.status === "danger" && (
-                <button className="mt-1.5 ml-4 text-[10px] text-red-400 hover:text-red-300 border border-red-800/40 rounded px-2 py-0.5 hover:bg-red-900/20 transition-colors">
+                <button className="mt-1.5 ml-4 text-xs text-red-400 hover:text-red-300 border border-red-800/40 rounded px-2 py-0.5 hover:bg-red-900/20 transition-colors">
                   + Бонус
                 </button>
               )}
@@ -867,18 +867,18 @@ function VariantC() {
               <span className="text-base w-6 text-center shrink-0">{item.emoji}</span>
               <div className="flex-1 min-w-0">
                 <p className="text-[11px] font-medium text-white truncate">{item.name}</p>
-                <p className="text-[10px] text-gray-600 font-mono">{item.sku}</p>
+                <p className="text-xs text-gray-600 font-mono">{item.sku}</p>
               </div>
               <div className="text-right shrink-0">
                 <p className="text-xs font-mono text-white">{item.qty >= 1000 ? `${(item.qty / 1000).toFixed(1)}к` : item.qty}</p>
-                <p className="text-[9px] text-gray-600">{item.unit}</p>
+                <p className="text-xs text-gray-600">{item.unit}</p>
               </div>
             </div>
           ))}
 
           {/* Finance */}
           <div className="mt-2 px-3 py-2.5 border-t border-gray-800">
-            <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-2">Фінанси / тік</p>
+            <p className="text-xs text-gray-600 uppercase tracking-wider mb-2">Фінанси / тік</p>
             {[
               { l: "Дохід",   v: `+₴${MOCK.revenue.toLocaleString()}`,     c: "text-emerald-400" },
               { l: "Витрати", v: `-₴${MOCK.costPerTick.toLocaleString()}`,  c: "text-red-400" },
@@ -893,11 +893,11 @@ function VariantC() {
 
           {/* Agro */}
           <div className="mx-3 my-2 rounded-lg border border-emerald-900/40 bg-emerald-950/10 p-3">
-            <p className="text-[10px] text-emerald-500 font-semibold mb-2 uppercase tracking-wider">Агро</p>
+            <p className="text-xs text-emerald-500 font-semibold mb-2 uppercase tracking-wider">Агро</p>
             <div className="space-y-1.5">
               <div className="flex justify-between text-[11px]"><span className="text-gray-500">Ґрунт</span><span className="text-amber-400 font-mono">{MOCK.soilQuality}/10</span></div>
               <Bar pct={MOCK.soilQuality * 10} color="bg-amber-500" />
-              <div className="flex justify-between text-[11px] mt-1"><span className="text-gray-500">Рекомендація</span><span className="text-emerald-400 font-mono text-[10px]">RM-WHEAT</span></div>
+              <div className="flex justify-between text-[11px] mt-1"><span className="text-gray-500">Рекомендація</span><span className="text-emerald-400 font-mono text-xs">RM-WHEAT</span></div>
               <div className="flex justify-between text-[11px]"><span className="text-gray-500">Сезон</span><span className="text-yellow-400">{MOCK.season}</span></div>
             </div>
           </div>

@@ -136,19 +136,19 @@ function SalaryEditor({
             onKeyDown={(e) => { if (e.key === "Enter") save(); if (e.key === "Escape") setEditing(false); }}
             className="w-28 bg-gray-800 border border-gray-600 rounded-lg px-2 py-1 text-xs text-white font-mono focus:outline-none focus:border-emerald-500 [appearance:textfield]"
           />
-          <span className={cn("text-[10px] font-mono", ratioColor)}>{ratio}%</span>
-          <button onClick={save} disabled={saving} className="text-emerald-400 hover:text-emerald-300 disabled:opacity-40">
+          <span className={cn("text-xs font-mono", ratioColor)}>{ratio}%</span>
+          <button onClick={save} disabled={saving} aria-label="Зберегти" className="text-emerald-400 hover:text-emerald-300 disabled:opacity-40">
             <Check size={13} />
           </button>
-          <button onClick={() => { setEditing(false); setValue(role.salaryOffered); }} className="text-gray-500 hover:text-white">
+          <button onClick={() => { setEditing(false); setValue(role.salaryOffered); }} aria-label="Скасувати" className="text-gray-500 hover:text-white">
             <X size={13} />
           </button>
         </>
       ) : (
         <>
           <span className="font-mono text-xs text-white">{formatNumber(role.salaryOffered)} ₴</span>
-          <span className={cn("text-[10px] font-mono", ratioColor)}>({ratio}%)</span>
-          <button onClick={() => setEditing(true)} className="text-gray-600 hover:text-gray-300 transition-colors">
+          <span className={cn("text-xs font-mono", ratioColor)}>({ratio}%)</span>
+          <button onClick={() => setEditing(true)} aria-label="Редагувати зарплату" className="text-gray-600 hover:text-gray-300 transition-colors">
             <Pencil size={11} />
           </button>
         </>
@@ -179,7 +179,7 @@ function EnterpriseRow({ ent, tickNumber }: { ent: EntData; tickNumber: number }
       >
         {/* Strike badge */}
         {ent.isOnStrike && (
-          <span className="shrink-0 text-[10px] font-bold bg-red-900/60 text-red-300 border border-red-700 px-1.5 py-0.5 rounded">
+          <span className="shrink-0 text-xs font-bold bg-red-900/60 text-red-300 border border-red-700 px-1.5 py-0.5 rounded">
             СТРАЙК до #{ent.strikeEndsAt}
           </span>
         )}
@@ -192,7 +192,7 @@ function EnterpriseRow({ ent, tickNumber }: { ent: EntData; tickNumber: number }
 
         {/* Fill rate */}
         <div className="shrink-0 text-center w-20 hidden sm:block">
-          <p className="text-[10px] text-gray-600 mb-0.5">Персонал</p>
+          <p className="text-xs text-gray-600 mb-0.5">Персонал</p>
           <p className="text-xs text-white font-mono">
             {ent.workersCurrent}<span className="text-gray-600">/{ent.workersMax}</span>
             <span className="text-gray-600 ml-1">({ent.fillRate}%)</span>
@@ -201,13 +201,13 @@ function EnterpriseRow({ ent, tickNumber }: { ent: EntData; tickNumber: number }
 
         {/* Mood */}
         <div className="shrink-0 w-32 hidden md:block">
-          <p className="text-[10px] text-gray-600 mb-1">Задоволеність</p>
+          <p className="text-xs text-gray-600 mb-1">Задоволеність</p>
           <MoodBar mood={ent.mood} status={ent.moodStatus} />
         </div>
 
         {/* Salary */}
         <div className="shrink-0 text-right w-24 hidden lg:block">
-          <p className="text-[10px] text-gray-600 mb-0.5">ЗП/день</p>
+          <p className="text-xs text-gray-600 mb-0.5">ЗП/день</p>
           <p className="text-xs text-red-400 font-mono">−{formatNumber(Math.round(ent.totalSalaryPerTick))}</p>
         </div>
 
@@ -252,7 +252,7 @@ function EnterpriseRow({ ent, tickNumber }: { ent: EntData; tickNumber: number }
                 ) : (
                   <span className="text-xs text-gray-400">😐 нейтрально</span>
                 )}
-                <p className="text-[10px] text-gray-600 mt-0.5">
+                <p className="text-xs text-gray-600 mt-0.5">
                   {ent.equipment.ratio >= 1.0 ? "≥1 од/прац. — добре" : ent.equipment.ratio >= 0.5 ? "0.5–1 — нейтрально" : "< 0.5 — нестача!"}
                 </p>
               </div>
@@ -294,7 +294,7 @@ function EnterpriseRow({ ent, tickNumber }: { ent: EntData; tickNumber: number }
             </tbody>
           </table>
 
-          <p className="text-[10px] text-gray-700 mt-3">
+          <p className="text-xs text-gray-700 mt-3">
             ЗП ≥ 120% ринку = 100% настрій · ≥ 100% = 80%+ · нижче ринку → квадратичне падіння · {`<`}30% = ризик страйку
           </p>
         </div>
@@ -437,7 +437,7 @@ export default function EmployeesClient() {
           <p className="text-xl font-bold text-red-400 font-mono">
             −{formatNumber(summary.totalSalaryPerTick)}
           </p>
-          <p className="text-[10px] text-gray-600 mt-1">GC загалом</p>
+          <p className="text-xs text-gray-600 mt-1">GC загалом</p>
         </div>
 
         <div className="bg-gray-900 border border-gray-800 rounded-xl px-4 py-3">
@@ -462,7 +462,7 @@ export default function EmployeesClient() {
           <p className={cn("text-xl font-bold font-mono", summary.enterprisesOnStrike > 0 ? "text-red-400" : "text-gray-500")}>
             {summary.enterprisesOnStrike}
           </p>
-          <p className="text-[10px] text-gray-600 mt-1">підприємств</p>
+          <p className="text-xs text-gray-600 mt-1">підприємств</p>
         </div>
       </div>
 
@@ -485,12 +485,12 @@ export default function EmployeesClient() {
           <div className="flex gap-1.5">
             {[5, 10, 15, 20].map((p) => (
               <button key={p} onClick={() => setBulkPct(p)}
-                className={cn("text-[10px] px-2 py-1 rounded-md border transition-all",
+                className={cn("text-xs px-2 py-1 rounded-md border transition-all",
                   bulkPct === p ? "border-emerald-600 text-emerald-400 bg-emerald-950/30" : "border-gray-700 text-gray-500 hover:text-white"
                 )}>+{p}%</button>
             ))}
             <button onClick={() => setBulkPct(-10)}
-              className={cn("text-[10px] px-2 py-1 rounded-md border transition-all",
+              className={cn("text-xs px-2 py-1 rounded-md border transition-all",
                 bulkPct === -10 ? "border-red-600 text-red-400 bg-red-950/30" : "border-gray-700 text-gray-500 hover:text-white"
               )}>−10%</button>
           </div>
@@ -527,7 +527,7 @@ export default function EmployeesClient() {
             >
               {label}
               {filterCounts[key] > 0 && key !== "all" && (
-                <span className={cn("ml-1.5 text-[10px]", filter === key ? "text-emerald-200" : color ?? "text-gray-600")}>
+                <span className={cn("ml-1.5 text-xs", filter === key ? "text-emerald-200" : color ?? "text-gray-600")}>
                   {filterCounts[key]}
                 </span>
               )}
@@ -579,7 +579,7 @@ export default function EmployeesClient() {
             <p className="text-sm font-semibold text-white flex items-center gap-2">
               HR Авто-політика
               <span className={cn(
-                "text-[10px] font-bold px-1.5 py-0.5 rounded",
+                "text-xs font-bold px-1.5 py-0.5 rounded",
                 policy?.isActive ? "bg-emerald-950 text-emerald-400" : "bg-gray-800 text-gray-500"
               )}>
                 {policy?.isActive ? "УВІМК." : "ВИМК."}
@@ -592,6 +592,7 @@ export default function EmployeesClient() {
           <button
             onClick={() => savePolicy({ isActive: !(policy?.isActive ?? false) })}
             disabled={policyBusy}
+            aria-label={policy?.isActive ? "Вимкнути авто-політику" : "Увімкнути авто-політику"}
             className="shrink-0"
           >
             {policyBusy

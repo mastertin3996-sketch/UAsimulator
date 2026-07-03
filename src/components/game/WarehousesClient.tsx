@@ -155,7 +155,7 @@ function WarehouseBar({ wh }: { wh: WarehouseData }) {
           style={{ width: `${Math.min(100, pct)}%` }}
         />
       </div>
-      <p className="mt-1.5 text-[10px] text-gray-600 font-mono">
+      <p className="mt-1.5 text-xs text-gray-600 font-mono">
         {formatNumber(wh.usedVolumeM3)} / {formatNumber(wh.maxVolumeM3)} м³
       </p>
     </div>
@@ -233,7 +233,7 @@ function EnterpriseCard({
                     {["Товар", "Кількість", "Якість", "Вартість", "Автопродаж"].map((h) => (
                       <th
                         key={h}
-                        className="px-4 py-2 text-left text-[10px] uppercase tracking-wide text-gray-600 font-medium whitespace-nowrap"
+                        className="px-4 py-2 text-left text-xs uppercase tracking-wide text-gray-600 font-medium whitespace-nowrap"
                       >
                         {h}
                       </th>
@@ -256,13 +256,13 @@ function EnterpriseCard({
                           <p className="text-white font-medium text-sm">
                             {inv.product.nameUa}
                           </p>
-                          <p className="text-[10px] text-gray-600">{inv.product.unit}</p>
+                          <p className="text-xs text-gray-600">{inv.product.unit}</p>
                         </td>
 
                         {/* Quantity */}
                         <td className="px-4 py-2.5 font-mono text-white whitespace-nowrap">
                           {formatNumber(inv.quantity)}
-                          <span className="text-gray-600 text-[10px] ml-1">
+                          <span className="text-gray-600 text-xs ml-1">
                             {inv.product.unit}
                           </span>
                         </td>
@@ -286,7 +286,7 @@ function EnterpriseCard({
                         {/* Auto-sell badge */}
                         <td className="px-4 py-2.5 whitespace-nowrap">
                           {hasAuto ? (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-950/50 border border-emerald-800/50 px-2 py-0.5 text-[10px] font-medium text-emerald-400">
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-950/50 border border-emerald-800/50 px-2 py-0.5 text-xs font-medium text-emerald-400">
                               ⚡ {formatNumber(inv.autoSellThreshold!)} / тік
                               {inv.autoSellPriceUah != null && (
                                 <span className="text-gray-500">
@@ -421,6 +421,7 @@ export default function WarehousesClient() {
           {search && (
             <button
               onClick={() => setSearch("")}
+              aria-label="Очистити пошук"
               className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-600 hover:text-gray-400 text-xs"
             >
               ✕
@@ -432,25 +433,25 @@ export default function WarehousesClient() {
       {/* ── 4. Summary stat strip ─────────────────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="rounded-xl border border-amber-900/30 bg-amber-950/10 px-4 py-3">
-          <p className="text-[10px] text-gray-600 uppercase tracking-wide mb-1">
+          <p className="text-xs text-gray-600 uppercase tracking-wide mb-1">
             <TrendingUp size={9} className="inline mr-1 text-amber-400" />
             Загальна вартість
           </p>
           <p className="font-mono text-amber-400 font-bold text-base leading-none">
             {formatNumber(Math.round(totalValue))}
           </p>
-          <p className="text-[10px] text-gray-600 mt-0.5">грн</p>
+          <p className="text-xs text-gray-600 mt-0.5">грн</p>
         </div>
         <div className="rounded-xl border border-gray-800 bg-gray-900/60 px-4 py-3">
-          <p className="text-[10px] text-gray-600 uppercase tracking-wide mb-1">Підприємств</p>
+          <p className="text-xs text-gray-600 uppercase tracking-wide mb-1">Підприємств</p>
           <p className="text-2xl font-bold text-white leading-none">{enterprises.length}</p>
         </div>
         <div className="rounded-xl border border-gray-800 bg-gray-900/60 px-4 py-3">
-          <p className="text-[10px] text-gray-600 uppercase tracking-wide mb-1">Товарів (видів)</p>
+          <p className="text-xs text-gray-600 uppercase tracking-wide mb-1">Товарів (видів)</p>
           <p className="text-2xl font-bold text-white leading-none">{totalProductTypes}</p>
         </div>
         <div className="rounded-xl border border-violet-900/30 bg-violet-950/10 px-4 py-3">
-          <p className="text-[10px] text-gray-600 uppercase tracking-wide mb-1">Складів</p>
+          <p className="text-xs text-gray-600 uppercase tracking-wide mb-1">Складів</p>
           <p className="text-2xl font-bold text-white leading-none">{warehouses.length}</p>
         </div>
       </div>

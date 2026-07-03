@@ -319,7 +319,7 @@ function HireModal({
               onChange={e => setSalary(Number(e.target.value))}
               className="w-full accent-emerald-500"
             />
-            <div className="flex justify-between text-[10px] text-gray-600 mt-0.5">
+            <div className="flex justify-between text-xs text-gray-600 mt-0.5">
               <span>8 000 ₴</span>
               <span>150 000 ₴</span>
             </div>
@@ -533,7 +533,7 @@ function RecipeModal({
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-sm font-semibold text-white">{RECIPE_UA[r.name] ?? r.name}</p>
                   {isCurrent ? (
-                    <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">Поточний</span>
+                    <span className="text-xs text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">Поточний</span>
                   ) : saving === r.id ? (
                     <Loader2 size={13} className="animate-spin text-emerald-400" />
                   ) : null}
@@ -625,7 +625,7 @@ function ManagementTab({ enterprise, stats, productionLogs, onToggleOperational 
           { label: "Оренда/місяць", value: formatUAH(enterprise.landPlot.monthlyLeaseCostUah) },
         ].map(({ label, value }) => (
           <div key={label} className="rounded-lg border border-gray-800 bg-gray-900 px-4 py-3">
-            <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-0.5">{label}</p>
+            <p className="text-xs text-gray-500 uppercase tracking-wider mb-0.5">{label}</p>
             <p className="text-sm text-white font-medium">{value}</p>
           </div>
         ))}
@@ -652,12 +652,12 @@ function ManagementTab({ enterprise, stats, productionLogs, onToggleOperational 
 
       <div className="grid grid-cols-2 gap-3">
         <div className="rounded-xl border border-gray-800 bg-gray-900 px-4 py-3">
-          <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Персонал</p>
+          <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Персонал</p>
           <p className="text-2xl font-bold text-white">{enterprise.employees.length}</p>
           <p className="text-xs text-gray-500 mt-0.5">Ефективність {Math.round(stats.avgEfficiency * 100)}%</p>
         </div>
         <div className="rounded-xl border border-gray-800 bg-gray-900 px-4 py-3">
-          <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Настрій</p>
+          <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Настрій</p>
           <p className={cn("text-2xl font-bold", stats.avgMood >= 0.7 ? "text-emerald-400" : stats.avgMood >= 0.4 ? "text-amber-400" : "text-red-400")}>
             {Math.round(stats.avgMood * 100)}%
           </p>
@@ -720,14 +720,14 @@ function ManagementTab({ enterprise, stats, productionLogs, onToggleOperational 
                       className="w-full rounded-t bg-emerald-600 group-hover:bg-emerald-500 transition-colors cursor-default"
                       style={{ height: `${Math.max(4, pct)}%` }}
                     />
-                    <div className="absolute bottom-full mb-1 hidden group-hover:block bg-gray-800 border border-gray-700 rounded px-1.5 py-0.5 text-[10px] text-white whitespace-nowrap z-10">
+                    <div className="absolute bottom-full mb-1 hidden group-hover:block bg-gray-800 border border-gray-700 rounded px-1.5 py-0.5 text-xs text-white whitespace-nowrap z-10">
                       День {tick}: {formatNumber(Math.round(val))} од.
                     </div>
                   </div>
                 );
               })}
             </div>
-            <div className="flex justify-between text-[10px] text-gray-600">
+            <div className="flex justify-between text-xs text-gray-600">
               <span>День {ticks[0]?.[0]}</span>
               <span>День {ticks[ticks.length - 1]?.[0]}</span>
             </div>
@@ -1163,13 +1163,13 @@ function WorkshopsTab({
                       {SKU_EMOJI[cropSku ?? ''] ?? "🌿"} {w.name}
                       <span className="ml-2 text-xs text-gray-500 font-normal">{w.footprintM2} м²</span>
                     </h3>
-                    <p className="text-[10px] text-gray-500 mt-0.5">
+                    <p className="text-xs text-gray-500 mt-0.5">
                       {cropName ? (RECIPE_UA[activeOrder?.recipe?.name ?? ''] ?? cropName) : <span className="text-amber-400">Культуру не призначено</span>}
                     </p>
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
-                    {brokenCount > 0 && <span className="text-[10px] text-red-400 bg-red-500/10 rounded px-1.5 py-0.5"><Hammer size={9} className="inline mr-0.5" />{brokenCount}</span>}
-                    <span className={cn("text-[10px] rounded-full px-2 py-0.5", w.isActive ? "text-emerald-400 bg-emerald-500/10" : "text-gray-500 bg-gray-800")}>
+                    {brokenCount > 0 && <span className="text-xs text-red-400 bg-red-500/10 rounded px-1.5 py-0.5"><Hammer size={9} className="inline mr-0.5" />{brokenCount}</span>}
+                    <span className={cn("text-xs rounded-full px-2 py-0.5", w.isActive ? "text-emerald-400 bg-emerald-500/10" : "text-gray-500 bg-gray-800")}>
                       {w.isActive ? "Активне" : "Зупинено"}
                     </span>
                   </div>
@@ -1179,7 +1179,7 @@ function WorkshopsTab({
                   {/* Soil + Season row */}
                   <div className="grid grid-cols-2 gap-2">
                     <div className="rounded bg-gray-800/50 px-2 py-1.5 space-y-1">
-                      <p className="text-[9px] text-gray-500 uppercase tracking-wider">Ґрунт</p>
+                      <p className="text-xs text-gray-500 uppercase tracking-wider">Ґрунт</p>
                       <div className="flex items-center gap-1.5">
                         <div className="flex-1 h-1 rounded-full bg-gray-700">
                           <div className={cn("h-full rounded-full", soilQ >= 7 ? "bg-emerald-500" : soilQ >= 4 ? "bg-amber-500" : "bg-red-500")}
@@ -1188,26 +1188,26 @@ function WorkshopsTab({
                         <span className={cn("text-xs font-mono", soilQ >= 7 ? "text-emerald-400" : soilQ >= 4 ? "text-amber-400" : "text-red-400")}>{soilQ.toFixed(1)}/10</span>
                       </div>
                       {fertLeft > 0
-                        ? <p className="text-[9px] text-emerald-400">🌱 +20% добриво · {Math.ceil(fertLeft / 30)} сез</p>
-                        : <p className="text-[9px] text-gray-600">Без добрива</p>}
-                      <p className={cn("text-[9px]", soilTrend === "up" ? "text-emerald-500" : soilTrend === "down" ? "text-red-400" : "text-gray-600")}>
+                        ? <p className="text-xs text-emerald-400">🌱 +20% добриво · {Math.ceil(fertLeft / 30)} сез</p>
+                        : <p className="text-xs text-gray-600">Без добрива</p>}
+                      <p className={cn("text-xs", soilTrend === "up" ? "text-emerald-500" : soilTrend === "down" ? "text-red-400" : "text-gray-600")}>
                         {soilTrend === "up" ? "↑ покращується (+0.2/сез)" : soilTrend === "down" ? "↓ спадає (−0.1/сез)" : "→ стабільний"}
                       </p>
-                      {pestDmg < 1.0 && <p className="text-[9px] text-red-400">🐛 Шкідники −{Math.round((1 - pestDmg) * 100)}%</p>}
+                      {pestDmg < 1.0 && <p className="text-xs text-red-400">🐛 Шкідники −{Math.round((1 - pestDmg) * 100)}%</p>}
                     </div>
                     <div className="rounded bg-gray-800/50 px-2 py-1.5 space-y-1">
-                      <p className="text-[9px] text-gray-500 uppercase tracking-wider">Сезон</p>
+                      <p className="text-xs text-gray-500 uppercase tracking-wider">Сезон</p>
                       <p className={cn("text-xs font-medium", seasonMult === 0 ? "text-red-400" : seasonMult >= 0.8 ? "text-emerald-400" : "text-amber-400")}>
                         {seasonName} · {Math.round(seasonMult * 100)}%
                       </p>
-                      {rotStatus === 'optimal' && <p className="text-[9px] text-emerald-400">✓ Ротація +15%</p>}
-                      {rotStatus === 'mono'    && <p className="text-[9px] text-red-400">✗ Монокультура −15%</p>}
-                      {rotStatus === 'neutral' && lastCrop && <p className="text-[9px] text-gray-500">Рек.: {SKU_EMOJI[ROTATION_NEXT_UI[lastCrop] ?? ''] ?? ''} {ROTATION_NEXT_UI[lastCrop]}</p>}
+                      {rotStatus === 'optimal' && <p className="text-xs text-emerald-400">✓ Ротація +15%</p>}
+                      {rotStatus === 'mono'    && <p className="text-xs text-red-400">✗ Монокультура −15%</p>}
+                      {rotStatus === 'neutral' && lastCrop && <p className="text-xs text-gray-500">Рек.: {SKU_EMOJI[ROTATION_NEXT_UI[lastCrop] ?? ''] ?? ''} {ROTATION_NEXT_UI[lastCrop]}</p>}
                       {hasIrrigation
-                        ? <p className="text-[9px] text-blue-400">💧 Зрошення: посуха −35% (не −60%)</p>
-                        : <p className="text-[9px] text-gray-600">Без зрошення</p>}
+                        ? <p className="text-xs text-blue-400">💧 Зрошення: посуха −35% (не −60%)</p>
+                        : <p className="text-xs text-gray-600">Без зрошення</p>}
                       {weatherDesc && weatherMod < 1.0 && (
-                        <p className="text-[9px] text-orange-400">⛈ {weatherDesc} ×{Math.round(weatherMod * 100)}%</p>
+                        <p className="text-xs text-orange-400">⛈ {weatherDesc} ×{Math.round(weatherMod * 100)}%</p>
                       )}
                     </div>
                   </div>
@@ -1215,7 +1215,7 @@ function WorkshopsTab({
                   {/* Yield formula */}
                   {cropSku && (
                     <div className="rounded bg-gray-800/40 px-2 py-1.5 space-y-1">
-                      <div className="flex items-center flex-wrap gap-1 text-[10px]">
+                      <div className="flex items-center flex-wrap gap-1 text-xs">
                         <span className="font-mono text-white">{w.footprintM2} м²</span>
                         <span className="text-gray-600">×</span>
                         <span className={soilMult >= 0.85 ? "text-emerald-400" : soilMult >= 0.5 ? "text-amber-400" : "text-red-400"}>ґрунт {Math.round(soilMult * 100)}%</span>
@@ -1237,15 +1237,15 @@ function WorkshopsTab({
                       {activeMach.length > 0 && (
                         <div className="flex gap-1 flex-wrap">
                           {activeMach.map((m: any) => (
-                            <span key={m.id} className="text-[9px] bg-emerald-900/30 text-emerald-400 px-1 py-0.5 rounded">
+                            <span key={m.id} className="text-xs bg-emerald-900/30 text-emerald-400 px-1 py-0.5 rounded">
                               {MACHINERY_EMOJI_UI[m.type] ?? "⚙️"} +{MACHINERY_YIELD_BONUS_UI[m.type] ?? 0}%
                             </span>
                           ))}
                         </div>
                       )}
-                      {activeMach.length === 0 && <p className="text-[9px] text-amber-600">⚠ Немає активної техніки — додайте у вкладці Техніка</p>}
-                      {agros === 0 && isField && <p className="text-[9px] text-amber-600">⚠ Без агронома — можна +8–16% (найміть у вкладці Персонал)</p>}
-                      {agros > 2 && <p className="text-[9px] text-gray-500">ℹ 2+ агрономи — бонус обмежено +16%</p>}
+                      {activeMach.length === 0 && <p className="text-xs text-amber-600">⚠ Немає активної техніки — додайте у вкладці Техніка</p>}
+                      {agros === 0 && isField && <p className="text-xs text-amber-600">⚠ Без агронома — можна +8–16% (найміть у вкладці Персонал)</p>}
+                      {agros > 2 && <p className="text-xs text-gray-500">ℹ 2+ агрономи — бонус обмежено +16%</p>}
                     </div>
                   )}
 
@@ -1272,7 +1272,7 @@ function WorkshopsTab({
                       {activeOrder?.recipe
                         ? <p className="text-sm font-medium text-white">{RECIPE_UA[activeOrder.recipe.name] ?? activeOrder.recipe.name}</p>
                         : <p className="text-sm text-amber-400">Призначте культуру</p>}
-                      {activeOrder && <p className="text-[10px] text-gray-500 mt-0.5">{activeOrder.completedQuantity.toFixed(0)} / {activeOrder.targetQuantity >= 999_000 ? "∞" : activeOrder.targetQuantity} вироблено</p>}
+                      {activeOrder && <p className="text-xs text-gray-500 mt-0.5">{activeOrder.completedQuantity.toFixed(0)} / {activeOrder.targetQuantity >= 999_000 ? "∞" : activeOrder.targetQuantity} вироблено</p>}
                     </div>
                     <div className="flex gap-1.5 shrink-0">
                       {activeOrder && (
@@ -1290,35 +1290,35 @@ function WorkshopsTab({
                   {/* Equipment compact */}
                   <div className="pt-1.5 border-t border-gray-800 space-y-1">
                     <div className="flex items-center justify-between">
-                      <p className="text-[9px] text-gray-600 uppercase tracking-wider">Обладнання цеху</p>
-                      <button onClick={() => setBuyEquipWs(w)} className="text-[9px] text-emerald-400 hover:text-emerald-300">+ Купити</button>
+                      <p className="text-xs text-gray-600 uppercase tracking-wider">Обладнання цеху</p>
+                      <button onClick={() => setBuyEquipWs(w)} className="text-xs text-emerald-400 hover:text-emerald-300">+ Купити</button>
                     </div>
                     {w.equipment.length === 0 && (
-                      <p className="text-[10px] text-amber-500">⚠ Без обладнання — виробництво неможливе</p>
+                      <p className="text-xs text-amber-500">⚠ Без обладнання — виробництво неможливе</p>
                     )}
                     {w.equipment.map(eq => {
                       const busy = equipBusy === eq.id;
                       const msg  = equipMsg?.id === eq.id ? equipMsg : null;
                       return (
                         <div key={eq.id}>
-                          <div className="flex items-center gap-2 text-[10px]">
+                          <div className="flex items-center gap-2 text-xs">
                             <Cpu size={10} className="text-gray-600 shrink-0" />
                             <span className="flex-1 text-gray-400 truncate">{eq.nameUa ?? eq.name}</span>
                             <div className="w-12 shrink-0"><WearBar value={eq.wearAndTear} /></div>
                             <span className={cn("shrink-0", STATUS_COLOR[eq.status] ?? "text-gray-400")}>{STATUS_UA[eq.status] ?? eq.status}</span>
                             {eq.isBroken ? (
                               <button onClick={() => doEquipAction(eq.id, "repair")} disabled={busy}
-                                className="shrink-0 text-[9px] px-1.5 py-0.5 rounded bg-red-600 hover:bg-red-500 text-white transition-colors disabled:opacity-50">
+                                className="shrink-0 text-xs px-1.5 py-0.5 rounded bg-red-600 hover:bg-red-500 text-white transition-colors disabled:opacity-50">
                                 {busy ? <Loader2 size={9} className="animate-spin" /> : "Рем."}
                               </button>
                             ) : (eq.status === "WORN" || eq.wearAndTear > 0.3) ? (
                               <button onClick={() => doEquipAction(eq.id, "maintenance")} disabled={busy}
-                                className="shrink-0 text-[9px] px-1.5 py-0.5 rounded bg-amber-600 hover:bg-amber-500 text-white transition-colors disabled:opacity-50">
+                                className="shrink-0 text-xs px-1.5 py-0.5 rounded bg-amber-600 hover:bg-amber-500 text-white transition-colors disabled:opacity-50">
                                 {busy ? <Loader2 size={9} className="animate-spin" /> : "ТО"}
                               </button>
                             ) : null}
                           </div>
-                          {msg && <p className={cn("text-[9px] mt-0.5 pl-4", msg.ok ? "text-emerald-400" : "text-red-400")}>{msg.text}</p>}
+                          {msg && <p className={cn("text-xs mt-0.5 pl-4", msg.ok ? "text-emerald-400" : "text-red-400")}>{msg.text}</p>}
                         </div>
                       );
                     })}
@@ -1327,25 +1327,25 @@ function WorkshopsTab({
                   {/* FarmMachinery panel */}
                   {machinery.length > 0 && (
                     <div className="pt-1.5 border-t border-gray-800 space-y-1">
-                      <p className="text-[9px] text-gray-600 uppercase tracking-wider">Техніка підприємства</p>
+                      <p className="text-xs text-gray-600 uppercase tracking-wider">Техніка підприємства</p>
                       {machinery.map((m: any) => {
                         const dur = m.durability ?? 1;
                         const isBroken = !m.isOperational || dur <= 0;
                         const isWorn   = dur < 0.3 && !isBroken;
                         return (
-                          <div key={m.id} className="flex items-center gap-2 text-[10px]">
+                          <div key={m.id} className="flex items-center gap-2 text-xs">
                             <span className="shrink-0">{MACHINERY_EMOJI_UI[m.type] ?? "⚙️"}</span>
                             <span className="flex-1 text-gray-400 truncate">{m.nameUa ?? m.type}</span>
                             <div className="w-12 shrink-0 h-1 rounded-full bg-gray-700">
                               <div className={cn("h-full rounded-full", dur > 0.5 ? "bg-emerald-500" : dur > 0.2 ? "bg-amber-500" : "bg-red-500")}
                                 style={{ width: `${Math.max(0, dur * 100)}%` }} />
                             </div>
-                            <span className={cn("shrink-0 text-[9px]", isBroken ? "text-red-400" : isWorn ? "text-amber-400" : "text-emerald-400")}>
+                            <span className={cn("shrink-0 text-xs", isBroken ? "text-red-400" : isWorn ? "text-amber-400" : "text-emerald-400")}>
                               {isBroken ? "Зламано" : isWorn ? "Зношено" : `${Math.round(dur * 100)}%`}
                             </span>
                             {(isBroken || isWorn) && (
                               <button onClick={() => repairMachinery(m.id)} disabled={machRepBusy === m.id}
-                                className="shrink-0 text-[9px] px-1.5 py-0.5 rounded bg-blue-700 hover:bg-blue-600 text-white transition-colors disabled:opacity-50">
+                                className="shrink-0 text-xs px-1.5 py-0.5 rounded bg-blue-700 hover:bg-blue-600 text-white transition-colors disabled:opacity-50">
                                 {machRepBusy === m.id ? <Loader2 size={8} className="animate-spin" /> : "Рем."}
                               </button>
                             )}
@@ -1358,14 +1358,14 @@ function WorkshopsTab({
                   {/* Livestock health panel */}
                   {isLivestockCrop && (
                     <div className="pt-1.5 border-t border-gray-800 space-y-1">
-                      <p className="text-[9px] text-gray-600 uppercase tracking-wider">Стадо</p>
+                      <p className="text-xs text-gray-600 uppercase tracking-wider">Стадо</p>
                       {livestock.length === 0 ? (
-                        <p className="text-[10px] text-red-400">⚠ Немає стада — виробництво неможливе</p>
+                        <p className="text-xs text-red-400">⚠ Немає стада — виробництво неможливе</p>
                       ) : livestock.map((h: any) => {
                         const hp  = h.health ?? 1;
                         const skipped = h.feedSkippedTicks ?? 0;
                         return (
-                          <div key={h.id} className="flex items-center gap-2 text-[10px]">
+                          <div key={h.id} className="flex items-center gap-2 text-xs">
                             <span className="shrink-0">{SPECIES_UA[h.species] ?? h.species}</span>
                             <span className="text-gray-500">{h.headCount} гол.</span>
                             <div className="flex-1 h-1 rounded-full bg-gray-700">
@@ -1375,12 +1375,12 @@ function WorkshopsTab({
                             <span className={cn("shrink-0 font-mono", hp >= 0.7 ? "text-emerald-400" : hp >= 0.4 ? "text-amber-400" : "text-red-400")}>
                               {Math.round(hp * 100)}%
                             </span>
-                            {skipped > 0 && <span className="text-[9px] text-red-400">😟 −{skipped}тік корму</span>}
+                            {skipped > 0 && <span className="text-xs text-red-400">😟 −{skipped}тік корму</span>}
                           </div>
                         );
                       })}
                       {avgHealth !== null && avgHealth < 0.5 && (
-                        <p className="text-[9px] text-red-400">⚠ Здоров&apos;я &lt;50% — продуктивність впала. Поповніть RM-CORN.</p>
+                        <p className="text-xs text-red-400">⚠ Здоров&apos;я &lt;50% — продуктивність впала. Поповніть RM-CORN.</p>
                       )}
                     </div>
                   )}
@@ -1388,7 +1388,7 @@ function WorkshopsTab({
                   {/* Crop disease panel */}
                   {cropDiseaseType && (
                     <div className="rounded bg-red-950/40 border border-red-700/30 px-2 py-2 space-y-1 pt-1.5">
-                      <p className="text-[9px] text-gray-500 uppercase tracking-wider">🦠 Хвороба поля</p>
+                      <p className="text-xs text-gray-500 uppercase tracking-wider">🦠 Хвороба поля</p>
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="text-xs text-red-300 font-medium">
@@ -1403,14 +1403,14 @@ function WorkshopsTab({
                           {diseaseBusy ? <Loader2 size={10} className="animate-spin" /> : "💊 Лікувати"}
                         </button>
                       </div>
-                      <p className="text-[9px] text-gray-500">Потрібно 8 кг RM-PESTICIDE</p>
+                      <p className="text-xs text-gray-500">Потрібно 8 кг RM-PESTICIDE</p>
                     </div>
                   )}
 
                   {/* ── Польові роботи ── */}
                   {isField && (
                     <div className="pt-1.5 border-t border-gray-800 space-y-1.5">
-                      <p className="text-[9px] text-gray-500 uppercase tracking-wider">📋 Польові роботи · ₴1/м²</p>
+                      <p className="text-xs text-gray-500 uppercase tracking-wider">📋 Польові роботи · ₴1/м²</p>
                       {([
                         { op: 'PLOW',      bit: 1,  icon: '🚜', label: 'Оранка',          bonus: '+8%'  },
                         { op: 'CULTIVATE', bit: 2,  icon: '🌾', label: 'Культивація',     bonus: '+6%'  },
@@ -1423,14 +1423,14 @@ function WorkshopsTab({
                         const skipHarvest = op === 'HARVEST' && w.harvestAccumulated < 0.1;
                         return (
                           <div key={op} className={cn(
-                            "flex items-center gap-2 rounded px-2 py-1.5 text-[10px] transition-colors",
+                            "flex items-center gap-2 rounded px-2 py-1.5 text-xs transition-colors",
                             done ? "bg-emerald-950/30 border border-emerald-800/20" : "bg-gray-800/40"
                           )}>
                             <span className="shrink-0 w-4">{done ? '✅' : '⬜'}</span>
                             <span className="shrink-0">{icon}</span>
                             <span className={cn("flex-1", done ? "text-emerald-300" : "text-gray-300")}>{label}</span>
                             {bonus && (
-                              <span className={cn("text-[9px] font-mono shrink-0", done ? "text-emerald-400" : "text-gray-600")}>
+                              <span className={cn("text-xs font-mono shrink-0", done ? "text-emerald-400" : "text-gray-600")}>
                                 {bonus}
                               </span>
                             )}
@@ -1438,19 +1438,19 @@ function WorkshopsTab({
                               <button
                                 onClick={() => doFieldOp(w.id, op)}
                                 disabled={!!fieldOpBusy}
-                                className="shrink-0 text-[9px] bg-blue-700 hover:bg-blue-600 text-white rounded px-2 py-0.5 disabled:opacity-40 transition-colors"
+                                className="shrink-0 text-xs bg-blue-700 hover:bg-blue-600 text-white rounded px-2 py-0.5 disabled:opacity-40 transition-colors"
                               >
                                 {busy ? <Loader2 size={8} className="animate-spin inline" /> : `₴${opCost.toLocaleString('uk-UA')}`}
                               </button>
                             )}
                             {done && op !== 'HARVEST' && (
-                              <span className="text-[9px] text-emerald-500 shrink-0">✓ виконано</span>
+                              <span className="text-xs text-emerald-500 shrink-0">✓ виконано</span>
                             )}
-                            {skipHarvest && <span className="text-[9px] text-gray-600 shrink-0">немає врожаю</span>}
+                            {skipHarvest && <span className="text-xs text-gray-600 shrink-0">немає врожаю</span>}
                           </div>
                         );
                       })}
-                      <p className="text-[9px] text-gray-600">Скидається щосезону. Бонуси множаться до врожаю.</p>
+                      <p className="text-xs text-gray-600">Скидається щосезону. Бонуси множаться до врожаю.</p>
                     </div>
                   )}
 
@@ -1460,12 +1460,12 @@ function WorkshopsTab({
                       <button
                         onClick={doSoilAnalysis}
                         disabled={soilAnalysisBusy}
-                        className="w-full text-[10px] rounded bg-blue-900/30 border border-blue-700/40 text-blue-300 hover:bg-blue-800/40 px-2 py-1 disabled:opacity-50 flex items-center justify-center gap-1"
+                        className="w-full text-xs rounded bg-blue-900/30 border border-blue-700/40 text-blue-300 hover:bg-blue-800/40 px-2 py-1 disabled:opacity-50 flex items-center justify-center gap-1"
                       >
                         {soilAnalysisBusy ? <Loader2 className="w-3 h-3 animate-spin" /> : '🔬'}
                         Аналіз ґрунту
                       </button>
-                      <p className="text-[9px] text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                      <p className="text-xs text-gray-500 uppercase tracking-wider flex items-center gap-1">
                         🧪 NPK ґрунту
                         <InfoTooltip text="Рівень азоту/фосфору/калію в ґрунті (0-100). Кожен нутрієнт додає до +15% врожайності польових культур. Падає з кожним врожаєм, відновлюється добривом." />
                       </p>
@@ -1474,20 +1474,20 @@ function WorkshopsTab({
                         { label: 'P Фосфор',  val: agroInfo?.phosphorusLevel ?? 70, color: 'bg-orange-500' },
                         { label: 'K Калій',   val: agroInfo?.potassiumLevel ?? 70,  color: 'bg-purple-500' },
                       ].map(({ label, val, color }) => (
-                        <div key={label} className="flex items-center gap-2 text-[10px]">
+                        <div key={label} className="flex items-center gap-2 text-xs">
                           <span className="w-16 text-gray-400 shrink-0">{label}</span>
                           <div className="flex-1 h-1.5 rounded-full bg-gray-700">
                             <div className={cn("h-full rounded-full transition-all", color,
                               val < 40 ? "opacity-50" : val < 60 ? "opacity-75" : "opacity-100"
                             )} style={{ width: `${val}%` }} />
                           </div>
-                          <span className={cn("text-[9px] font-mono w-8 text-right shrink-0",
+                          <span className={cn("text-xs font-mono w-10 text-right shrink-0",
                             val < 40 ? "text-red-400" : val < 60 ? "text-amber-400" : "text-emerald-400"
                           )}>{val.toFixed(0)}%</span>
                         </div>
                       ))}
                       {((agroInfo?.nitrogenLevel ?? 70) < 40 || (agroInfo?.phosphorusLevel ?? 70) < 40 || (agroInfo?.potassiumLevel ?? 70) < 40) && (
-                        <p className="text-[9px] text-amber-500">⚠ Нутрієнти низькі — внесіть добриво для відновлення NPK</p>
+                        <p className="text-xs text-amber-500">⚠ Нутрієнти низькі — внесіть добриво для відновлення NPK</p>
                       )}
                     </div>
                   )}
@@ -1497,7 +1497,7 @@ function WorkshopsTab({
                     <div className="pt-1.5 border-t border-gray-800 space-y-1.5">
                       {/* Волога */}
                       <div className="flex items-center gap-2">
-                        <p className="text-[9px] text-gray-500 uppercase tracking-wider w-20 shrink-0">💧 Волога</p>
+                        <p className="text-xs text-gray-500 uppercase tracking-wider w-20 shrink-0">💧 Волога</p>
                         <div className="flex-1 h-1.5 rounded-full bg-gray-700">
                           {(() => {
                             const m = agroInfo?.moistureLevel ?? 60;
@@ -1509,14 +1509,14 @@ function WorkshopsTab({
                         {(() => {
                           const m = agroInfo?.moistureLevel ?? 60;
                           return (
-                            <span className={cn("text-[9px] font-mono w-8 text-right shrink-0",
+                            <span className={cn("text-xs font-mono w-10 text-right shrink-0",
                               m < 25 ? "text-red-400" : m < 45 ? "text-amber-400" : m <= 75 ? "text-blue-400" : "text-blue-300"
                             )}>{m.toFixed(0)}%</span>
                           );
                         })()}
                       </div>
-                      {(agroInfo?.moistureLevel ?? 60) < 30 && <p className="text-[9px] text-red-400">🌵 Посуха! Встановіть зрошення або замовте польову роботу.</p>}
-                      {(agroInfo?.moistureLevel ?? 60) > 80 && <p className="text-[9px] text-blue-400">🌊 Перезволоження — зменшить врожайність</p>}
+                      {(agroInfo?.moistureLevel ?? 60) < 30 && <p className="text-xs text-red-400">🌵 Посуха! Встановіть зрошення або замовте польову роботу.</p>}
+                      {(agroInfo?.moistureLevel ?? 60) > 80 && <p className="text-xs text-blue-400">🌊 Перезволоження — зменшить врожайність</p>}
 
                       {/* Стадія росту */}
                       {cropSku && agroInfo?.plantedSeasonTick !== undefined && (() => {
@@ -1529,14 +1529,14 @@ function WorkshopsTab({
                                             { name: '🌾 Дозрівання',    pct: 100, color: 'bg-amber-400' };
                         return (
                           <div className="space-y-0.5">
-                            <div className="flex items-center justify-between text-[9px]">
+                            <div className="flex items-center justify-between text-xs">
                               <span className="text-gray-500 uppercase tracking-wider">Стадія росту</span>
                               <span className="text-white font-medium">{stage.name}</span>
                             </div>
                             <div className="h-1.5 rounded-full bg-gray-700">
                               <div className={cn("h-full rounded-full transition-all", stage.color)} style={{ width: `${stage.pct}%` }} />
                             </div>
-                            <p className="text-[9px] text-gray-600">{ticksGrown} тіків з посіву</p>
+                            <p className="text-xs text-gray-600">{ticksGrown} тіків з посіву</p>
                           </div>
                         );
                       })()}
@@ -1546,7 +1546,7 @@ function WorkshopsTab({
                   {/* Grain Quality + Moisture Panel */}
                   {isField && cropSku && (
                     <div className="rounded bg-gray-800/40 px-2 py-1.5 space-y-1">
-                      <p className="text-[9px] text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                      <p className="text-xs text-gray-500 uppercase tracking-wider flex items-center gap-1">
                         🌾 Якість зерна
                         <InfoTooltip text="Клас визначається якістю ґрунту, рівнем NPK і вологою на момент збору врожаю. Клас 1 (Преміум) вимагає високої якості ґрунту, NPK ≥65% і оптимальної вологи 45-75%." />
                       </p>
@@ -1558,23 +1558,23 @@ function WorkshopsTab({
                           const color = cls === 1 ? 'text-amber-300' : cls === 2 ? 'text-gray-300' : 'text-red-400';
                           return (
                             <>
-                              <span className={cn("text-[10px] font-medium", color)}>{label}</span>
-                              <span className={cn("text-[9px] font-mono", color)}>{mult}</span>
+                              <span className={cn("text-xs font-medium", color)}>{label}</span>
+                              <span className={cn("text-xs font-mono", color)}>{mult}</span>
                             </>
                           );
                         })()}
                       </div>
                       {(agroInfo?.grainMoisturePct ?? 14) > 17 && (
-                        <p className="text-[9px] text-amber-500">💧 Вологість зерна {(agroInfo?.grainMoisturePct ?? 14).toFixed(1)}% — потрібне сушіння (норма ≤14%)</p>
+                        <p className="text-xs text-amber-500">💧 Вологість зерна {(agroInfo?.grainMoisturePct ?? 14).toFixed(1)}% — потрібне сушіння (норма ≤14%)</p>
                       )}
                       {(agroInfo?.grainMoisturePct ?? 14) <= 14 && (
-                        <p className="text-[9px] text-emerald-500">✓ Вологість {(agroInfo?.grainMoisturePct ?? 14).toFixed(1)}% — норма</p>
+                        <p className="text-xs text-emerald-500">✓ Вологість {(agroInfo?.grainMoisturePct ?? 14).toFixed(1)}% — норма</p>
                       )}
                       {(agroInfo?.grainMoisturePct ?? 14) > 14 && (
                         <button
                           onClick={doDryGrain}
                           disabled={dryGrainBusy}
-                          className="mt-1 w-full text-[10px] rounded bg-amber-900/40 border border-amber-700/50 text-amber-300 hover:bg-amber-800/40 px-2 py-1 disabled:opacity-50 flex items-center justify-center gap-1"
+                          className="mt-1 w-full text-xs rounded bg-amber-900/40 border border-amber-700/50 text-amber-300 hover:bg-amber-800/40 px-2 py-1 disabled:opacity-50 flex items-center justify-center gap-1"
                         >
                           {dryGrainBusy ? <Loader2 className="w-3 h-3 animate-spin" /> : '🔥'}
                           Просушити до 14%
@@ -1593,12 +1593,12 @@ function WorkshopsTab({
                   <div className="pt-1.5 border-t border-gray-800 space-y-2">
                     {/* Seed quality selector */}
                     <div className="flex items-center justify-between">
-                      <p className="text-[9px] text-gray-500 uppercase tracking-wider">Насіння</p>
+                      <p className="text-xs text-gray-500 uppercase tracking-wider">Насіння</p>
                       <div className="flex gap-1">
                         {(['BASIC','STANDARD','PREMIUM'] as const).map(q => (
                           <button key={q} disabled={seedQualityBusy || seedQuality === q}
                             onClick={() => changeSeedQuality(q)}
-                            className={cn("text-[9px] px-1.5 py-0.5 rounded transition-colors",
+                            className={cn("text-xs px-1.5 py-0.5 rounded transition-colors",
                               seedQuality === q ? "bg-emerald-700 text-white" : "bg-gray-800 text-gray-400 hover:bg-gray-700"
                             )}>
                             {q === 'BASIC' ? '−25%' : q === 'STANDARD' ? 'Станд.' : '+30% ₴5к'}
@@ -1610,7 +1610,7 @@ function WorkshopsTab({
                     <div className="flex items-center gap-2 flex-wrap">
                       <button onClick={() => toggleAutoWorkshop(w.id, 'autoHarvest', w.autoHarvest)}
                         disabled={autoToggleBusy === w.id + 'autoHarvest'}
-                        className={cn("text-[9px] rounded px-2 py-1 transition-colors",
+                        className={cn("text-xs rounded px-2 py-1 transition-colors",
                           w.autoHarvest ? "bg-amber-700 text-white" : "bg-gray-800 text-gray-400 hover:bg-gray-700"
                         )}>
                         {autoToggleBusy === w.id + 'autoHarvest' ? <Loader2 size={8} className="animate-spin inline" /> : null}
@@ -1618,7 +1618,7 @@ function WorkshopsTab({
                       </button>
                       <button onClick={() => toggleAutoWorkshop(w.id, 'autoFertilize', w.autoFertilize)}
                         disabled={autoToggleBusy === w.id + 'autoFertilize'}
-                        className={cn("text-[9px] rounded px-2 py-1 transition-colors",
+                        className={cn("text-xs rounded px-2 py-1 transition-colors",
                           w.autoFertilize ? "bg-emerald-700 text-white" : "bg-gray-800 text-gray-400 hover:bg-gray-700"
                         )}>
                         {autoToggleBusy === w.id + 'autoFertilize' ? <Loader2 size={8} className="animate-spin inline" /> : null}
@@ -1644,7 +1644,7 @@ function WorkshopsTab({
                             {agroActing === "fertilize" ? <Loader2 size={10} className="animate-spin" /> : (
                               <>
                                 <span>🧪 Концентрат</span>
-                                <span className="text-[9px] opacity-75">{concKg} кг · ₴{concCost.toLocaleString('uk-UA')}</span>
+                                <span className="text-xs opacity-75">{concKg} кг · ₴{concCost.toLocaleString('uk-UA')}</span>
                               </>
                             )}
                           </button>
@@ -1653,7 +1653,7 @@ function WorkshopsTab({
                             {agroActing === "fertilize_organic" ? <Loader2 size={10} className="animate-spin" /> : (
                               <>
                                 <span>🌿 Компост</span>
-                                <span className="text-[9px] opacity-75">{compostKg.toLocaleString('uk-UA')} кг · ₴{Number(compostCost).toLocaleString('uk-UA')}</span>
+                                <span className="text-xs opacity-75">{compostKg.toLocaleString('uk-UA')} кг · ₴{Number(compostCost).toLocaleString('uk-UA')}</span>
                               </>
                             )}
                           </button>
@@ -1680,9 +1680,9 @@ function WorkshopsTab({
                   <p className="text-xs text-gray-500 mt-0.5">{w.footprintM2} м² · макс {w.maxCapacity} од/тік</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  {brokenCount > 0 && <span className="inline-flex items-center gap-1 text-[10px] text-red-400 bg-red-500/10 border border-red-500/15 rounded px-1.5 py-0.5"><Hammer size={9} /> {brokenCount}</span>}
-                  {wornCount > 0   && <span className="inline-flex items-center gap-1 text-[10px] text-amber-400 bg-amber-500/10 border border-amber-500/15 rounded px-1.5 py-0.5"><Wrench size={9} /> {wornCount}</span>}
-                  <span className={cn("text-[10px] font-medium rounded-full px-2 py-0.5", w.isActive ? "text-emerald-400 bg-emerald-500/10" : "text-gray-500 bg-gray-800")}>
+                  {brokenCount > 0 && <span className="inline-flex items-center gap-1 text-xs text-red-400 bg-red-500/10 border border-red-500/15 rounded px-1.5 py-0.5"><Hammer size={9} /> {brokenCount}</span>}
+                  {wornCount > 0   && <span className="inline-flex items-center gap-1 text-xs text-amber-400 bg-amber-500/10 border border-amber-500/15 rounded px-1.5 py-0.5"><Wrench size={9} /> {wornCount}</span>}
+                  <span className={cn("text-xs font-medium rounded-full px-2 py-0.5", w.isActive ? "text-emerald-400 bg-emerald-500/10" : "text-gray-500 bg-gray-800")}>
                     {w.isActive ? "Активний" : "Зупинено"}
                   </span>
                 </div>
@@ -1692,10 +1692,10 @@ function WorkshopsTab({
                 {/* Volume control */}
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-[10px] text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                    <span className="text-xs text-gray-500 uppercase tracking-wider flex items-center gap-1">
                       <SlidersHorizontal size={9} /> Обсяг виробництва
                     </span>
-                    <span className="text-[10px] font-mono text-gray-400">{vol} / {w.maxCapacity} · {capacityPct}%</span>
+                    <span className="text-xs font-mono text-gray-400">{vol} / {w.maxCapacity} · {capacityPct}%</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <input
@@ -1709,7 +1709,7 @@ function WorkshopsTab({
                       onClick={() => saveVolume(w.id)}
                       disabled={savingVolume === w.id || vol === w.currentVolume}
                       className={cn(
-                        "text-[10px] px-2 py-1 rounded font-medium transition-all",
+                        "text-xs px-2 py-1 rounded font-medium transition-all",
                         vol !== w.currentVolume
                           ? "bg-emerald-600 text-white hover:bg-emerald-500"
                           : "bg-gray-800 text-gray-600 cursor-default",
@@ -1722,7 +1722,7 @@ function WorkshopsTab({
                     <div className={cn("h-full rounded-full", capacityPct >= 80 ? "bg-emerald-500" : capacityPct >= 40 ? "bg-amber-500" : "bg-gray-600")} style={{ width: `${capacityPct}%` }} />
                   </div>
                   {vol === 0 ? (
-                    <p className="text-[10px] text-red-400 mt-1">⛔ Виробництво зупинено (обсяг = 0)</p>
+                    <p className="text-xs text-red-400 mt-1">⛔ Виробництво зупинено (обсяг = 0)</p>
                   ) : enterprise.type === 'AGRO_FARM' ? (() => {
                     const cropSku   = activeOrder?.recipe?.outputs[0]?.product.sku ?? null;
                     const soilMult  = agroInfo ? agroInfo.soilQuality / 7.0 : 1.0;
@@ -1737,7 +1737,7 @@ function WorkshopsTab({
                       <div className="mt-1 space-y-1">
                         {/* Formula breakdown */}
                         <div className="rounded bg-gray-800/60 px-2 py-1.5 space-y-1">
-                          <div className="flex items-center gap-1.5 flex-wrap text-[10px]">
+                          <div className="flex items-center gap-1.5 flex-wrap text-xs">
                             <span className="text-gray-500">Площа</span>
                             <span className="font-mono text-white">{w.footprintM2} м²</span>
                             <span className="text-gray-600">×</span>
@@ -1763,30 +1763,30 @@ function WorkshopsTab({
                           {activeMach.length > 0 && (
                             <div className="flex items-center gap-1 flex-wrap">
                               {activeMach.map((m: any) => (
-                                <span key={m.id} className="text-[9px] bg-emerald-900/40 text-emerald-400 px-1 rounded">
+                                <span key={m.id} className="text-xs bg-emerald-900/40 text-emerald-400 px-1 rounded">
                                   {MACHINERY_EMOJI_UI[m.type] ?? "⚙️"} +{MACHINERY_YIELD_BONUS_UI[m.type] ?? 0}%
                                 </span>
                               ))}
                             </div>
                           )}
                           {activeMach.length === 0 && (
-                            <p className="text-[9px] text-amber-600">⚠ Немає активної техніки</p>
+                            <p className="text-xs text-amber-600">⚠ Немає активної техніки</p>
                           )}
                         </div>
                         {isCapped && (
-                          <p className="text-[10px] text-amber-500">⚠ Ліміт {vol} обмежує фактичний врожай {estYield.toFixed(0)} — підвищте ліміт</p>
+                          <p className="text-xs text-amber-500">⚠ Ліміт {vol} обмежує фактичний врожай {estYield.toFixed(0)} — підвищте ліміт</p>
                         )}
                       </div>
                     );
                   })() : (
-                    <p className="text-[10px] text-gray-600 mt-1">Ліміт {vol} од/тік. Фактичне виробництво = min(ліміт, пропускна здатність обладнання, запас матеріалів).</p>
+                    <p className="text-xs text-gray-600 mt-1">Ліміт {vol} од/тік. Фактичне виробництво = min(ліміт, пропускна здатність обладнання, запас матеріалів).</p>
                   )}
                 </div>
 
                 {/* Recipe / Production Order */}
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-0.5">Рецепт / продукт</p>
+                    <p className="text-xs text-gray-500 uppercase tracking-wider mb-0.5">Рецепт / продукт</p>
                     {activeOrder?.recipe ? (
                       <p className="text-sm text-white font-medium">{RECIPE_UA[activeOrder.recipe.name] ?? activeOrder.recipe.name}</p>
                     ) : (
@@ -1815,10 +1815,10 @@ function WorkshopsTab({
                 {/* Equipment */}
                 <div className="space-y-1.5 pt-1 border-t border-gray-800">
                   <div className="flex items-center justify-between">
-                    <p className="text-[10px] text-gray-500 uppercase tracking-wider">Обладнання</p>
+                    <p className="text-xs text-gray-500 uppercase tracking-wider">Обладнання</p>
                     <button
                       onClick={() => setBuyEquipWs(w)}
-                      className="text-[10px] text-emerald-400 hover:text-emerald-300 flex items-center gap-0.5"
+                      className="text-xs text-emerald-400 hover:text-emerald-300 flex items-center gap-0.5"
                     >
                       <Plus size={10} /> Купити
                     </button>
@@ -1843,7 +1843,7 @@ function WorkshopsTab({
                               <button
                                 onClick={() => doEquipAction(eq.id, "repair")}
                                 disabled={busy}
-                                className="shrink-0 text-[10px] px-2 py-0.5 rounded bg-red-600 hover:bg-red-500 text-white font-medium transition-colors disabled:opacity-50"
+                                className="shrink-0 text-xs px-2 py-0.5 rounded bg-red-600 hover:bg-red-500 text-white font-medium transition-colors disabled:opacity-50"
                               >
                                 {busy ? <Loader2 size={10} className="animate-spin" /> : `Рем. ₴${(maintCost * 2 / 1000).toFixed(0)}K`}
                               </button>
@@ -1851,16 +1851,16 @@ function WorkshopsTab({
                               <button
                                 onClick={() => doEquipAction(eq.id, "maintenance")}
                                 disabled={busy}
-                                className="shrink-0 text-[10px] px-2 py-0.5 rounded bg-amber-600 hover:bg-amber-500 text-white font-medium transition-colors disabled:opacity-50"
+                                className="shrink-0 text-xs px-2 py-0.5 rounded bg-amber-600 hover:bg-amber-500 text-white font-medium transition-colors disabled:opacity-50"
                               >
                                 {busy ? <Loader2 size={10} className="animate-spin" /> : `ТО ₴${(maintCost / 1000).toFixed(0)}K`}
                               </button>
                             ) : (
-                              <span className="text-gray-600 text-[10px] w-16 text-right shrink-0">{formatUAH(eq.marketValueUah)}</span>
+                              <span className="text-gray-600 text-xs w-16 text-right shrink-0">{formatUAH(eq.marketValueUah)}</span>
                             )}
                           </div>
                           {msg && (
-                            <div className={cn("px-3 py-1.5 text-[10px] font-medium", msg.ok ? "bg-emerald-950/60 text-emerald-400" : "bg-red-950/60 text-red-400")}>
+                            <div className={cn("px-3 py-1.5 text-xs font-medium", msg.ok ? "bg-emerald-950/60 text-emerald-400" : "bg-red-950/60 text-red-400")}>
                               {msg.text}
                             </div>
                           )}
@@ -1880,11 +1880,11 @@ function WorkshopsTab({
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold text-white">🏡 Агротуризм</p>
-              <p className="text-[10px] text-gray-500 mt-0.5">Пасивний дохід від ферми</p>
+              <p className="text-xs text-gray-500 mt-0.5">Пасивний дохід від ферми</p>
             </div>
             <div className="flex items-center gap-2">
               {agroInfo.agroTourismEnabled && (
-                <span className="text-[10px] text-emerald-400 font-mono">+₴{(agroInfo.agroTourismRevenuePerTick ?? 0).toLocaleString('uk-UA')}/тік</span>
+                <span className="text-xs text-emerald-400 font-mono">+₴{(agroInfo.agroTourismRevenuePerTick ?? 0).toLocaleString('uk-UA')}/тік</span>
               )}
               <button
                 onClick={() => toggleTourism(!(agroInfo.agroTourismEnabled))}
@@ -1899,7 +1899,7 @@ function WorkshopsTab({
             </div>
           </div>
           {!agroInfo.agroTourismEnabled && (
-            <p className="text-[9px] text-gray-600 mt-1.5">Потрібен ґрунт ≥ 6. З Organic Cert +30% доходу.</p>
+            <p className="text-xs text-gray-600 mt-1.5">Потрібен ґрунт ≥ 6. З Organic Cert +30% доходу.</p>
           )}
         </div>
       )}
@@ -1910,21 +1910,21 @@ function WorkshopsTab({
         return (
           <div className="rounded border border-gray-700/50 bg-gray-900/60 px-3 py-2 space-y-1.5">
             <div className="flex items-center justify-between">
-              <p className="text-[10px] font-medium text-gray-300">🛡 Агрострахування</p>
+              <p className="text-xs font-medium text-gray-300">🛡 Агрострахування</p>
               {hasInsurance
-                ? <span className="text-[9px] text-emerald-400 bg-emerald-900/30 border border-emerald-700/40 rounded px-1.5 py-0.5">✓ Активне</span>
-                : <span className="text-[9px] text-red-400 bg-red-900/30 border border-red-700/40 rounded px-1.5 py-0.5">✗ Немає</span>
+                ? <span className="text-xs text-emerald-400 bg-emerald-900/30 border border-emerald-700/40 rounded px-1.5 py-0.5">✓ Активне</span>
+                : <span className="text-xs text-red-400 bg-red-900/30 border border-red-700/40 rounded px-1.5 py-0.5">✗ Немає</span>
               }
             </div>
             {hasInsurance ? (
-              <p className="text-[9px] text-gray-500">Захист від посухи, хвороб і погодних катастроф. Виплата 35% вартості врожаю при збитках.</p>
+              <p className="text-xs text-gray-500">Захист від посухи, хвороб і погодних катастроф. Виплата 35% вартості врожаю при збитках.</p>
             ) : (
               <>
-                <p className="text-[9px] text-gray-500">₴5,000 · Захист від посухи, хвороб і погоди · виплата 35% при катастрофі</p>
+                <p className="text-xs text-gray-500">₴5,000 · Захист від посухи, хвороб і погоди · виплата 35% при катастрофі</p>
                 <button
                   onClick={buyInsurance}
                   disabled={insuranceBusy}
-                  className="w-full text-[10px] rounded bg-emerald-900/30 border border-emerald-700/40 text-emerald-300 hover:bg-emerald-800/40 px-2 py-1 disabled:opacity-50 flex items-center justify-center gap-1"
+                  className="w-full text-xs rounded bg-emerald-900/30 border border-emerald-700/40 text-emerald-300 hover:bg-emerald-800/40 px-2 py-1 disabled:opacity-50 flex items-center justify-center gap-1"
                 >
                   {insuranceBusy ? <Loader2 className="w-3 h-3 animate-spin" /> : '🛡'}
                   Купити страхування · ₴5,000
@@ -1955,7 +1955,7 @@ function WorkshopsTab({
                   <div className="flex-1 h-2 rounded-full bg-gray-700">
                     <div className={`h-full rounded-full ${color}`} style={{ width: `${val}%` }} />
                   </div>
-                  <span className={`text-[10px] font-mono w-8 text-right shrink-0 ${val < 40 ? 'text-red-400' : val < 60 ? 'text-amber-400' : 'text-emerald-400'}`}>{val.toFixed(0)}%</span>
+                  <span className={`text-xs font-mono w-10 text-right shrink-0 ${val < 40 ? 'text-red-400' : val < 60 ? 'text-amber-400' : 'text-emerald-400'}`}>{val.toFixed(0)}%</span>
                 </div>
               ))}
               <div className="flex items-center gap-2 text-[11px]">
@@ -1963,11 +1963,11 @@ function WorkshopsTab({
                 <div className="flex-1 h-2 rounded-full bg-gray-700">
                   <div className={`h-full rounded-full ${soilAnalysisData.moisture.level < 30 ? 'bg-red-500' : soilAnalysisData.moisture.level > 80 ? 'bg-blue-300' : 'bg-blue-500'}`} style={{ width: `${soilAnalysisData.moisture.level}%` }} />
                 </div>
-                <span className="text-[10px] font-mono w-8 text-right shrink-0 text-blue-400">{soilAnalysisData.moisture.level.toFixed(0)}%</span>
+                <span className="text-xs font-mono w-10 text-right shrink-0 text-blue-400">{soilAnalysisData.moisture.level.toFixed(0)}%</span>
               </div>
             </div>
 
-            <div className="text-[10px] text-gray-400">
+            <div className="text-xs text-gray-400">
               <span>Зерно: </span>
               <span className={soilAnalysisData.grain.qualityClass === 1 ? 'text-amber-300' : soilAnalysisData.grain.qualityClass === 3 ? 'text-red-400' : 'text-gray-300'}>
                 {soilAnalysisData.grain.qualityLabel}
@@ -1975,23 +1975,23 @@ function WorkshopsTab({
               <span className="text-gray-500"> · вологість {soilAnalysisData.grain.moisturePct.toFixed(1)}%</span>
             </div>
 
-            <div className="text-[10px] text-gray-300">
+            <div className="text-xs text-gray-300">
               Ефективність врожаю: <span className={`font-mono ${soilAnalysisData.estimatedYieldEfficiency >= 1.1 ? 'text-emerald-400' : soilAnalysisData.estimatedYieldEfficiency >= 0.8 ? 'text-amber-400' : 'text-red-400'}`}>{(soilAnalysisData.estimatedYieldEfficiency * 100).toFixed(0)}%</span>
             </div>
 
             {soilAnalysisData.warnings.length > 0 && (
               <div className="space-y-0.5">
                 {soilAnalysisData.warnings.map((w, i) => (
-                  <p key={i} className="text-[9px] text-amber-400">{w}</p>
+                  <p key={i} className="text-xs text-amber-400">{w}</p>
                 ))}
               </div>
             )}
 
             {soilAnalysisData.suggestions.length > 0 && (
               <div className="space-y-0.5 border-t border-gray-700/50 pt-2">
-                <p className="text-[9px] text-gray-500 uppercase tracking-wider">Рекомендації</p>
+                <p className="text-xs text-gray-500 uppercase tracking-wider">Рекомендації</p>
                 {soilAnalysisData.suggestions.map((s, i) => (
-                  <p key={i} className="text-[9px] text-blue-300">💡 {s}</p>
+                  <p key={i} className="text-xs text-blue-300">💡 {s}</p>
                 ))}
               </div>
             )}
@@ -2051,7 +2051,7 @@ function SalaryRow({ profession, count, currentSalary, enterpriseId, onSaved }: 
     <div className="flex items-center gap-3 px-4 py-2.5 border-b border-gray-800 last:border-0">
       <div className="flex-1">
         <span className="text-xs text-gray-300">{PROF_UA[profession] ?? profession}</span>
-        <span className="ml-2 text-[10px] text-gray-600">{count} ос.</span>
+        <span className="ml-2 text-xs text-gray-600">{count} ос.</span>
       </div>
       {editing ? (
         <div className="flex items-center gap-1.5">
@@ -2144,7 +2144,7 @@ function HRTab({
         <div className="rounded-xl border border-gray-800 bg-gray-900 overflow-hidden">
           <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-800">
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Зарплати за посадою</p>
-            <p className="text-[10px] text-gray-600">Натисніть суму для редагування</p>
+            <p className="text-xs text-gray-600">Натисніть суму для редагування</p>
           </div>
           {Object.entries(profGroups).map(([prof, { count, salary }]) => (
             <SalaryRow
@@ -2169,7 +2169,7 @@ function HRTab({
         <div className="rounded-xl border border-gray-800 bg-gray-900 overflow-hidden">
           <div className="grid grid-cols-[1fr_120px_90px_90px_70px_36px] px-4 py-2 border-b border-gray-800">
             {["Співробітник", "Посада", "Зарплата", "Настрій", "Ефект.", ""].map(h => (
-              <span key={h} className="text-[10px] uppercase tracking-wider text-gray-500">{h}</span>
+              <span key={h} className="text-xs uppercase tracking-wider text-gray-500">{h}</span>
             ))}
           </div>
           {employees.map(emp => (
@@ -2182,7 +2182,7 @@ function HRTab({
             >
               <div>
                 <p className="text-sm text-white font-medium">{emp.firstName} {emp.lastName}</p>
-                {emp.isOnStrike && <p className="text-[10px] text-red-400">На страйку</p>}
+                {emp.isOnStrike && <p className="text-xs text-red-400">На страйку</p>}
               </div>
               <span className="text-xs text-gray-400">{PROF_UA[emp.profession] ?? emp.profession}</span>
               <span className="text-xs font-mono text-gray-300">{formatUAH(emp.salaryUah)}</span>
@@ -2191,6 +2191,7 @@ function HRTab({
               <button
                 onClick={() => fireEmployee(emp.id)}
                 disabled={firing === emp.id}
+                aria-label="Звільнити"
                 className="text-gray-600 hover:text-red-400 transition-colors"
               >
                 {firing === emp.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
@@ -2229,7 +2230,7 @@ function WarehouseTab({ inventory }: { inventory: InventoryItem[] }) {
     <div className="rounded-xl border border-gray-800 bg-gray-900 overflow-hidden">
       <div className="grid grid-cols-[1fr_80px_80px_80px] px-4 py-2 border-b border-gray-800">
         {["Товар", "SKU", "Кількість", "Якість"].map(h => (
-          <span key={h} className="text-[10px] uppercase tracking-wider text-gray-500">{h}</span>
+          <span key={h} className="text-xs uppercase tracking-wider text-gray-500">{h}</span>
         ))}
       </div>
       {inventory.map((item, i) => (
@@ -2515,7 +2516,7 @@ function SupplyRouteSection({ title, items, dir, togglingId, onToggle, onRemove 
               <p className="text-xs text-gray-500">{r.productName} · {formatNumber(r.qtyPerTick)} {r.unit}/тік</p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full", r.isActive ? "bg-emerald-950 text-emerald-400" : "bg-gray-800 text-gray-500")}>
+              <span className={cn("text-xs font-medium px-1.5 py-0.5 rounded-full", r.isActive ? "bg-emerald-950 text-emerald-400" : "bg-gray-800 text-gray-500")}>
                 {r.isActive ? "Активний" : "Пауза"}
               </span>
               <button
@@ -2523,6 +2524,7 @@ function SupplyRouteSection({ title, items, dir, togglingId, onToggle, onRemove 
                 disabled={togglingId === r.id}
                 className="text-xs text-gray-500 hover:text-amber-400 transition-colors"
                 title={r.isActive ? "Призупинити" : "Активувати"}
+                aria-label={r.isActive ? "Призупинити" : "Активувати"}
               >
                 {togglingId === r.id ? <Loader2 size={12} className="animate-spin" /> : r.isActive ? "⏸" : "▶"}
               </button>
@@ -2652,7 +2654,7 @@ function CreateFieldPlot({ enterpriseId, enterpriseType, freeLandM2, onCreated }
         <div className="space-y-2">
           <div className="grid grid-cols-2 gap-2">
             <div className="col-span-2">
-              <label className="text-[10px] text-gray-500 mb-1 block">Що вирощувати</label>
+              <label className="text-xs text-gray-500 mb-1 block">Що вирощувати</label>
               <select value={recipeId} onChange={e => setRecipeId(e.target.value)}
                 className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-2 text-xs text-white focus:outline-none focus:border-green-500">
                 {recipes.map(r => {
@@ -2662,22 +2664,22 @@ function CreateFieldPlot({ enterpriseId, enterpriseType, freeLandM2, onCreated }
               </select>
             </div>
             <div>
-              <label className="text-[10px] text-gray-500 mb-1 block">Площа ділянки (м²)</label>
+              <label className="text-xs text-gray-500 mb-1 block">Площа ділянки (м²)</label>
               <input type="number" min="100" step="100"
                 max={freeLandM2 != null ? freeLandM2 : undefined}
                 value={areaM2} onChange={e => setAreaM2(e.target.value)}
                 className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-2 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-green-500" />
             </div>
             <div className="flex flex-col justify-end pb-0.5 gap-0.5">
-              <p className="text-[10px] text-gray-500">Вартість: <span className="text-white font-mono">₴{cost.toLocaleString()}</span></p>
+              <p className="text-xs text-gray-500">Вартість: <span className="text-white font-mono">₴{cost.toLocaleString()}</span></p>
               {ticks > 0
-                ? <p className="text-[10px] text-gray-500">Будівництво: <span className="text-white">{ticks} тік{ticks === 1 ? "" : "и"}</span></p>
-                : <p className="text-[10px] text-emerald-500">⚡ Готова миттєво</p>
+                ? <p className="text-xs text-gray-500">Будівництво: <span className="text-white">{ticks} тік{ticks === 1 ? "" : "и"}</span></p>
+                : <p className="text-xs text-emerald-500">⚡ Готова миттєво</p>
               }
             </div>
           </div>
           {selectedRecipe && (
-            <p className="text-[10px] text-emerald-500">
+            <p className="text-xs text-emerald-500">
               {SKU_EMOJI[selectedRecipe.outputs[0]?.product.sku ?? ""] ?? "🌿"} {ticks > 0 ? "Після будівництва ділянка" : "Ділянка одразу"} засіватиметься {selectedRecipe.outputs[0]?.product.nameUa ?? ""}
             </p>
           )}
@@ -2937,7 +2939,7 @@ function FieldsTab({ enterprise, agroInfo, onRefresh }: { enterprise: Enterprise
               <span>🐛 Шкідники −{Math.round((1 - agroInfo.pestDamageMult) * 100)}% врожаю</span>
               <button
                 onClick={applyPesticide} disabled={pestBusy}
-                className="ml-1 px-2 py-0.5 rounded bg-red-700 hover:bg-red-600 text-white text-[10px] font-medium disabled:opacity-50"
+                className="ml-1 px-2 py-0.5 rounded bg-red-700 hover:bg-red-600 text-white text-xs font-medium disabled:opacity-50"
               >
                 {pestBusy ? "..." : "Пестицид (5 кг)"}
               </button>
@@ -2952,7 +2954,7 @@ function FieldsTab({ enterprise, agroInfo, onRefresh }: { enterprise: Enterprise
               : <span>Добриво не внесено</span>}
             <button
               onClick={applyFertilizer} disabled={fertBusy}
-              className="ml-1 px-2 py-0.5 rounded bg-emerald-700 hover:bg-emerald-600 text-white text-[10px] font-medium disabled:opacity-50"
+              className="ml-1 px-2 py-0.5 rounded bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-medium disabled:opacity-50"
             >
               {fertBusy ? "..." : "Внести (50 кг)"}
             </button>
@@ -2975,7 +2977,7 @@ function FieldsTab({ enterprise, agroInfo, onRefresh }: { enterprise: Enterprise
           <div>
             <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Ділянки — що засівати</p>
             {totalLandM2 != null && (
-              <p className="text-[10px] text-gray-600 mt-0.5">
+              <p className="text-xs text-gray-600 mt-0.5">
                 Використано <span className="text-white">{usedM2.toLocaleString()} м²</span>
                 {" з "}
                 <span className="text-white">{totalLandM2.toLocaleString()} м²</span>
@@ -3036,7 +3038,7 @@ function FieldsTab({ enterprise, agroInfo, onRefresh }: { enterprise: Enterprise
               <div key={ws.id} className={cn("rounded-lg border bg-gray-900 p-3 space-y-2", borderCls)}>
                 <div className="flex items-start justify-between gap-2">
                   <p className="text-sm font-medium text-white leading-tight">{ws.name}</p>
-                  <span className="shrink-0 text-[10px] text-gray-500 font-mono">{ws.footprintM2.toLocaleString()} м²</span>
+                  <span className="shrink-0 text-xs text-gray-500 font-mono">{ws.footprintM2.toLocaleString()} м²</span>
                 </div>
                 {cropSku ? (
                   <div className="space-y-1.5">
@@ -3044,7 +3046,7 @@ function FieldsTab({ enterprise, agroInfo, onRefresh }: { enterprise: Enterprise
                       <span className="text-base leading-none">{emoji}</span>
                       <div>
                         <p className="text-sm font-semibold text-white">{cropName}</p>
-                        <p className="text-[10px] text-gray-500 font-mono">{cropSku}</p>
+                        <p className="text-xs text-gray-500 font-mono">{cropSku}</p>
                       </div>
                     </div>
                     {seasonMult !== null && (
@@ -3055,19 +3057,19 @@ function FieldsTab({ enterprise, agroInfo, onRefresh }: { enterprise: Enterprise
                         {seasonMult === 0 && <span className="ml-1 opacity-70">— позасезонно, без врожаю</span>}
                       </div>
                     )}
-                    {rotationStatus === 'optimal' && <p className="text-[10px] text-emerald-400">✓ Оптимальна ротація +15%</p>}
+                    {rotationStatus === 'optimal' && <p className="text-xs text-emerald-400">✓ Оптимальна ротація +15%</p>}
                     {rotationStatus === 'mono' && nextRecommended && (
-                      <p className="text-[10px] text-red-400">✗ Монокультура −15% · краще: {SKU_EMOJI[nextRecommended] ?? ""} {nextRecommended}</p>
+                      <p className="text-xs text-red-400">✗ Монокультура −15% · краще: {SKU_EMOJI[nextRecommended] ?? ""} {nextRecommended}</p>
                     )}
                     {rotationStatus === 'neutral' && nextRecommended && (
-                      <p className="text-[10px] text-gray-500">Рекомендовано: {SKU_EMOJI[nextRecommended] ?? ""} {nextRecommended}</p>
+                      <p className="text-xs text-gray-500">Рекомендовано: {SKU_EMOJI[nextRecommended] ?? ""} {nextRecommended}</p>
                     )}
                     {estYield !== null && (
                       <div className="mt-1 border-t border-gray-800 pt-1.5">
                         {estYield === 0 || seasonMult === 0 ? (
-                          <p className="text-[10px] text-red-400">Врожай: 0 — позасезонно</p>
+                          <p className="text-xs text-red-400">Врожай: 0 — позасезонно</p>
                         ) : (
-                          <p className="text-[10px] text-gray-400">
+                          <p className="text-xs text-gray-400">
                             Врожай ~<span className="text-white font-mono">{estYield.toFixed(1)}</span>
                             {cropUnit ? ` ${cropUnit}` : ""}/тік
                             <span className="text-gray-600 ml-1">({ws.footprintM2} м² · ґрунт {(soilMult * 100).toFixed(0)}%)</span>
@@ -3077,19 +3079,19 @@ function FieldsTab({ enterprise, agroInfo, onRefresh }: { enterprise: Enterprise
                     )}
                     {ws.harvestAccumulated >= 0.1 && FIELD_CROPS_UI.has(cropSku ?? '') && (
                       <div className="mt-1.5 border-t border-amber-900/40 pt-1.5 flex items-center justify-between">
-                        <p className="text-[10px] text-amber-300">
+                        <p className="text-xs text-amber-300">
                           🌾 Готово до збору: <span className="font-mono font-bold">{ws.harvestAccumulated.toFixed(1)}</span> {cropUnit ?? "кг"}
                         </p>
                         <button
                           onClick={() => harvestWorkshop(ws.id)}
                           disabled={harvestBusy === ws.id}
-                          className="px-2 py-0.5 text-[10px] rounded bg-amber-600 hover:bg-amber-500 text-white font-medium disabled:opacity-50"
+                          className="px-2 py-0.5 text-xs rounded bg-amber-600 hover:bg-amber-500 text-white font-medium disabled:opacity-50"
                         >
                           {harvestBusy === ws.id ? "..." : "Зібрати →"}
                         </button>
                       </div>
                     )}
-                    <button onClick={() => setRecipeModal(ws)} className="text-[10px] text-blue-400 hover:text-blue-300 underline underline-offset-2">
+                    <button onClick={() => setRecipeModal(ws)} className="text-xs text-blue-400 hover:text-blue-300 underline underline-offset-2">
                       Змінити культуру
                     </button>
                   </div>
@@ -3097,7 +3099,7 @@ function FieldsTab({ enterprise, agroInfo, onRefresh }: { enterprise: Enterprise
                   <div className="space-y-2">
                     <p className="text-xs text-gray-500">Ділянка порожня — оберіть, що посіяти</p>
                     {nextRecommended && (
-                      <p className="text-[10px] text-emerald-500">Рекомендовано: {SKU_EMOJI[nextRecommended] ?? ""} {nextRecommended}</p>
+                      <p className="text-xs text-emerald-500">Рекомендовано: {SKU_EMOJI[nextRecommended] ?? ""} {nextRecommended}</p>
                     )}
                     <button onClick={() => setRecipeModal(ws)} className="w-full py-1.5 bg-green-800 hover:bg-green-700 text-white text-xs rounded font-medium">
                       🌱 Засіяти ділянку
@@ -3123,7 +3125,7 @@ function FieldsTab({ enterprise, agroInfo, onRefresh }: { enterprise: Enterprise
           </div>
           <div className="flex gap-2 items-end">
             <div className="flex-1">
-              <label className="block text-[10px] text-gray-500 mb-1">Додати поле (м²) · ₴{fieldInfo.setupCostPerM2}/м² разово + ₴{fieldInfo.rentPerM2PerMonth}/м²/міс</label>
+              <label className="block text-xs text-gray-500 mb-1">Додати поле (м²) · ₴{fieldInfo.setupCostPerM2}/м² разово + ₴{fieldInfo.rentPerM2PerMonth}/м²/міс</label>
               <input type="number" min="100" max="200000" step="100" value={expandArea} onChange={e => setExpandArea(e.target.value)}
                 placeholder="напр. 10000"
                 className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-green-500" />
@@ -3165,12 +3167,12 @@ function FieldsTab({ enterprise, agroInfo, onRefresh }: { enterprise: Enterprise
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-gray-600">до дня {c.deliveryTick}</span>
-                      <button onClick={() => handleCancelContract(c.id)} aria-label="Скасувати ф'ючерс" className="text-red-500 hover:text-red-400 text-[10px]">✕</button>
+                      <button onClick={() => handleCancelContract(c.id)} aria-label="Скасувати ф'ючерс" className="text-red-500 hover:text-red-400 text-xs">✕</button>
                     </div>
                   </div>
                   {/* PnL badge */}
                   {pnlPct !== null && (
-                    <div className="flex items-center gap-2 text-[10px]">
+                    <div className="flex items-center gap-2 text-xs">
                       <span className="text-gray-500">Контрактна: ₴{c.pricePerUnit}/кг · vs Ринок: ~₴{basePrice}/кг</span>
                       <span className={`px-1.5 py-0.5 rounded font-semibold ${isGoodPrice ? 'bg-emerald-900/50 text-emerald-400' : 'bg-red-900/50 text-red-400'}`}>
                         {isGoodPrice ? `+${pnlPct.toFixed(1)}% вигода` : `${pnlPct.toFixed(1)}% збиток`}
@@ -3179,7 +3181,7 @@ function FieldsTab({ enterprise, agroInfo, onRefresh }: { enterprise: Enterprise
                   )}
                   {/* Прогрес виконання */}
                   <div className="space-y-0.5">
-                    <div className="flex items-center justify-between text-[10px]">
+                    <div className="flex items-center justify-between text-xs">
                       <span className="text-gray-500">Накопичено: {accumulated.toFixed(1)} / {c.quantityUnits} {c.productUnit}</span>
                       {isFulfilled
                         ? <span className="text-emerald-400 font-semibold">✓ Готово до доставки</span>
@@ -3220,7 +3222,7 @@ function FieldsTab({ enterprise, agroInfo, onRefresh }: { enterprise: Enterprise
                 <p className="text-xs text-gray-600 py-1 text-center">Немає виконаних контрактів</p>
               ) : (
                 historyContracts.map(c => (
-                  <div key={c.id} className="flex items-center justify-between text-[10px] border border-gray-800 rounded px-2 py-1.5">
+                  <div key={c.id} className="flex items-center justify-between text-xs border border-gray-800 rounded px-2 py-1.5">
                     <div>
                       <span className="font-mono text-gray-300">{c.productSku}</span>
                       <span className="text-gray-500 ml-2">{c.quantityUnits} {c.productUnit} × ₴{c.pricePerUnit}</span>
@@ -3255,7 +3257,7 @@ function FieldsTab({ enterprise, agroInfo, onRefresh }: { enterprise: Enterprise
               const diff = ((myPrice - base) / base * 100).toFixed(1);
               const isGood = myPrice >= base;
               return (
-                <p className={`text-[9px] ${isGood ? 'text-emerald-400' : 'text-amber-400'}`}>
+                <p className={`text-xs ${isGood ? 'text-emerald-400' : 'text-amber-400'}`}>
                   {isGood ? `✓ Вище ринку на ${diff}%` : `⚠ Нижче ринку на ${Math.abs(parseFloat(diff))}%`}
                   {' '}(база ~₴{base}/кг)
                 </p>
@@ -3299,9 +3301,9 @@ function FieldsTab({ enterprise, agroInfo, onRefresh }: { enterprise: Enterprise
           <div className="flex items-center justify-between">
             <p className="text-xs font-semibold text-yellow-400">Агро-ярмарок (+{Math.round((fairInfo.fairPremium - 1) * 100)}%)</p>
             {fairInfo.isFairDay ? (
-              <span className="text-[10px] bg-yellow-700 text-yellow-100 px-2 py-0.5 rounded-full">Відкрито сьогодні!</span>
+              <span className="text-xs bg-yellow-700 text-yellow-100 px-2 py-0.5 rounded-full">Відкрито сьогодні!</span>
             ) : (
-              <span className="text-[10px] text-gray-500">До ярмарку: {fairInfo.nextFairIn} дн.</span>
+              <span className="text-xs text-gray-500">До ярмарку: {fairInfo.nextFairIn} дн.</span>
             )}
           </div>
           {fairInfo.grainStock.length === 0 ? (
@@ -3342,7 +3344,7 @@ function FieldsTab({ enterprise, agroInfo, onRefresh }: { enterprise: Enterprise
       {contracts.length > 0 && (
         <div className="rounded-lg border border-blue-900/40 bg-blue-950/10 p-3 space-y-2">
           <p className="text-xs font-semibold text-blue-400">Аграрний кредит (8% річних)</p>
-          <p className="text-[10px] text-gray-500">Застава: активний ф&apos;ючерсний контракт. Сума до 70% вартості контракту.</p>
+          <p className="text-xs text-gray-500">Застава: активний ф&apos;ючерсний контракт. Сума до 70% вартості контракту.</p>
           <div className="grid grid-cols-2 gap-2">
             <select value={loanContractId} onChange={e => setLoanContractId(e.target.value)}
               className="col-span-2 bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500">
@@ -3518,7 +3520,7 @@ function TeamColumn({
           <AlertCircle size={11} />
           <span className="flex-1">{onStrike.length} на страйку</span>
           <button onClick={settleStrikes} disabled={settling}
-            className="text-[10px] text-red-300 hover:text-red-200 bg-red-900/40 rounded px-2 py-0.5">
+            className="text-xs text-red-300 hover:text-red-200 bg-red-900/40 rounded px-2 py-0.5">
             {settling ? "…" : "Врегулювати"}
           </button>
         </div>
@@ -3546,21 +3548,22 @@ function TeamColumn({
                   {emp.firstName} {emp.lastName}
                 </span>
                 <button onClick={() => fireEmployee(emp.id)} disabled={firing === emp.id}
+                  aria-label="Звільнити"
                   className="text-gray-700 hover:text-red-400 transition-colors shrink-0">
                   {firing === emp.id ? <Loader2 size={11} className="animate-spin" /> : <Trash2 size={11} />}
                 </button>
               </div>
               <div className="flex items-center gap-1.5 pl-3.5">
-                <span className="text-[10px] text-gray-500 w-20 truncate shrink-0">
+                <span className="text-xs text-gray-500 w-20 truncate shrink-0">
                   {PROF_UA[emp.profession] ?? emp.profession}
                 </span>
                 <div className="flex-1 h-1.5 bg-gray-800 rounded-full overflow-hidden">
                   <div className={cn("h-full rounded-full", moodBg)} style={{ width: `${moodPct}%` }} />
                 </div>
-                <span className={cn("text-[10px] font-mono w-7 text-right shrink-0", moodTxt)}>{moodPct}%</span>
+                <span className={cn("text-xs font-mono w-9 text-right shrink-0", moodTxt)}>{moodPct}%</span>
               </div>
               <div className="pl-3.5 mt-0.5">
-                <span className="text-[10px] text-gray-600 font-mono">
+                <span className="text-xs text-gray-600 font-mono">
                   ₴{(emp.salaryUah / 1000).toFixed(0)}к/міс · {Math.round(emp.efficiency * 100)}% ефект.
                 </span>
               </div>
@@ -3623,13 +3626,13 @@ function InfoColumn({
             <span className="text-sm w-5 text-center shrink-0">{productEmoji(item.product.sku)}</span>
             <div className="flex-1 min-w-0">
               <p className="text-[11px] font-medium text-white truncate">{item.product.nameUa}</p>
-              <p className="text-[10px] text-gray-600 font-mono">{item.product.sku}</p>
+              <p className="text-xs text-gray-600 font-mono">{item.product.sku}</p>
             </div>
             <div className="text-right shrink-0">
               <p className="text-xs font-mono text-white">
                 {item.quantity >= 1000 ? `${(item.quantity / 1000).toFixed(1)}к` : formatNumber(item.quantity)}
               </p>
-              <p className="text-[9px] text-gray-600">{item.product.unit}</p>
+              <p className="text-xs text-gray-600">{item.product.unit}</p>
             </div>
           </div>
         ))
@@ -3637,7 +3640,7 @@ function InfoColumn({
 
       {/* Cost summary */}
       <div className="mx-2 mt-2 rounded-lg border border-gray-800 bg-gray-900/50 p-3">
-        <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-2">Витрати / тік</p>
+        <p className="text-xs text-gray-600 uppercase tracking-wider mb-2">Витрати / тік</p>
         {[
           { l: "ФОП",    v: formatUAH(stats.salaryPerTick),                        c: "text-red-400" },
           { l: "Оренда", v: formatUAH(stats.rentPerTick),                           c: "text-red-400" },
@@ -3653,7 +3656,7 @@ function InfoColumn({
       {/* Agro block */}
       {enterprise.type === "AGRO_FARM" && agroInfo && (
         <div className="mx-2 mt-2 rounded-lg border border-emerald-900/40 bg-emerald-950/10 p-3">
-          <p className="text-[10px] text-emerald-500 font-semibold uppercase tracking-wider mb-2">Агро</p>
+          <p className="text-xs text-emerald-500 font-semibold uppercase tracking-wider mb-2">Агро</p>
           <div className="space-y-1.5">
             <div className="flex justify-between text-[11px]">
               <span className="text-gray-500">Ґрунт</span>
@@ -3679,23 +3682,23 @@ function InfoColumn({
             {agroInfo.recommendedCropSku && (
               <div className="flex justify-between text-[11px]">
                 <span className="text-gray-500">Рекомендовано</span>
-                <span className="text-emerald-400 font-mono text-[10px]">{agroInfo.recommendedCropSku} +15%</span>
+                <span className="text-emerald-400 font-mono text-xs">{agroInfo.recommendedCropSku} +15%</span>
               </div>
             )}
             {agroInfo.lastCropSku && (
               <div className="flex justify-between text-[11px]">
                 <span className="text-gray-500">Остання культура</span>
-                <span className="text-gray-400 font-mono text-[10px]">{agroInfo.lastCropSku}</span>
+                <span className="text-gray-400 font-mono text-xs">{agroInfo.lastCropSku}</span>
               </div>
             )}
             {agroInfo.intercroppingBonus && (
               <div className="flex justify-between text-[11px]">
                 <span className="text-gray-500">Сумісні посіви ({agroInfo.intercroppingBonus.partnerCropSku})</span>
-                <span className="text-emerald-400 font-mono text-[10px]">+{(agroInfo.intercroppingBonus.bonusPct * 100).toFixed(0)}%</span>
+                <span className="text-emerald-400 font-mono text-xs">+{(agroInfo.intercroppingBonus.bonusPct * 100).toFixed(0)}%</span>
               </div>
             )}
             {[['WHEAT',[1.0,0.8,0.15,0.0]],['SUNFL',[0.2,1.0,0.75,0.0]],['MILK',[1.0,0.9,1.0,0.75]]].map(([name, mults]) => (
-              <div key={name as string} className="flex justify-between text-[10px]">
+              <div key={name as string} className="flex justify-between text-xs">
                 <span className="text-gray-600">{name as string} ×</span>
                 <span className={cn("font-mono",
                   (mults as number[])[agroInfo.seasonIndex] >= 0.8 ? "text-emerald-400" :
@@ -3710,7 +3713,7 @@ function InfoColumn({
       {/* Licenses */}
       {enterprise.licenses.length > 0 && (
         <div className="mx-2 mt-2 rounded-lg border border-gray-800 bg-gray-900/50 p-3 space-y-1.5">
-          <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Ліцензії та сертифікати</p>
+          <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Ліцензії та сертифікати</p>
           {enterprise.licenses.map(lic => {
             const isActive = lic.status === "ACTIVE";
             const BADGE: Record<string, { label: string; icon: string; color: string }> = {
@@ -3726,8 +3729,8 @@ function InfoColumn({
               <div key={lic.id} className={cn("flex items-center gap-2 rounded-lg border px-2 py-1.5", b.color)}>
                 <span className="text-sm shrink-0">{b.icon}</span>
                 <div className="min-w-0">
-                  <p className="text-[10px] font-medium truncate">{b.label}</p>
-                  <p className="text-[9px] text-gray-600">
+                  <p className="text-xs font-medium truncate">{b.label}</p>
+                  <p className="text-xs text-gray-600">
                     {isActive ? "Активна" : "Неактивна"}
                     {ticksLeft !== null && (
                       <span className={ticksLeft <= 30 ? "text-amber-500" : undefined}>
@@ -3740,18 +3743,18 @@ function InfoColumn({
             );
           })}
           {enterprise.type === "AGRO_FARM" && !enterprise.licenses.some(l => l.type === "ORGANIC_CERT" && l.status === "ACTIVE") && (
-            <a href="/enterprises/licenses" className="block text-[9px] text-gray-600 hover:text-emerald-400 transition-colors">+ Отримати Organic Cert (₴40K)</a>
+            <a href="/enterprises/licenses" className="block text-xs text-gray-600 hover:text-emerald-400 transition-colors">+ Отримати Organic Cert (₴40K)</a>
           )}
           {enterprise.type === "AGRO_FARM" && !enterprise.licenses.some(l => l.type === "AGRO_INSURANCE" && l.status === "ACTIVE") && (
-            <a href="/enterprises/licenses" className="block text-[9px] text-gray-600 hover:text-blue-400 transition-colors">+ Оформити страхування (₴5K)</a>
+            <a href="/enterprises/licenses" className="block text-xs text-gray-600 hover:text-blue-400 transition-colors">+ Оформити страхування (₴5K)</a>
           )}
         </div>
       )}
       {enterprise.type === "AGRO_FARM" && enterprise.licenses.length === 0 && (
         <div className="mx-2 mt-2 rounded-lg border border-gray-800 bg-gray-900/50 p-3">
-          <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Ліцензії</p>
-          <p className="text-[10px] text-gray-600">Немає активних ліцензій</p>
-          <a href="/enterprises/licenses" className="text-[9px] text-emerald-500 hover:text-emerald-400 transition-colors">+ Organic Cert / Страхування</a>
+          <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Ліцензії</p>
+          <p className="text-xs text-gray-600">Немає активних ліцензій</p>
+          <a href="/enterprises/licenses" className="text-xs text-emerald-500 hover:text-emerald-400 transition-colors">+ Organic Cert / Страхування</a>
         </div>
       )}
 
@@ -3772,7 +3775,7 @@ function InfoColumn({
           {enterprise.energySourceType === "SOLAR_AUTONOMOUS"
             ? <Leaf size={11} className="text-emerald-400" />
             : <Zap size={11} className="text-yellow-400" />}
-          <p className="text-[10px] text-gray-500 uppercase tracking-wider">
+          <p className="text-xs text-gray-500 uppercase tracking-wider">
             {enterprise.energySourceType === "GRID" ? "Міська мережа" :
              enterprise.energySourceType === "SOLAR_AUTONOMOUS" ? "СЕС" : "Генератор"}
           </p>
@@ -3800,15 +3803,15 @@ function InfoColumn({
       {/* Recent logs */}
       {logs.length > 0 && (
         <div className="mx-2 mt-2 mb-2 space-y-1">
-          <p className="text-[10px] text-gray-600 uppercase tracking-wider px-1">Останні операції</p>
+          <p className="text-xs text-gray-600 uppercase tracking-wider px-1">Останні операції</p>
           {logs.slice(0, 4).map(l => (
             <div key={l.id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-gray-900 border border-gray-800">
-              <span className={cn("text-[10px] font-mono shrink-0 w-16 text-right",
+              <span className={cn("text-xs font-mono shrink-0 w-16 text-right",
                 l.amountUah > 0 ? "text-emerald-400" : "text-red-400"
               )}>
                 {l.amountUah > 0 ? "+" : "−"}{formatUAH(Math.abs(l.amountUah))}
               </span>
-              <span className="text-[10px] text-gray-500 truncate">{l.description}</span>
+              <span className="text-xs text-gray-500 truncate">{l.description}</span>
             </div>
           ))}
         </div>
@@ -3904,7 +3907,7 @@ export default function EnterpriseDetailClient({ enterpriseId, initialTab }: Pro
     <div className="space-y-3">
       {/* ── Header ── */}
       <div className="flex items-center gap-3">
-        <button onClick={() => router.back()} className="p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-gray-800 transition-colors shrink-0">
+        <button onClick={() => router.back()} aria-label="Назад" className="p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-gray-800 transition-colors shrink-0">
           <ArrowLeft size={16} />
         </button>
         <div className="flex-1 min-w-0">

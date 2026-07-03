@@ -65,7 +65,7 @@ export default function MachineryTab({ enterpriseId }: { enterpriseId: string })
         ) : (
           <p className="text-xs text-gray-600">Придбайте або орендуйте техніку щоб збільшити врожайність усіх цехів.</p>
         )}
-        <p className="text-[10px] text-gray-600 mt-2">Застосовується до всіх агро-цехів підприємства кожен тік.</p>
+        <p className="text-xs text-gray-600 mt-2">Застосовується до всіх агро-цехів підприємства кожен тік.</p>
       </div>
 
       {/* Existing machinery */}
@@ -76,10 +76,10 @@ export default function MachineryTab({ enterpriseId }: { enterpriseId: string })
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <p className="text-sm font-semibold text-white">{MACHINERY_EMOJI[m.type] ?? "⚙️"} {m.name}</p>
-                  {m.isRented && <span className="text-[10px] bg-amber-900/50 text-amber-400 px-1.5 py-0.5 rounded">ОРЕНДА</span>}
-                  {!m.isOperational && <span className="text-[10px] bg-red-900/50 text-red-400 px-1.5 py-0.5 rounded">ЗЛАМАНА</span>}
+                  {m.isRented && <span className="text-xs bg-amber-900/50 text-amber-400 px-1.5 py-0.5 rounded">ОРЕНДА</span>}
+                  {!m.isOperational && <span className="text-xs bg-red-900/50 text-red-400 px-1.5 py-0.5 rounded">ЗЛАМАНА</span>}
                   {m.isOperational && m.durability > 0 && (
-                    <span className="text-[10px] bg-emerald-900/40 text-emerald-400 px-1.5 py-0.5 rounded">+{MACHINERY_BONUS[m.type] ?? 0}% врожаю</span>
+                    <span className="text-xs bg-emerald-900/40 text-emerald-400 px-1.5 py-0.5 rounded">+{MACHINERY_BONUS[m.type] ?? 0}% врожаю</span>
                   )}
                 </div>
                 <div className="flex items-center gap-2 mt-1">

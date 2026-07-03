@@ -135,8 +135,8 @@ export default function QualificationClient() {
               <div key={lvl} className="rounded-lg bg-gray-800 p-3 text-center">
                 <p className={cn("text-sm font-bold", LEVEL_COLORS[lvl])}>{LEVEL_NAMES[lvl]}</p>
                 <p className="text-xs text-white mt-1">₴{cfg ? formatNumber(cfg.costUah) : "—"}</p>
-                <p className="text-[10px] text-gray-500">{cfg ? `${cfg.ticks} тіків` : ""}</p>
-                <p className="text-[10px] text-emerald-400">{cfg ? `+${(cfg.efficiencyBonus * 100).toFixed(0)}% ефект.` : ""}</p>
+                <p className="text-xs text-gray-500">{cfg ? `${cfg.ticks} тіків` : ""}</p>
+                <p className="text-xs text-emerald-400">{cfg ? `+${(cfg.efficiencyBonus * 100).toFixed(0)}% ефект.` : ""}</p>
               </div>
             );
           })}
@@ -168,7 +168,7 @@ export default function QualificationClient() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-medium text-white truncate">{emp.name}</p>
-                      <span className="text-[10px] text-gray-600">{PROFESSION_UA[emp.profession] ?? emp.profession}</span>
+                      <span className="text-xs text-gray-600">{PROFESSION_UA[emp.profession] ?? emp.profession}</span>
                     </div>
                     <div className="flex items-center gap-1 mt-0.5">
                       <Building2 size={10} className="text-gray-600" />
@@ -196,14 +196,14 @@ export default function QualificationClient() {
                   <div className="shrink-0 w-40">
                     {emp.activeTraining ? (
                       <div className="text-right">
-                        <p className="text-[10px] text-amber-400">→ {LEVEL_NAMES[emp.activeTraining.targetLevel]}</p>
+                        <p className="text-xs text-amber-400">→ {LEVEL_NAMES[emp.activeTraining.targetLevel]}</p>
                         <div className="mt-1 h-1.5 rounded-full bg-gray-800 overflow-hidden">
                           <div
                             className="h-full bg-amber-500 rounded-full"
                             style={{ width: `${((emp.activeTraining.ticksRequired - emp.activeTraining.ticksRemaining) / emp.activeTraining.ticksRequired) * 100}%` }}
                           />
                         </div>
-                        <p className="text-[10px] text-gray-500 mt-0.5">{emp.activeTraining.ticksRemaining} тіків</p>
+                        <p className="text-xs text-gray-500 mt-0.5">{emp.activeTraining.ticksRemaining} тіків</p>
                       </div>
                     ) : isMax ? (
                       <p className="text-[11px] text-purple-400 text-right font-medium">Майстер ✓</p>

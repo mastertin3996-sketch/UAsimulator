@@ -101,12 +101,12 @@ function EnterpriseCard({
       {(isStrike || !e.isActive) && (
         <div className="flex gap-1.5 flex-wrap">
           {isStrike && (
-            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-red-400 bg-red-500/10 border border-red-500/20 rounded-full px-2 py-0.5">
+            <span className="inline-flex items-center gap-1 text-xs font-medium text-red-400 bg-red-500/10 border border-red-500/20 rounded-full px-2 py-0.5">
               <AlertCircle size={9} /> Страйк до тіку #{e.strikeEndsAt}
             </span>
           )}
           {!e.isActive && (
-            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-gray-500 bg-gray-800 rounded-full px-2 py-0.5">
+            <span className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 bg-gray-800 rounded-full px-2 py-0.5">
               Зупинено
             </span>
           )}
@@ -116,7 +116,7 @@ function EnterpriseCard({
       {/* Efficiency */}
       <div>
         <div className="flex items-center justify-between mb-1">
-          <span className="text-[10px] text-gray-500 uppercase tracking-wider flex items-center gap-1">
+          <span className="text-xs text-gray-500 uppercase tracking-wider flex items-center gap-1">
             <Zap size={9} /> Ефективність
           </span>
           <span className="text-xs font-mono text-white">{effPct}%</span>
@@ -136,10 +136,10 @@ function EnterpriseCard({
       <div className="flex items-center gap-4">
         <div className="flex-1">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] text-gray-500 flex items-center gap-1">
+            <span className="text-xs text-gray-500 flex items-center gap-1">
               <Users size={9} /> Персонал
             </span>
-            <span className="text-[10px] font-mono text-gray-400">
+            <span className="text-xs font-mono text-gray-400">
               {e.workersCurrent}/{e.workersMax}
             </span>
           </div>
@@ -167,26 +167,26 @@ function EnterpriseCard({
       {/* Equipment + Lines */}
       <div className="flex items-center gap-2 flex-wrap">
         {hasBroken && (
-          <span className="inline-flex items-center gap-1 text-[10px] text-red-400 bg-red-500/10 border border-red-500/15 rounded px-1.5 py-0.5">
+          <span className="inline-flex items-center gap-1 text-xs text-red-400 bg-red-500/10 border border-red-500/15 rounded px-1.5 py-0.5">
             <Hammer size={9} /> {e.brokenEquip} зламано
           </span>
         )}
         {hasWorn && (
-          <span className="inline-flex items-center gap-1 text-[10px] text-amber-400 bg-amber-500/10 border border-amber-500/15 rounded px-1.5 py-0.5">
+          <span className="inline-flex items-center gap-1 text-xs text-amber-400 bg-amber-500/10 border border-amber-500/15 rounded px-1.5 py-0.5">
             <Wrench size={9} /> {e.wornEquip} зношено
           </span>
         )}
         {e.linesNoRecipe > 0 && (
-          <span className="inline-flex items-center gap-1 text-[10px] text-amber-400 bg-amber-500/10 border border-amber-500/15 rounded px-1.5 py-0.5">
+          <span className="inline-flex items-center gap-1 text-xs text-amber-400 bg-amber-500/10 border border-amber-500/15 rounded px-1.5 py-0.5">
             <BookX size={9} /> {e.linesNoRecipe} без рецепту
           </span>
         )}
         {!hasBroken && !hasWorn && e.linesNoRecipe === 0 && e.totalLines > 0 && (
-          <span className="text-[10px] text-emerald-500/70">
+          <span className="text-xs text-emerald-500/70">
             ✓ {e.totalLines} {e.totalLines === 1 ? "лінія" : "лінії"} в нормі
           </span>
         )}
-        <span className="text-[10px] text-gray-600 ml-auto">
+        <span className="text-xs text-gray-600 ml-auto">
           −{formatNumber(Math.round(e.rentPerTick + e.salaryPerTick))} ₴/тік
         </span>
       </div>
@@ -225,6 +225,7 @@ function EnterpriseCard({
               onClick={() => setConfirmDemolish(true)}
               className="text-gray-600 hover:text-red-400 bg-gray-800 hover:bg-red-950/20 rounded-lg py-1.5 px-2 transition-colors shrink-0"
               title="Демонтаж підприємства"
+              aria-label="Демонтаж підприємства"
             >
               <Trash2 size={13} />
             </button>
@@ -259,7 +260,7 @@ function EnterpriseRow({ e, currentTick }: { e: EnterpriseSummary; currentTick: 
             style={{ width: `${effPct}%` }}
           />
         </div>
-        <p className="text-[10px] text-gray-500 text-right mt-0.5">{effPct}%</p>
+        <p className="text-xs text-gray-500 text-right mt-0.5">{effPct}%</p>
       </div>
       <div className="w-20 text-right hidden md:block">
         {e.lastTickNet !== null ? (
@@ -308,7 +309,7 @@ function SummaryStrip({ list }: { list: EnterpriseSummary[] }) {
         },
       ].map(({ label, value, color }) => (
         <div key={label} className="rounded-xl border border-gray-800 bg-gray-900 px-4 py-3">
-          <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">{label}</p>
+          <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">{label}</p>
           <p className={cn("text-sm font-semibold font-mono", color)}>{value}</p>
         </div>
       ))}
@@ -375,7 +376,7 @@ export default function EnterprisesPage() {
               className="w-44 rounded-lg border border-gray-800 bg-gray-900 pl-7 pr-3 py-1.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-blue-500"
             />
             {query && (
-              <button onClick={() => setQuery("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white">
+              <button onClick={() => setQuery("")} aria-label="Очистити пошук" className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white">
                 <X size={11} />
               </button>
             )}
@@ -384,12 +385,14 @@ export default function EnterprisesPage() {
           <div className="flex border border-gray-800 rounded-lg overflow-hidden">
             <button
               onClick={() => setView("grid")}
+              aria-label="Відображення сіткою"
               className={cn("p-2 transition-colors", view === "grid" ? "bg-gray-700 text-white" : "text-gray-500 hover:text-white")}
             >
               <LayoutGrid size={14} />
             </button>
             <button
               onClick={() => setView("list")}
+              aria-label="Відображення списком"
               className={cn("p-2 transition-colors", view === "list" ? "bg-gray-700 text-white" : "text-gray-500 hover:text-white")}
             >
               <List size={14} />
@@ -418,7 +421,7 @@ export default function EnterprisesPage() {
             )}
           >
             {CAT_LABELS[c]}
-            <span className={cn("ml-1.5 text-[10px] font-normal", cat === c ? "text-emerald-200" : "text-gray-600")}>
+            <span className={cn("ml-1.5 text-xs font-normal", cat === c ? "text-emerald-200" : "text-gray-600")}>
               {c === "ALL" ? enterprises.length : (countByCat[c] ?? 0)}
             </span>
           </button>

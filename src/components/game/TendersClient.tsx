@@ -90,7 +90,7 @@ export function TendersClient() {
                   <p className="text-sm font-semibold text-white leading-snug">{t.title}</p>
                   <p className="text-xs text-gray-500 mt-0.5 font-mono">{t.sku} · {t.productName}</p>
                 </div>
-                <span className={`shrink-0 text-[10px] font-medium px-2 py-0.5 rounded-full ${
+                <span className={`shrink-0 text-xs font-medium px-2 py-0.5 rounded-full ${
                   t.ticksLeft <= 3 ? "bg-red-950 text-red-400" : t.ticksLeft <= 7 ? "bg-amber-950 text-amber-400" : "bg-emerald-950 text-emerald-400"
                 }`}>
                   {t.ticksLeft} тік{t.ticksLeft === 1 ? "" : "ів"} залишилось
@@ -99,15 +99,15 @@ export function TendersClient() {
 
               <div className="grid grid-cols-3 gap-3 text-center">
                 <div className="rounded bg-gray-800 px-2 py-1.5">
-                  <p className="text-[10px] text-gray-500">Кількість</p>
+                  <p className="text-xs text-gray-500">Кількість</p>
                   <p className="text-sm font-mono font-semibold text-white">{t.quantityRequired} {t.unit}</p>
                 </div>
                 <div className="rounded bg-gray-800 px-2 py-1.5">
-                  <p className="text-[10px] text-gray-500">Ціна/од.</p>
+                  <p className="text-xs text-gray-500">Ціна/од.</p>
                   <p className="text-sm font-mono font-semibold text-emerald-400">₴{t.pricePerUnit.toFixed(2)}</p>
                 </div>
                 <div className="rounded bg-gray-800 px-2 py-1.5">
-                  <p className="text-[10px] text-gray-500">Загалом</p>
+                  <p className="text-xs text-gray-500">Загалом</p>
                   <p className="text-sm font-mono font-semibold text-white">₴{(t.quantityRequired * t.pricePerUnit).toLocaleString("uk-UA", { maximumFractionDigits: 0 })}</p>
                 </div>
               </div>

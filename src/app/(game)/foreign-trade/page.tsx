@@ -111,15 +111,15 @@ export default function ForeignTradePage() {
       {/* Header stats */}
       <div className="grid grid-cols-3 gap-3">
         <div className="rounded-xl border border-gray-800 bg-gray-900 px-4 py-3">
-          <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Баланс UAH</p>
+          <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Баланс UAH</p>
           <p className="text-lg font-bold text-white font-mono">{formatUAH(data.cashBalance)}</p>
         </div>
         <div className="rounded-xl border border-gray-800 bg-gray-900 px-4 py-3">
-          <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Баланс USD</p>
+          <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Баланс USD</p>
           <p className="text-lg font-bold text-emerald-400 font-mono">{formatUSD(data.balanceUsd)}</p>
         </div>
         <div className="rounded-xl border border-gray-800 bg-gray-900 px-4 py-3">
-          <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Курс USD/UAH</p>
+          <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Курс USD/UAH</p>
           <p className="text-lg font-bold text-blue-400 font-mono">₴{data.fxRate.toFixed(2)}</p>
         </div>
       </div>
@@ -136,9 +136,9 @@ export default function ForeignTradePage() {
               <div key={t.commodity} className={cn("rounded-xl border bg-gray-900 px-3 py-2.5 cursor-pointer transition-all",
                 exportComm === t.commodity ? "border-emerald-500/50 bg-emerald-950/10" : "border-gray-800 hover:border-gray-700"
               )} onClick={() => { setExportComm(t.commodity); setTab("export"); }}>
-                <p className="text-[10px] text-gray-500 truncate">{COMMODITY_LABELS[t.commodity] ?? t.commodity}</p>
+                <p className="text-xs text-gray-500 truncate">{COMMODITY_LABELS[t.commodity] ?? t.commodity}</p>
                 <p className="text-sm font-bold text-white font-mono">{formatUSD(t.currentUsd)}/т</p>
-                <div className={cn("flex items-center gap-0.5 text-[10px]", color)}>
+                <div className={cn("flex items-center gap-0.5 text-xs", color)}>
                   <Icon size={9} /> {pct >= 0 ? "+" : ""}{pct.toFixed(1)}%
                 </div>
               </div>
@@ -192,7 +192,7 @@ export default function ForeignTradePage() {
                 {data.tickers.map(t => <option key={t.commodity} value={t.commodity}>{COMMODITY_LABELS[t.commodity] ?? t.commodity} — {formatUSD(t.currentUsd)}/т</option>)}
               </select>
               {selectedEnt && exportComm && (
-                <p className="text-[10px] text-gray-500 mt-1">На складі: {formatNumber(availableQty)} т</p>
+                <p className="text-xs text-gray-500 mt-1">На складі: {formatNumber(availableQty)} т</p>
               )}
             </div>
             <div>
@@ -201,7 +201,7 @@ export default function ForeignTradePage() {
                 className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:border-emerald-500 outline-none"
                 placeholder="0" />
               {selectedTicker && exportQty && Number(exportQty) > 0 && (
-                <p className="text-[10px] text-emerald-400 mt-1">
+                <p className="text-xs text-emerald-400 mt-1">
                   Очікуваний дохід: {formatUSD(selectedTicker.currentUsd * Number(exportQty) * 0.98)} (після мита 2%)
                 </p>
               )}
@@ -299,7 +299,7 @@ export default function ForeignTradePage() {
                 className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:border-emerald-500 outline-none"
                 placeholder="0" />
               {fxAmount && Number(fxAmount) > 0 && (
-                <p className="text-[10px] text-emerald-400 mt-1">
+                <p className="text-xs text-emerald-400 mt-1">
                   Отримаєте ≈ {fxDir === "UAH_TO_USD" ? formatUSD(fxPreview) : formatUAH(fxPreview)}
                   {" "}(курс {data.fxRate.toFixed(2)}, комісія 0.5%)
                 </p>
@@ -320,7 +320,7 @@ export default function ForeignTradePage() {
             <div className="py-12 text-center text-gray-600 text-sm">Декларацій ще немає</div>
           ) : data.declarations.map(d => (
             <div key={d.id} className="rounded-xl border border-gray-800 bg-gray-900 px-4 py-3 flex items-center gap-3">
-              <div className={cn("text-[10px] font-bold px-2 py-0.5 rounded shrink-0",
+              <div className={cn("text-xs font-bold px-2 py-0.5 rounded shrink-0",
                 d.status === "CLEARED" ? "bg-emerald-950 text-emerald-400" : "bg-amber-950 text-amber-400"
               )}>
                 {d.status === "CLEARED" ? "КЛІРЕНС" : "В ОБРОБЦІ"}
@@ -331,7 +331,7 @@ export default function ForeignTradePage() {
               </div>
               <div className="text-right shrink-0">
                 <p className="text-sm font-mono text-emerald-400">{formatUSD(d.usdValue)}</p>
-                <p className="text-[10px] text-gray-500">{formatUAH(d.uahValue)}</p>
+                <p className="text-xs text-gray-500">{formatUAH(d.uahValue)}</p>
               </div>
             </div>
           ))}

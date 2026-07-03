@@ -145,7 +145,7 @@ export default function SyndicateClient() {
             <div className="flex items-center gap-2">
               <Crown size={16} className="text-amber-400" />
               <span className="text-sm font-bold text-white">{mySyndicate.name}</span>
-              <span className={cn("text-[10px] px-1.5 py-0.5 rounded font-medium",
+              <span className={cn("text-xs px-1.5 py-0.5 rounded font-medium",
                 mySyndicate.isLeader ? "bg-amber-950 text-amber-400" : "bg-blue-950 text-blue-400"
               )}>
                 {ROLE_UA[mySyndicate.role] ?? mySyndicate.role}
@@ -265,7 +265,7 @@ export default function SyndicateClient() {
                     ))}
                   </div>
                 ) : (
-                  <p className="text-[10px] text-gray-600">Ви вже проголосували</p>
+                  <p className="text-xs text-gray-600">Ви вже проголосували</p>
                 )}
               </div>
             ))}
@@ -298,7 +298,7 @@ export default function SyndicateClient() {
                 {createPub ? <Globe size={12} /> : <Lock size={12} />}
                 {createPub ? "Відкритий" : "Закритий"}
               </button>
-              <p className="text-[10px] text-gray-600">{createPub ? "Будь-хто може приєднатися" : "Тільки за запрошенням"}</p>
+              <p className="text-xs text-gray-600">{createPub ? "Будь-хто може приєднатися" : "Тільки за запрошенням"}</p>
             </div>
           </div>
           <div className="flex gap-2">
@@ -336,13 +336,13 @@ export default function SyndicateClient() {
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-semibold text-white truncate">{s.name}</p>
                       {!s.isPublic && <Lock size={10} className="text-gray-600 shrink-0" />}
-                      {isMine && <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-950 text-blue-400">Мій</span>}
+                      {isMine && <span className="text-xs px-1.5 py-0.5 rounded bg-blue-950 text-blue-400">Мій</span>}
                     </div>
                     <p className="text-[11px] text-gray-500 truncate">{s.description ?? `Лідер: ${s.leaderName}`}</p>
                   </div>
                   <div className="text-center shrink-0 w-16">
                     <p className="text-xs font-bold text-white">{s.memberCount}/{s.maxMembers}</p>
-                    <p className="text-[10px] text-gray-500">членів</p>
+                    <p className="text-xs text-gray-500">членів</p>
                   </div>
                   {!mySyndicate && (
                     <button

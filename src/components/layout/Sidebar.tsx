@@ -94,7 +94,7 @@ export default function Sidebar({ isAdmin = false, isOpen = false, onClose, unre
       <div className="px-5 py-4 border-b border-gray-800 flex items-center justify-between">
         <div>
           <span className="text-lg font-bold tracking-tight text-emerald-400">UA Simulator</span>
-          <span className="block text-[10px] text-gray-500 mt-0.5">Economic Simulator</span>
+          <span className="block text-xs text-gray-500 mt-0.5">Economic Simulator</span>
         </div>
         <button onClick={onClose} aria-label="Закрити меню" className="lg:hidden p-1 rounded text-gray-500 hover:text-white">
           <X size={18} />
@@ -105,7 +105,7 @@ export default function Sidebar({ isAdmin = false, isOpen = false, onClose, unre
       <nav className="flex-1 px-2 py-3 overflow-y-auto">
         {NAV_GROUPS.map(({ label, items }) => (
           <div key={label} className="mb-4">
-            <p className="px-3 mb-1 text-[10px] font-semibold text-gray-600 uppercase tracking-widest">{label}</p>
+            <p className="px-3 mb-1 text-xs font-semibold text-gray-600 uppercase tracking-widest">{label}</p>
             <div className="space-y-0.5">
               {items.map(({ href, label: itemLabel, icon: Icon }) => (
                 <Link
@@ -122,7 +122,7 @@ export default function Sidebar({ isAdmin = false, isOpen = false, onClose, unre
                   <Icon size={15} />
                   <span className="flex-1">{itemLabel}</span>
                   {href === "/notifications" && unreadCount > 0 && (
-                    <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
+                    <span className="min-w-[20px] h-5 px-1 rounded-full bg-red-500 text-white text-xs font-bold flex items-center justify-center">
                       {unreadCount > 99 ? "99+" : unreadCount}
                     </span>
                   )}
@@ -134,7 +134,7 @@ export default function Sidebar({ isAdmin = false, isOpen = false, onClose, unre
 
         {isAdmin && (
           <div className="mb-4">
-            <p className="px-3 mb-1 text-[10px] font-semibold text-red-700 uppercase tracking-widest">Адмін</p>
+            <p className="px-3 mb-1 text-xs font-semibold text-red-700 uppercase tracking-widest">Адмін</p>
             <Link
               href="/admin/gm"
               onClick={onClose}

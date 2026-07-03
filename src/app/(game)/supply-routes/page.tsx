@@ -115,8 +115,8 @@ function QtyEditor({ route, onSaved }: { route: Route; onSaved: (qty: number) =>
       {saving
         ? <Loader2 size={12} className="animate-spin text-emerald-400" />
         : <>
-            <button onClick={save}                  className="text-emerald-400 hover:text-emerald-300"><Check size={12} /></button>
-            <button onClick={() => setEditing(false)} className="text-gray-500 hover:text-white"><X size={12} /></button>
+            <button onClick={save} aria-label="Зберегти"                  className="text-emerald-400 hover:text-emerald-300"><Check size={12} /></button>
+            <button onClick={() => setEditing(false)} aria-label="Скасувати редагування" className="text-gray-500 hover:text-white"><X size={12} /></button>
           </>
       }
     </div>
@@ -186,7 +186,7 @@ function RouteRow({
 
       {/* Stock info */}
       {route.isActive && (
-        <div className="hidden sm:flex items-center gap-1 text-[10px] shrink-0">
+        <div className="hidden sm:flex items-center gap-1 text-xs shrink-0">
           <span className={cfg.text}>
             {route.sourceQty > 0
               ? `${formatNumber(Math.round(route.sourceQty))} ${route.unit}`
@@ -200,7 +200,7 @@ function RouteRow({
       {/* Controls */}
       <div className="flex items-center gap-2 shrink-0">
         <span className={cn(
-          "text-[10px] font-medium px-1.5 py-0.5 rounded hidden xs:block",
+          "text-xs font-medium px-1.5 py-0.5 rounded hidden xs:block",
           route.isActive ? "bg-emerald-950 text-emerald-400" : "bg-gray-800 text-gray-500",
         )}>
           {route.isActive ? "Активний" : "Зупинено"}
@@ -213,12 +213,14 @@ function RouteRow({
             route.isActive ? "text-emerald-400 hover:text-emerald-300" : "text-gray-600 hover:text-gray-400",
           )}
           title={route.isActive ? "Зупинити" : "Активувати"}
+          aria-label={route.isActive ? "Зупинити" : "Активувати"}
         >
           {toggling ? <Loader2 size={16} className="animate-spin" /> : route.isActive ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
         </button>
         <button
           onClick={handleDelete}
           disabled={deleting}
+          aria-label="Видалити маршрут"
           className="text-gray-600 hover:text-red-400 transition-colors"
         >
           {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
@@ -294,7 +296,7 @@ function FlowGraph({ routes }: { routes: Route[] }) {
                       <div className="flex items-center gap-2 flex-1 min-w-0">
                         {/* Product badge */}
                         <span className={cn(
-                          "text-[10px] font-medium px-2 py-0.5 rounded-full border shrink-0",
+                          "text-xs font-medium px-2 py-0.5 rounded-full border shrink-0",
                           color,
                         )}>
                           {r.productName}
@@ -307,7 +309,7 @@ function FlowGraph({ routes }: { routes: Route[] }) {
                         )} />
 
                         {/* Qty badge */}
-                        <span className="text-[10px] font-mono text-gray-400 shrink-0 bg-gray-800 px-1.5 py-0.5 rounded">
+                        <span className="text-xs font-mono text-gray-400 shrink-0 bg-gray-800 px-1.5 py-0.5 rounded">
                           {formatNumber(r.qtyPerTick)}/тік
                         </span>
 
@@ -317,13 +319,13 @@ function FlowGraph({ routes }: { routes: Route[] }) {
                         {/* Target node */}
                         <div className="flex items-center gap-1 bg-gray-800/80 border border-gray-700/50 rounded-lg px-2 py-1 shrink-0 max-w-[130px]">
                           <Building2 size={10} className="text-blue-400 shrink-0" />
-                          <span className="text-[10px] text-gray-300 truncate">{r.targetName}</span>
+                          <span className="text-xs text-gray-300 truncate">{r.targetName}</span>
                         </div>
                       </div>
 
                       {/* Stock indicator */}
                       {r.isActive && (
-                        <div className={cn("flex items-center gap-1 text-[9px] shrink-0", cfg.text)}>
+                        <div className={cn("flex items-center gap-1 text-xs shrink-0", cfg.text)}>
                           <div className={cn("w-1.5 h-1.5 rounded-full", cfg.dot)} />
                           {r.sourceQty > 0
                             ? `${formatNumber(Math.round(r.sourceQty))}`
@@ -341,7 +343,7 @@ function FlowGraph({ routes }: { routes: Route[] }) {
       })}
 
       {/* Legend */}
-      <div className="flex items-center gap-3 flex-wrap text-[10px] text-gray-600 px-1">
+      <div className="flex items-center gap-3 flex-wrap text-xs text-gray-600 px-1">
         <span className="flex items-center gap-1"><span className="w-2 h-2 bg-emerald-500 rounded-full" />Запас ок</span>
         <span className="flex items-center gap-1"><span className="w-2 h-2 bg-amber-500 rounded-full" />Мало (&lt;3 тіки)</span>
         <span className="flex items-center gap-1"><span className="w-2 h-2 bg-red-500 rounded-full" />Порожньо</span>
@@ -368,7 +370,7 @@ function ProductSummary({ routes }: { routes: Route[] }) {
 
   return (
     <div className="rounded-xl border border-gray-800 bg-gray-900 p-4 space-y-3">
-      <p className="text-[10px] text-gray-600 uppercase tracking-wider">Потік по товарах / тік</p>
+      <p className="text-xs text-gray-600 uppercase tracking-wider">Потік по товарах / тік</p>
       {items.map((p) => (
         <div key={p.name}>
           <div className="flex items-center justify-between text-xs mb-1">
@@ -655,22 +657,22 @@ export default function SupplyRoutesPage() {
       {!loading && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div className="rounded-xl border border-gray-800 bg-gray-900 px-4 py-3">
-            <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Всього маршрутів</p>
+            <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Всього маршрутів</p>
             <p className="text-xl font-bold text-white font-mono">{routes.length}</p>
           </div>
           <div className="rounded-xl border border-emerald-900/30 bg-emerald-950/10 px-4 py-3">
-            <p className="text-[10px] text-emerald-500/70 uppercase tracking-wider mb-1">Активних</p>
+            <p className="text-xs text-emerald-500/70 uppercase tracking-wider mb-1">Активних</p>
             <p className="text-xl font-bold text-emerald-400 font-mono">{activeCount}</p>
             {routes.length - activeCount > 0 && (
-              <p className="text-[10px] text-gray-600 mt-0.5">{routes.length - activeCount} зупинено</p>
+              <p className="text-xs text-gray-600 mt-0.5">{routes.length - activeCount} зупинено</p>
             )}
           </div>
           <div className="rounded-xl border border-blue-900/30 bg-blue-950/10 px-4 py-3">
-            <p className="text-[10px] text-blue-500/70 uppercase tracking-wider mb-1">Обсяг / тік</p>
+            <p className="text-xs text-blue-500/70 uppercase tracking-wider mb-1">Обсяг / тік</p>
             <p className="text-xl font-bold text-blue-400 font-mono">{formatNumber(Math.round(totalQtyTick))}</p>
           </div>
           <div className="rounded-xl border border-gray-800 bg-gray-900 px-4 py-3">
-            <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Унікальних товарів</p>
+            <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Унікальних товарів</p>
             <p className="text-xl font-bold text-white font-mono">{uniqueProducts}</p>
           </div>
         </div>

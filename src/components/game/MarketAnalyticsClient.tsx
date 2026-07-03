@@ -187,7 +187,7 @@ function MarketTab({ data, loading }: { data: MarketData | null; loading: boolea
           { label: "Угод за 7 днів",     value: formatNumber(stats.weekTradeCount),  color: "text-blue-400" },
         ].map(({ label, value, color }) => (
           <div key={label} className="rounded-xl border border-gray-800 bg-gray-900/60 px-4 py-3">
-            <p className="text-[10px] text-gray-600 uppercase tracking-wide mb-1">{label}</p>
+            <p className="text-xs text-gray-600 uppercase tracking-wide mb-1">{label}</p>
             <p className={cn("text-2xl font-bold font-mono", color)}>{value}</p>
           </div>
         ))}
@@ -338,7 +338,7 @@ function PriceHistoryTab({ marketProducts }: { marketProducts: MarketProduct[] }
                   { label: "Обсяг угод",     value: formatNumber(totalVol),             color: "text-violet-400" },
                 ].map(({ label, value, color }) => (
                   <div key={label} className="rounded-xl border border-gray-800 bg-gray-900/60 px-4 py-3">
-                    <p className="text-[10px] text-gray-600 uppercase tracking-wide mb-1">{label}</p>
+                    <p className="text-xs text-gray-600 uppercase tracking-wide mb-1">{label}</p>
                     <p className={cn("text-base font-bold font-mono", color)}>{value}</p>
                   </div>
                 ));

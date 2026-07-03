@@ -148,6 +148,7 @@ function RuleRow({
         <button
           onClick={handleToggle}
           disabled={toggling}
+          aria-label={rule.isActive ? "Деактивувати правило" : "Активувати правило"}
           className={cn(
             "shrink-0 transition-colors",
             rule.isActive ? "text-blue-400 hover:text-blue-300" : "text-gray-600 hover:text-gray-400",
@@ -163,13 +164,13 @@ function RuleRow({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm font-medium text-white">{rule.productName}</span>
-            <span className={cn("inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded border", cfg.badge)}>
+            <span className={cn("inline-flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded border", cfg.badge)}>
               <Icon size={9} />
               {cfg.label}
             </span>
           </div>
           {rule.lastTriggeredAt && (
-            <span className="text-[10px] text-gray-600 inline-flex items-center gap-0.5 mt-0.5">
+            <span className="text-xs text-gray-600 inline-flex items-center gap-0.5 mt-0.5">
               <Clock size={9} /> Спрацював {fmtDate(rule.lastTriggeredAt)}
             </span>
           )}
@@ -191,20 +192,20 @@ function RuleRow({
         {!editing ? (
           <div className="flex items-center gap-1.5 shrink-0">
             <button onClick={() => { setTicks(rule.minStockTicks); setPrice(rule.maxPricePerUnit); setEditing(true); }}
-              className="text-gray-600 hover:text-white transition-colors p-1" title="Редагувати">
+              className="text-gray-600 hover:text-white transition-colors p-1" title="Редагувати" aria-label="Редагувати">
               <Pencil size={13} />
             </button>
-            <button onClick={handleDelete} disabled={deleting}
+            <button onClick={handleDelete} disabled={deleting} aria-label="Видалити"
               className="text-gray-600 hover:text-red-400 transition-colors p-1">
               {deleting ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
             </button>
           </div>
         ) : (
           <div className="flex items-center gap-1.5 shrink-0">
-            <button onClick={handleSave} disabled={saving} className="text-emerald-400 hover:text-emerald-300 p-1">
+            <button onClick={handleSave} disabled={saving} aria-label="Зберегти" className="text-emerald-400 hover:text-emerald-300 p-1">
               {saving ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
             </button>
-            <button onClick={() => setEditing(false)} className="text-gray-500 hover:text-white p-1">
+            <button onClick={() => setEditing(false)} aria-label="Скасувати редагування" className="text-gray-500 hover:text-white p-1">
               <X size={13} />
             </button>
           </div>
@@ -231,7 +232,7 @@ function RuleRow({
             />
           </div>
           {rule.minMarketPrice !== null && (
-            <span className="text-[10px] text-gray-600">
+            <span className="text-xs text-gray-600">
               мін на ринку: ₴{rule.minMarketPrice.toFixed(2)}
             </span>
           )}
@@ -240,7 +241,7 @@ function RuleRow({
 
       {/* Market info strip */}
       {rule.isActive && (
-        <div className="flex items-center gap-4 px-4 pb-3 pl-14 flex-wrap text-[10px]">
+        <div className="flex items-center gap-4 px-4 pb-3 pl-14 flex-wrap text-xs">
           {/* Current stock */}
           <span className={cn(
             "flex items-center gap-1",
@@ -375,7 +376,7 @@ function CreateRuleModal({
               onChange={(e) => setTicks(Math.max(1, Math.min(100, +e.target.value)))}
               className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-blue-500"
             />
-            <p className="text-[10px] text-gray-600 mt-1">{"купує коли запасу < N тіків"}</p>
+            <p className="text-xs text-gray-600 mt-1">{"купує коли запасу < N тіків"}</p>
           </div>
           <div>
             <label className="block text-xs text-gray-400 mb-1.5">
@@ -388,7 +389,7 @@ function CreateRuleModal({
               className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-blue-500"
             />
             {selProd && (
-              <p className="text-[10px] text-gray-600 mt-1">базова ₴{selProd.basePrice}</p>
+              <p className="text-xs text-gray-600 mt-1">базова ₴{selProd.basePrice}</p>
             )}
           </div>
         </div>
@@ -520,19 +521,19 @@ function AutoContractsTab() {
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <div className="rounded-xl border border-gray-800 bg-gray-900 px-4 py-3">
-          <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Всього контрактів</p>
+          <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Всього контрактів</p>
           <p className="text-xl font-bold text-white font-mono">{data.contracts.length}</p>
-          <p className="text-[10px] text-gray-600 mt-0.5">{data.contracts.filter((c) => c.isActive).length} активних</p>
+          <p className="text-xs text-gray-600 mt-0.5">{data.contracts.filter((c) => c.isActive).length} активних</p>
         </div>
         <div className="rounded-xl border border-red-900/30 bg-red-950/10 px-4 py-3">
-          <p className="text-[10px] text-red-500/70 uppercase tracking-wider mb-1">Витрат/тік (план)</p>
+          <p className="text-xs text-red-500/70 uppercase tracking-wider mb-1">Витрат/тік (план)</p>
           <p className="text-xl font-bold text-red-400 font-mono">−{formatNumber(Math.round(data.committedPerTick))}</p>
         </div>
         <div className="rounded-xl border border-gray-800 bg-gray-900 px-4 py-3">
-          <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Баланс</p>
+          <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Баланс</p>
           <p className="text-xl font-bold text-white font-mono">{formatNumber(Math.round(data.cashBalance))} ₴</p>
           {data.committedPerTick > 0 && (
-            <p className="text-[10px] text-gray-600 mt-0.5">
+            <p className="text-xs text-gray-600 mt-0.5">
               ≈ {Math.floor(data.cashBalance / data.committedPerTick)} тіків запасу
             </p>
           )}
@@ -551,17 +552,17 @@ function AutoContractsTab() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-sm font-semibold text-white">{c.productName}</span>
-                  <span className="text-[10px] text-gray-500 font-mono">
+                  <span className="text-xs text-gray-500 font-mono">
                     {c.quantityPerTick} {c.productUnit}/тік · макс ₴{formatNumber(Math.round(c.maxPricePerUnit))}/од
                   </span>
                   {c.minQuality > 0 && (
-                    <span className="text-[10px] text-yellow-500/70">★ ≥{(c.minQuality * 100).toFixed(0)}%</span>
+                    <span className="text-xs text-yellow-500/70">★ ≥{(c.minQuality * 100).toFixed(0)}%</span>
                   )}
                 </div>
                 {c.lastExecutedTick && (
                   <div className="mt-1.5 flex items-center gap-3">
                     <div className="flex-1 max-w-[160px]">
-                      <div className="flex justify-between text-[10px] text-gray-600 mb-0.5">
+                      <div className="flex justify-between text-xs text-gray-600 mb-0.5">
                         <span>Виконано</span>
                         <span>{fillPct}%</span>
                       </div>
@@ -570,11 +571,11 @@ function AutoContractsTab() {
                           style={{ width: `${fillPct}%` }} />
                       </div>
                     </div>
-                    <span className="text-[10px] text-gray-600">тік #{c.lastExecutedTick}</span>
-                    <span className="text-[10px] text-red-400 font-mono">−{formatNumber(Math.round(c.lastTickSpentUah))} ₴</span>
+                    <span className="text-xs text-gray-600">тік #{c.lastExecutedTick}</span>
+                    <span className="text-xs text-red-400 font-mono">−{formatNumber(Math.round(c.lastTickSpentUah))} ₴</span>
                   </div>
                 )}
-                <p className="text-[10px] text-gray-600 mt-1">Всього витрачено: ₴{formatNumber(Math.round(c.totalSpentUah))}</p>
+                <p className="text-xs text-gray-600 mt-1">Всього витрачено: ₴{formatNumber(Math.round(c.totalSpentUah))}</p>
               </div>
               <div className="flex items-center gap-1.5 shrink-0">
                 <button
@@ -582,6 +583,7 @@ function AutoContractsTab() {
                   disabled={busy === c.id}
                   className="text-gray-500 hover:text-white transition-colors"
                   title={c.isActive ? "Призупинити" : "Активувати"}
+                  aria-label={c.isActive ? "Призупинити" : "Активувати"}
                 >
                   {busy === c.id ? <Loader2 size={15} className="animate-spin" /> :
                     c.isActive ? <ToggleRight size={18} className="text-emerald-500" /> : <ToggleLeft size={18} />}
@@ -589,6 +591,7 @@ function AutoContractsTab() {
                 <button
                   onClick={() => deleteContract(c.id)}
                   disabled={busy === c.id}
+                  aria-label="Видалити контракт"
                   className="text-gray-700 hover:text-red-400 transition-colors"
                 >
                   <Trash2 size={14} />
@@ -795,31 +798,31 @@ export default function AutoReplenishPage() {
       {!loading && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div className="rounded-xl border border-gray-800 bg-gray-900 px-4 py-3">
-            <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Всього правил</p>
+            <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Всього правил</p>
             <p className="text-xl font-bold text-white font-mono">{rules.length}</p>
           </div>
           <div className="rounded-xl border border-blue-900/30 bg-blue-950/10 px-4 py-3">
-            <p className="text-[10px] text-blue-500/70 uppercase tracking-wider mb-1">Активних</p>
+            <p className="text-xs text-blue-500/70 uppercase tracking-wider mb-1">Активних</p>
             <p className="text-xl font-bold text-blue-400 font-mono">{activeCount}</p>
             {rules.length - activeCount > 0 && (
-              <p className="text-[10px] text-gray-600 mt-0.5">{rules.length - activeCount} вимк.</p>
+              <p className="text-xs text-gray-600 mt-0.5">{rules.length - activeCount} вимк.</p>
             )}
           </div>
           <div className="rounded-xl border border-purple-900/30 bg-purple-950/10 px-4 py-3">
-            <p className="text-[10px] text-purple-500/70 uppercase tracking-wider mb-1">Підприємств</p>
+            <p className="text-xs text-purple-500/70 uppercase tracking-wider mb-1">Підприємств</p>
             <p className="text-xl font-bold text-purple-400 font-mono">{entCount}</p>
           </div>
           <div className={cn(
             "rounded-xl border px-4 py-3",
             problemCount > 0 ? "border-red-900/30 bg-red-950/10" : "border-gray-800 bg-gray-900",
           )}>
-            <p className={cn("text-[10px] uppercase tracking-wider mb-1", problemCount > 0 ? "text-red-500/70" : "text-gray-500")}>
+            <p className={cn("text-xs uppercase tracking-wider mb-1", problemCount > 0 ? "text-red-500/70" : "text-gray-500")}>
               Проблем
             </p>
             <p className={cn("text-xl font-bold font-mono", problemCount > 0 ? "text-red-400" : "text-gray-600")}>
               {problemCount}
             </p>
-            {problemCount === 0 && <p className="text-[10px] text-emerald-500/60 mt-0.5">Все ок</p>}
+            {problemCount === 0 && <p className="text-xs text-emerald-500/60 mt-0.5">Все ок</p>}
           </div>
         </div>
       )}
@@ -862,7 +865,7 @@ export default function AutoReplenishPage() {
 
       {/* Legend */}
       {!loading && rules.some((r) => r.isActive) && (
-        <div className="flex items-center gap-4 flex-wrap text-[10px] text-gray-600 px-1">
+        <div className="flex items-center gap-4 flex-wrap text-xs text-gray-600 px-1">
           {(Object.entries(STATUS_CFG) as [RuleStatus, typeof STATUS_CFG["ok"]][]).map(([key, c]) => (
             <span key={key} className="flex items-center gap-1">
               <span className={cn("w-2 h-2 rounded-full", c.dot)} />

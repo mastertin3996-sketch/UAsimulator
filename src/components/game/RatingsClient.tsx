@@ -113,14 +113,14 @@ function PodiumCard({ c }: { c: CompanyRow }) {
       {/* stats */}
       <div className="grid grid-cols-2 gap-2 mt-1">
         <div className="rounded-lg bg-gray-900/60 px-2 py-1.5 text-center">
-          <p className="text-[10px] text-gray-500 uppercase tracking-wide">Капітал</p>
+          <p className="text-xs text-gray-500 uppercase tracking-wide">Капітал</p>
           <p className="text-xs font-mono font-semibold text-emerald-400">
             {formatNumber(Math.round(c.netWorth))}
-            <span className="text-gray-600 ml-0.5 text-[9px]">GC</span>
+            <span className="text-gray-600 ml-0.5 text-xs">GC</span>
           </p>
         </div>
         <div className="rounded-lg bg-gray-900/60 px-2 py-1.5 text-center">
-          <p className="text-[10px] text-gray-500 uppercase tracking-wide">Рейтинг</p>
+          <p className="text-xs text-gray-500 uppercase tracking-wide">Рейтинг</p>
           <p className={cn("text-xs font-mono font-bold", ratingTextColor(c.rating))}>{c.rating.toFixed(0)}</p>
         </div>
       </div>
@@ -133,7 +133,7 @@ function PodiumCard({ c }: { c: CompanyRow }) {
         />
       </div>
 
-      <p className="text-[10px] text-gray-600">
+      <p className="text-xs text-gray-600">
         <Building2 size={9} className="inline mr-0.5" />
         {c.activeEnterprises} / {c.enterprises} підпр.
       </p>
@@ -176,7 +176,7 @@ function TableRow({ c, index }: { c: CompanyRow; index: number }) {
               {c.name}
               {c.isMyCompany && <span className="ml-1.5 text-xs text-blue-500">(ви)</span>}
             </p>
-            {c.slogan && <p className="text-[10px] text-gray-600 truncate italic">{c.slogan}</p>}
+            {c.slogan && <p className="text-xs text-gray-600 truncate italic">{c.slogan}</p>}
           </div>
         </div>
       </td>
@@ -184,7 +184,7 @@ function TableRow({ c, index }: { c: CompanyRow; index: number }) {
       {/* owner */}
       <td className="px-4 py-3 hidden md:table-cell">
         <p className="text-gray-400 text-xs">{c.ownerUsername}</p>
-        <p className="text-gray-600 text-[10px]">Рів. {c.ownerLevel}</p>
+        <p className="text-gray-600 text-xs">Рів. {c.ownerLevel}</p>
       </td>
 
       {/* enterprises */}
@@ -198,7 +198,7 @@ function TableRow({ c, index }: { c: CompanyRow; index: number }) {
         <span className="font-mono text-emerald-400 text-xs font-semibold">
           {formatNumber(Math.round(c.netWorth))}
         </span>
-        <span className="text-gray-600 text-[10px] ml-0.5">GC</span>
+        <span className="text-gray-600 text-xs ml-0.5">GC</span>
       </td>
 
       {/* rating bar */}
@@ -492,7 +492,7 @@ export default function RatingsClient() {
                           {c.isMyCompany && <span className="ml-1.5 text-xs text-blue-500">(ви)</span>}
                         </p>
                         {c.slogan && (
-                          <p className="text-[10px] text-gray-600 truncate italic">{c.slogan}</p>
+                          <p className="text-xs text-gray-600 truncate italic">{c.slogan}</p>
                         )}
                       </div>
                     </div>
@@ -501,7 +501,7 @@ export default function RatingsClient() {
                   {/* owner */}
                   <td className="px-4 py-3 hidden md:table-cell">
                     <p className="text-gray-400 text-xs">{c.ownerUsername}</p>
-                    <p className="text-gray-600 text-[10px]">Рів. {c.ownerLevel}</p>
+                    <p className="text-gray-600 text-xs">Рів. {c.ownerLevel}</p>
                   </td>
 
                   {/* enterprises */}
@@ -515,7 +515,7 @@ export default function RatingsClient() {
                     <span className="font-mono text-emerald-400 text-xs font-semibold">
                       {formatNumber(Math.round(c.netWorth))}
                     </span>
-                    <span className="text-gray-600 text-[10px] ml-0.5">GC</span>
+                    <span className="text-gray-600 text-xs ml-0.5">GC</span>
                   </td>
 
                   {/* rating bar */}

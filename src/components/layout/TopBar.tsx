@@ -50,10 +50,11 @@ export default function TopBar({
         >
           <Search size={12} />
           <span>Пошук</span>
-          <kbd className="ml-1 text-[10px] bg-gray-700 rounded px-1 hidden lg:inline">Ctrl K</kbd>
+          <kbd className="ml-1 text-xs bg-gray-700 rounded px-1 hidden lg:inline">Ctrl K</kbd>
         </button>
         <button
           onClick={onSearchOpen}
+          aria-label="Пошук"
           className="sm:hidden p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-gray-800 transition-colors"
         >
           <Search size={18} />
@@ -90,7 +91,7 @@ export default function TopBar({
         >
           <Bell size={18} />
           {unreadCount > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-0.5 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center leading-none">
+            <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-0.5 rounded-full bg-red-500 text-white text-xs font-bold flex items-center justify-center leading-none">
               {unreadCount > 99 ? "99+" : unreadCount}
             </span>
           )}

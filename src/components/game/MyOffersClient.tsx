@@ -139,6 +139,7 @@ function PriceEditor({
         <button
           onClick={() => setEditing(true)}
           title="Змінити ціну"
+          aria-label="Змінити ціну"
           className="text-gray-600 hover:text-gray-300 transition-colors"
         >
           <Pencil size={12} />
@@ -167,18 +168,20 @@ function PriceEditor({
         <button
           onClick={save}
           disabled={saving}
+          aria-label="Зберегти ціну"
           className="text-emerald-400 hover:text-emerald-300 disabled:opacity-40 transition-colors"
         >
           <Check size={13} />
         </button>
         <button
           onClick={() => { setEditing(false); setPrice(offer.price); setErr(""); }}
+          aria-label="Скасувати редагування"
           className="text-gray-500 hover:text-white transition-colors"
         >
           <X size={13} />
         </button>
       </div>
-      {err && <p className="text-[10px] text-red-400">{err}</p>}
+      {err && <p className="text-xs text-red-400">{err}</p>}
     </div>
   );
 }
@@ -219,7 +222,7 @@ function OrderCard({
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
           <div className={cn(
-            "w-6 h-6 rounded-md flex items-center justify-center shrink-0 text-[10px] font-bold",
+            "w-6 h-6 rounded-md flex items-center justify-center shrink-0 text-xs font-bold",
             isSell ? "bg-red-500/20 text-red-400" : "bg-emerald-500/20 text-emerald-400",
           )}>
             {isSell ? "S" : "B"}
@@ -264,7 +267,7 @@ function OrderCard({
       {/* Price + value row */}
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-[10px] text-gray-600 mb-0.5">
+          <p className="text-xs text-gray-600 mb-0.5">
             {isSell ? "Ціна продажу" : "Макс. ціна"} / {offer.productUnit}
           </p>
           {isActive ? (
@@ -277,7 +280,7 @@ function OrderCard({
           )}
         </div>
         <div className="text-right">
-          <p className="text-[10px] text-gray-600 mb-0.5">
+          <p className="text-xs text-gray-600 mb-0.5">
             {isSell ? "Виручка" : "Витрачено"}
           </p>
           <p className={cn("font-mono text-sm", isSell ? "text-emerald-400" : "text-blue-400")}>
@@ -288,7 +291,7 @@ function OrderCard({
 
       {/* Footer */}
       <div className="flex items-center justify-between pt-1 border-t border-gray-800/60">
-        <div className="flex items-center gap-3 text-[10px] text-gray-600">
+        <div className="flex items-center gap-3 text-xs text-gray-600">
           {isActive && (
             <span className={cn("flex items-center gap-1", daysLeft <= 1 && "text-amber-400")}>
               <Clock size={10} />
@@ -451,7 +454,7 @@ export default function MyOffersClient() {
           )}>
             {loading ? "—" : `${isSell ? "+" : "−"}${formatNumber(Math.round(totalValue))}`}
           </p>
-          <p className="text-[10px] text-gray-600">₴</p>
+          <p className="text-xs text-gray-600">₴</p>
         </div>
         <div className="bg-gray-900 border border-gray-800 rounded-xl px-4 py-3">
           <p className="text-gray-500 text-xs mb-1">

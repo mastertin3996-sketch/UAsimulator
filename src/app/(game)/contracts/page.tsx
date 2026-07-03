@@ -130,7 +130,7 @@ function ExecDot({ exec }: { exec: Exec }) {
   const ok = exec.status === "DELIVERED" || exec.status === "COMPLETED" || exec.qtyDelivered > 0;
   return (
     <span className={cn(
-      "inline-flex items-center gap-1 text-[10px] font-mono",
+      "inline-flex items-center gap-1 text-xs font-mono",
       ok ? "text-emerald-400" : "text-red-400",
     )}>
       {ok ? <CheckCircle2 size={9} /> : <XCircle size={9} />}
@@ -154,7 +154,7 @@ function ExpiryBadge({ contract }: { contract: Contract }) {
 
   return (
     <div className={cn(
-      "flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-medium",
+      "flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium",
       warning
         ? "bg-amber-950/60 text-amber-300 border border-amber-800/50"
         : "bg-gray-800 text-gray-500",
@@ -211,7 +211,7 @@ function ContractCard({
       {/* Top row */}
       <div className="flex items-start justify-between gap-3 mb-2">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className={cn("text-[10px] font-semibold px-2 py-0.5 rounded-full border", meta.color, meta.border)}>
+          <span className={cn("text-xs font-semibold px-2 py-0.5 rounded-full border", meta.color, meta.border)}>
             {meta.label}
           </span>
           <span className="flex items-center gap-0.5 text-xs text-amber-400">
@@ -220,7 +220,7 @@ function ContractCard({
           </span>
           <span className="text-sm font-bold text-white">{contract.productName}</span>
           {warning && ACTIVE_STATUSES.includes(contract.status) && (
-            <span className="flex items-center gap-0.5 text-[10px] text-amber-400 font-medium">
+            <span className="flex items-center gap-0.5 text-xs text-amber-400 font-medium">
               <AlertTriangle size={9} />
               Скоро кінець
             </span>
@@ -246,21 +246,21 @@ function ContractCard({
         <div className="flex items-center gap-1 min-w-0">
           <Building2 size={11} className="text-gray-500 shrink-0" />
           <span className="text-gray-300 truncate">{contract.sellerEntName}</span>
-          <span className="text-gray-600 text-[10px] truncate">({contract.sellerCity})</span>
+          <span className="text-gray-600 text-xs truncate">({contract.sellerCity})</span>
         </div>
         <ArrowRight size={11} className="text-gray-600 shrink-0" />
         <div className="flex items-center gap-1 min-w-0">
           <Building2 size={11} className="text-gray-500 shrink-0" />
           {contract.buyerEntName
             ? <><span className="text-gray-300 truncate">{contract.buyerEntName}</span>
-                <span className="text-gray-600 text-[10px] truncate">({contract.buyerCity})</span></>
+                <span className="text-gray-600 text-xs truncate">({contract.buyerCity})</span></>
             : <span className="text-gray-600 italic">немає покупця</span>
           }
         </div>
       </div>
 
       {/* Companies */}
-      <p className="text-[10px] text-gray-600 mb-3">
+      <p className="text-xs text-gray-600 mb-3">
         {contract.sellerCompanyName}
         {contract.buyerCompanyName && ` → ${contract.buyerCompanyName}`}
       </p>
@@ -306,7 +306,7 @@ function ContractCard({
         <div className="mb-3">
           <button
             onClick={() => setExpanded((v) => !v)}
-            className="flex items-center gap-1 text-[10px] text-gray-600 hover:text-gray-400 transition-colors"
+            className="flex items-center gap-1 text-xs text-gray-600 hover:text-gray-400 transition-colors"
           >
             <ChevronsUpDown size={10} />
             Останні виконання ({contract.execCount > 3 ? `3 з ${contract.execCount}` : contract.execCount})
@@ -316,7 +316,7 @@ function ContractCard({
               {contract.recentExecs.map((e, i) => (
                 <div key={i} className="flex flex-col gap-0.5">
                   <ExecDot exec={e} />
-                  <span className="text-[9px] text-gray-700">{fmtDateTime(e.at)}</span>
+                  <span className="text-xs text-gray-700">{fmtDateTime(e.at)}</span>
                 </div>
               ))}
             </div>
@@ -477,27 +477,27 @@ export default function ContractsPage() {
       {!loading && (
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           <div className="rounded-xl border border-emerald-900/30 bg-emerald-950/10 px-4 py-3">
-            <p className="text-[10px] text-emerald-500/70 uppercase tracking-wider mb-1">Активних продажів</p>
+            <p className="text-xs text-emerald-500/70 uppercase tracking-wider mb-1">Активних продажів</p>
             <p className="text-xl font-bold text-emerald-400 font-mono">{activeS}</p>
-            {pausedS > 0 && <p className="text-[10px] text-amber-400 mt-0.5">{pausedS} на паузі</p>}
+            {pausedS > 0 && <p className="text-xs text-amber-400 mt-0.5">{pausedS} на паузі</p>}
           </div>
           <div className="rounded-xl border border-gray-800 bg-gray-900 px-4 py-3">
-            <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Активних закупок</p>
+            <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Активних закупок</p>
             <p className="text-xl font-bold text-white font-mono">{activeB}</p>
           </div>
           <div className="rounded-xl border border-emerald-900/30 bg-emerald-950/10 px-4 py-3">
-            <p className="text-[10px] text-emerald-500/70 uppercase tracking-wider mb-1">Дохід / тік</p>
+            <p className="text-xs text-emerald-500/70 uppercase tracking-wider mb-1">Дохід / тік</p>
             <p className="text-xl font-bold text-emerald-400 font-mono">₴{formatNumber(Math.round(totalRevPerTick))}</p>
           </div>
           <div className="rounded-xl border border-red-900/20 bg-red-950/10 px-4 py-3">
-            <p className="text-[10px] text-red-500/70 uppercase tracking-wider mb-1">Витрати / тік</p>
+            <p className="text-xs text-red-500/70 uppercase tracking-wider mb-1">Витрати / тік</p>
             <p className="text-xl font-bold text-red-400 font-mono">₴{formatNumber(Math.round(totalCostPerTick))}</p>
           </div>
           <div className={cn(
             "rounded-xl border px-4 py-3",
             netPerTick >= 0 ? "border-blue-900/30 bg-blue-950/10" : "border-red-900/30 bg-red-950/10",
           )}>
-            <p className={cn("text-[10px] uppercase tracking-wider mb-1", netPerTick >= 0 ? "text-blue-500/70" : "text-red-500/70")}>
+            <p className={cn("text-xs uppercase tracking-wider mb-1", netPerTick >= 0 ? "text-blue-500/70" : "text-red-500/70")}>
               Net / тік
             </p>
             <p className={cn("text-xl font-bold font-mono", netPerTick >= 0 ? "text-blue-400" : "text-red-400")}>
@@ -524,9 +524,9 @@ export default function ContractsPage() {
               )}
             >
               {t === "seller" ? "Як продавець" : "Як покупець"}
-              <span className="text-[10px] text-gray-600">({contracts.length})</span>
+              <span className="text-xs text-gray-600">({contracts.length})</span>
               {warn > 0 && (
-                <span className="flex items-center gap-0.5 text-[9px] bg-amber-950/60 text-amber-400 px-1.5 py-0.5 rounded-full border border-amber-800/40">
+                <span className="flex items-center gap-0.5 text-xs bg-amber-950/60 text-amber-400 px-1.5 py-0.5 rounded-full border border-amber-800/40">
                   <AlertTriangle size={8} />
                   {warn}
                 </span>
@@ -583,7 +583,7 @@ export default function ContractsPage() {
             >
               {f.label}
               {f.value && (
-                <span className="ml-1 text-[10px] opacity-60">
+                <span className="ml-1 text-xs opacity-60">
                   ({rawList.filter((c) => c.status === f.value).length})
                 </span>
               )}
@@ -622,7 +622,7 @@ export default function ContractsPage() {
         </div>
       ) : (
         <>
-          <p className="text-[10px] text-gray-700">
+          <p className="text-xs text-gray-700">
             {visible.length} контрактів · {SORT_OPTIONS.find((s) => s.key === sortKey)?.label} {sortAsc ? "↑" : "↓"}
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

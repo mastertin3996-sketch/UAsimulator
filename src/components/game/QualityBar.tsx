@@ -63,7 +63,7 @@ export function QualityStars({ value, size = "sm" }: { value: number; size?: "sm
       {"★".repeat(full)}
       {half && "½"}
       <span className="opacity-25">{"★".repeat(empty)}</span>
-      <span className="ml-1 text-gray-500 text-[10px]">{value.toFixed(1)}</span>
+      <span className="ml-1 text-gray-500 text-xs">{value.toFixed(1)}</span>
     </span>
   );
 }

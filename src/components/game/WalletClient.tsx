@@ -107,7 +107,7 @@ function BalanceChart({ data }: { data: BalancePoint[] }) {
         />
         <circle cx={last.x} cy={last.y} r="3.5" fill={color} />
       </svg>
-      <div className="flex justify-between mt-1.5 text-[10px] text-gray-700">
+      <div className="flex justify-between mt-1.5 text-xs text-gray-700">
         <span>Тік #{data[0].tick}</span>
         <span className={cn("font-mono text-xs font-semibold", isUp ? "text-emerald-400" : "text-red-400")}>
           {formatNumber(Math.round(data[data.length - 1].balance))} GC
@@ -129,13 +129,13 @@ function StatCard({
   const displaySign = sign === undefined ? (value >= 0 ? "+" : "") : sign;
   return (
     <div className={cn("rounded-xl border px-4 py-3", borderColor, bgColor)}>
-      <p className="text-[10px] text-gray-500 mb-1 font-medium uppercase tracking-wide">
+      <p className="text-xs text-gray-500 mb-1 font-medium uppercase tracking-wide">
         {label}
       </p>
       <p className={cn("font-mono font-semibold text-base", color)}>
         {displaySign}{formatNumber(Math.round(value))}
       </p>
-      <p className="text-[10px] text-gray-600 mt-0.5">GC / тік</p>
+      <p className="text-xs text-gray-600 mt-0.5">GC / тік</p>
     </div>
   );
 }
@@ -249,7 +249,7 @@ export default function WalletClient() {
           <h2 className="text-sm font-semibold text-gray-400">
             Останні транзакції
           </h2>
-          <span className="ml-auto text-[10px] text-gray-700 font-mono">
+          <span className="ml-auto text-xs text-gray-700 font-mono">
             до {latestTxns.length} записів
           </span>
         </div>
@@ -292,7 +292,7 @@ export default function WalletClient() {
                   </div>
 
                   {/* Date */}
-                  <span className="text-[10px] text-gray-700 shrink-0 tabular-nums hidden sm:block">
+                  <span className="text-xs text-gray-700 shrink-0 tabular-nums hidden sm:block">
                     {date}
                   </span>
 
@@ -301,7 +301,7 @@ export default function WalletClient() {
                     <p className={cn("text-xs font-mono font-semibold", amtCls)}>
                       {isInc ? "+" : ""}{formatNumber(Math.round(t.amount))} GC
                     </p>
-                    <p className="text-[10px] text-gray-600 font-mono mt-0.5">
+                    <p className="text-xs text-gray-600 font-mono mt-0.5">
                       <TrendingDown size={8} className="inline mr-0.5 text-gray-700" />
                       {formatNumber(Math.round(t.balanceAfter))}
                     </p>

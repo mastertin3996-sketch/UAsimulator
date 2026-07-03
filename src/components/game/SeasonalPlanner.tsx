@@ -35,7 +35,7 @@ export default function SeasonalPlanner({ tickNumber, seasonIndex, currentCropSk
     <div className="rounded-xl border border-gray-800 bg-gray-900 p-3 space-y-3">
       <div className="flex items-center justify-between">
         <p className="text-xs font-semibold text-white">Планувальник сезону</p>
-        <span className="text-[10px] text-gray-500 font-mono">тік {tickInYear}/120</span>
+        <span className="text-xs text-gray-500 font-mono">тік {tickInYear}/120</span>
       </div>
 
       {/* 120-tick year timeline */}
@@ -64,14 +64,14 @@ export default function SeasonalPlanner({ tickNumber, seasonIndex, currentCropSk
       </div>
 
       {/* Season labels */}
-      <div className="flex text-[9px] text-gray-500">
+      <div className="flex text-xs text-gray-500">
         {SEASONS.map((s, i) => (
           <div key={i} className={cn("flex-1 text-center", i === seasonIndex && "text-white font-medium")}>{s.name}</div>
         ))}
       </div>
 
       {/* Countdown row */}
-      <div className="grid grid-cols-2 gap-2 text-[10px]">
+      <div className="grid grid-cols-2 gap-2 text-xs">
         <div className="rounded bg-gray-800/50 px-2 py-1.5">
           <p className="text-gray-500">До кінця сезону</p>
           <p className="font-mono text-white font-semibold">{ticksInSeason} тік{ticksInSeason === 1 ? "" : "ів"}</p>
@@ -84,14 +84,14 @@ export default function SeasonalPlanner({ tickNumber, seasonIndex, currentCropSk
 
       {/* Crop schedule table */}
       <div className="space-y-1">
-        <p className="text-[9px] text-gray-600 uppercase tracking-wider">Оптимальні вікна посіву</p>
+        <p className="text-xs text-gray-600 uppercase tracking-wider">Оптимальні вікна посіву</p>
         {Object.entries(CROP_WINDOWS).map(([sku, c]) => {
           const inSow     = tickInYear >= c.sow[0] && tickInYear <= c.sow[1];
           const inHarvest = tickInYear >= c.harvest[0] && tickInYear <= c.harvest[1];
           const isCurrent = sku === currentCropSku;
           return (
-            <div key={sku} className={cn("flex items-center gap-2 rounded px-2 py-1 text-[10px]", isCurrent ? "bg-emerald-950/40 border border-emerald-800/30" : "")}>
-              <span className={cn("w-20 truncate", isCurrent ? "text-emerald-300 font-medium" : "text-gray-400")}>{c.name}</span>
+            <div key={sku} className={cn("flex items-center gap-2 rounded px-2 py-1 text-xs", isCurrent ? "bg-emerald-950/40 border border-emerald-800/30" : "")}>
+              <span className={cn("w-24 truncate", isCurrent ? "text-emerald-300 font-medium" : "text-gray-400")}>{c.name}</span>
               <div className="flex-1 flex gap-1 items-center">
                 <span className={cn("px-1 py-0.5 rounded text-[8px]", inSow ? "bg-emerald-700 text-white" : "bg-gray-800 text-gray-500")}>
                   Сів т{c.sow[0]}–{c.sow[1]}
@@ -99,8 +99,8 @@ export default function SeasonalPlanner({ tickNumber, seasonIndex, currentCropSk
                 <span className={cn("px-1 py-0.5 rounded text-[8px]", inHarvest ? "bg-amber-700 text-white" : "bg-gray-800 text-gray-500")}>
                   Збір т{c.harvest[0]}–{c.harvest[1]}
                 </span>
-                {inSow     && <span className="text-[9px] text-emerald-400 animate-pulse">← ЗАРАЗ</span>}
-                {inHarvest && <span className="text-[9px] text-amber-400 animate-pulse">← ЗБИРАЙ</span>}
+                {inSow     && <span className="text-xs text-emerald-400 animate-pulse">← ЗАРАЗ</span>}
+                {inHarvest && <span className="text-xs text-amber-400 animate-pulse">← ЗБИРАЙ</span>}
               </div>
             </div>
           );

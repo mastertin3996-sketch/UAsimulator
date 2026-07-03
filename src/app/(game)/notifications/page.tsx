@@ -89,7 +89,7 @@ function StatsStrip({
   return (
     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
       <div className="rounded-xl border border-gray-800 bg-gray-900/60 px-4 py-3">
-        <p className="text-[10px] text-gray-600 uppercase tracking-wide mb-1">Всього нових</p>
+        <p className="text-xs text-gray-600 uppercase tracking-wide mb-1">Всього нових</p>
         <p className="text-2xl font-bold text-white">{unreadCount}</p>
       </div>
       <div className={cn(
@@ -98,7 +98,7 @@ function StatsStrip({
       )}>
         <div className="flex items-center gap-1 mb-1">
           <ShieldAlert size={10} className="text-red-400" />
-          <p className="text-[10px] text-red-400 uppercase tracking-wide">Критичних</p>
+          <p className="text-xs text-red-400 uppercase tracking-wide">Критичних</p>
         </div>
         <p className={cn("text-2xl font-bold", criticalUnread > 0 ? "text-red-300" : "text-white")}>
           {criticalUnread}
@@ -110,14 +110,14 @@ function StatsStrip({
       )}>
         <div className="flex items-center gap-1 mb-1">
           <AlertTriangle size={10} className="text-amber-400" />
-          <p className="text-[10px] text-amber-400 uppercase tracking-wide">Попереджень</p>
+          <p className="text-xs text-amber-400 uppercase tracking-wide">Попереджень</p>
         </div>
         <p className={cn("text-2xl font-bold", warningUnread > 0 ? "text-amber-300" : "text-white")}>
           {warningUnread}
         </p>
       </div>
       <div className="rounded-xl border border-gray-800 bg-gray-900/60 px-4 py-3">
-        <p className="text-[10px] text-gray-600 uppercase tracking-wide mb-1">Показано</p>
+        <p className="text-xs text-gray-600 uppercase tracking-wide mb-1">Показано</p>
         <p className="text-2xl font-bold text-white">{notes.length}</p>
       </div>
     </div>
@@ -190,7 +190,7 @@ function NotifItem({
           <p className={cn("text-sm font-semibold leading-snug", !note.isRead ? "text-white" : "text-gray-300")}>
             {note.title}
           </p>
-          <span className="text-[10px] text-gray-600 whitespace-nowrap mt-0.5 flex-shrink-0">
+          <span className="text-xs text-gray-600 whitespace-nowrap mt-0.5 flex-shrink-0">
             {new Date(note.createdAt).toLocaleTimeString("uk-UA", { hour: "2-digit", minute: "2-digit" })}
           </span>
         </div>
@@ -198,14 +198,14 @@ function NotifItem({
         <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{note.body}</p>
 
         <div className="flex items-center gap-3 mt-1.5">
-          <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded", meta.bg, meta.color)}>
+          <span className={cn("text-xs font-medium px-1.5 py-0.5 rounded", meta.bg, meta.color)}>
             {meta.label}
           </span>
           {note.entityId && ["CONSTRUCTION_DONE", "STRIKE", "EQUIPMENT_BROKEN", "EQUIPMENT_WORN", "LICENSE_EXPIRY"].includes(note.type) && (
             <Link
               href={`/enterprises/${note.entityId}`}
               onClick={(e) => e.stopPropagation()}
-              className="text-[10px] text-blue-400 hover:text-blue-300 flex items-center gap-0.5 transition-colors"
+              className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-0.5 transition-colors"
             >
               Перейти <ArrowRight size={9} />
             </Link>
@@ -221,6 +221,7 @@ function NotifItem({
           disabled={deleting}
           className="opacity-0 group-hover:opacity-100 p-1 text-gray-600 hover:text-red-400 transition-all disabled:opacity-30"
           title="Видалити"
+          aria-label="Видалити"
         >
           {deleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
         </button>
@@ -374,7 +375,7 @@ export default function NotificationsPage() {
               {cat.label}
               {count > 0 && (
                 <span className={cn(
-                  "text-[10px] px-1.5 py-0.5 rounded-full font-bold",
+                  "text-xs px-1.5 py-0.5 rounded-full font-bold",
                   category === cat.key ? "bg-blue-600 text-white" : "bg-gray-700 text-gray-400",
                 )}>
                   {count}

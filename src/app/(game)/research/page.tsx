@@ -75,11 +75,11 @@ function TechCard({
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <h3 className="text-sm font-semibold text-white">{tech.name}</h3>
-              <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full border font-medium", cfg.bg, cfg.color)}>
+              <span className={cn("text-xs px-1.5 py-0.5 rounded-full border font-medium", cfg.bg, cfg.color)}>
                 {cfg.label}
               </span>
             </div>
-            <p className="text-[10px] text-gray-500 mt-0.5">Tier {tech.tier}</p>
+            <p className="text-xs text-gray-500 mt-0.5">Tier {tech.tier}</p>
           </div>
         </div>
         {tech.status === "UNLOCKED" && <CheckCircle2 size={16} className="text-emerald-400 flex-shrink-0 mt-0.5" />}
@@ -90,9 +90,9 @@ function TechCard({
 
       {tech.prerequisites.length > 0 && (
         <div className="flex items-center gap-1 flex-wrap">
-          <span className="text-[10px] text-gray-600">Потрібно:</span>
+          <span className="text-xs text-gray-600">Потрібно:</span>
           {tech.prerequisites.map(p => (
-            <span key={p} className="text-[10px] text-gray-500 flex items-center gap-1">
+            <span key={p} className="text-xs text-gray-500 flex items-center gap-1">
               <ChevronRight size={8} />{p.replace(/_/g, " ")}
             </span>
           ))}
@@ -101,7 +101,7 @@ function TechCard({
 
       {!tech.isUnlocked && (
         <div className="space-y-1">
-          <div className="flex justify-between text-[10px] text-gray-500">
+          <div className="flex justify-between text-xs text-gray-500">
             <span>{tech.currentProgressPoints.toFixed(0)} / {tech.requiredResearchPoints} RP</span>
             {eta !== null && <span className="text-blue-400">~{eta} тіків</span>}
           </div>
@@ -229,19 +229,19 @@ export default function ResearchPage() {
 
       <div className="grid grid-cols-3 gap-3">
         <div className="rounded-xl border border-gray-800 bg-gray-900 px-4 py-3">
-          <p className="text-[10px] text-gray-500 uppercase tracking-wider">RP / тік</p>
+          <p className="text-xs text-gray-500 uppercase tracking-wider">RP / тік</p>
           <p className="text-lg font-bold font-mono text-purple-400 mt-0.5 flex items-center gap-1">
             <Zap size={14} /> {rpPerTick.toFixed(1)}
           </p>
         </div>
         <div className="rounded-xl border border-gray-800 bg-gray-900 px-4 py-3">
-          <p className="text-[10px] text-gray-500 uppercase tracking-wider">Розблоковано</p>
+          <p className="text-xs text-gray-500 uppercase tracking-wider">Розблоковано</p>
           <p className="text-lg font-bold font-mono text-emerald-400 mt-0.5">
             {summary.unlocked} / {summary.total}
           </p>
         </div>
         <div className="rounded-xl border border-gray-800 bg-gray-900 px-4 py-3">
-          <p className="text-[10px] text-gray-500 uppercase tracking-wider">Прогрес</p>
+          <p className="text-xs text-gray-500 uppercase tracking-wider">Прогрес</p>
           <p className="text-lg font-bold font-mono text-white mt-0.5">
             {summary.total > 0 ? Math.round((summary.unlocked / summary.total) * 100) : 0}%
           </p>
@@ -265,7 +265,7 @@ export default function ResearchPage() {
               {summary.inProgress.progress.toFixed(0)} / {summary.inProgress.required} RP
             </p>
             {summary.inProgress.eta && (
-              <p className="text-[10px] text-gray-500 mt-0.5">~{summary.inProgress.eta} тіків</p>
+              <p className="text-xs text-gray-500 mt-0.5">~{summary.inProgress.eta} тіків</p>
             )}
           </div>
         </div>

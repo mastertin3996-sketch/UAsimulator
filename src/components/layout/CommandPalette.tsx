@@ -189,7 +189,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
         </div>
 
         {/* Footer hint */}
-        <div className="border-t border-gray-800 px-4 py-2 flex items-center gap-3 text-[10px] text-gray-600">
+        <div className="border-t border-gray-800 px-4 py-2 flex items-center gap-3 text-xs text-gray-600">
           <span className="flex items-center gap-1"><kbd className="bg-gray-800 rounded px-1">↑↓</kbd> вибір</span>
           <span className="flex items-center gap-1"><kbd className="bg-gray-800 rounded px-1">↵</kbd> відкрити</span>
           <span className="flex items-center gap-1"><kbd className="bg-gray-800 rounded px-1">Esc</kbd> закрити</span>

@@ -138,7 +138,7 @@ export default function GmPanelClient() {
           {(tickState === "done" || tickState === "error") && (
             <span className={cn("text-xs", tickState === "done" ? "text-emerald-400" : "text-red-400")}>{tickInfo}</span>
           )}
-          <button onClick={load} className="p-2 rounded-lg border border-gray-800 text-gray-500 hover:text-white hover:border-gray-600 transition-colors">
+          <button onClick={load} aria-label="Оновити" className="p-2 rounded-lg border border-gray-800 text-gray-500 hover:text-white hover:border-gray-600 transition-colors">
             <RefreshCw size={14} />
           </button>
           <button
@@ -353,7 +353,7 @@ export default function GmPanelClient() {
                 {activeEvents.map((e, i) => (
                   <div key={i} className="rounded-xl border border-amber-900/40 bg-amber-950/10 px-4 py-3 flex items-center justify-between gap-4">
                     <p className="text-sm text-white">{e.description}</p>
-                    <span className="text-[10px] text-amber-400 shrink-0 font-mono">{e.ticksLeft} тік залишилось</span>
+                    <span className="text-xs text-amber-400 shrink-0 font-mono">{e.ticksLeft} тік залишилось</span>
                   </div>
                 ))}
               </div>
@@ -367,7 +367,7 @@ export default function GmPanelClient() {
           <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 w-full max-w-sm space-y-4 shadow-2xl">
             <div className="flex items-center justify-between">
               <p className="text-sm font-bold text-white">Коригування балансу</p>
-              <button onClick={() => setAdjustTarget(null)} className="text-gray-500 hover:text-white">
+              <button onClick={() => setAdjustTarget(null)} aria-label="Закрити" className="text-gray-500 hover:text-white">
                 <X size={16} />
               </button>
             </div>

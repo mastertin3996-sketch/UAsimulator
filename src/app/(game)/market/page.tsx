@@ -201,6 +201,7 @@ function OrderBookPanel() {
           disabled={!selectedId || loading}
           className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white transition-colors disabled:opacity-40"
           title="Оновити"
+          aria-label="Оновити"
         >
           <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
         </button>
@@ -232,28 +233,28 @@ function OrderBookPanel() {
           {book && (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="rounded-xl border border-gray-800 bg-gray-900/60 px-4 py-3">
-                <p className="text-[10px] text-gray-600 uppercase tracking-wide mb-1">Еталонна ціна</p>
+                <p className="text-xs text-gray-600 uppercase tracking-wide mb-1">Еталонна ціна</p>
                 <p className="text-lg font-bold font-mono text-white">
                   {book.refPrice > 0 ? `₴${formatNumber(book.refPrice)}` : "—"}
                 </p>
               </div>
               <div className="rounded-xl border border-gray-800 bg-gray-900/60 px-4 py-3">
-                <p className="text-[10px] text-gray-600 uppercase tracking-wide mb-1">Спред</p>
+                <p className="text-xs text-gray-600 uppercase tracking-wide mb-1">Спред</p>
                 <p className="text-lg font-bold font-mono text-amber-400">
                   {book.spread != null ? (book.spread > 0 ? `₴${book.spread.toFixed(2)}` : "≤0") : "—"}
                 </p>
               </div>
               <div className="rounded-xl border border-gray-800 bg-gray-900/60 px-4 py-3">
-                <p className="text-[10px] text-gray-600 uppercase tracking-wide mb-1">Остання угода</p>
+                <p className="text-xs text-gray-600 uppercase tracking-wide mb-1">Остання угода</p>
                 {lastTrade ? (
                   <>
                     <p className="text-lg font-bold font-mono text-emerald-400">₴{Number(lastTrade.price).toFixed(2)}</p>
-                    <p className="text-[10px] text-gray-600">{timeAgo(lastTrade.executedAt)}</p>
+                    <p className="text-xs text-gray-600">{timeAgo(lastTrade.executedAt)}</p>
                   </>
                 ) : <p className="text-sm text-gray-600">—</p>}
               </div>
               <div className="rounded-xl border border-gray-800 bg-gray-900/60 px-4 py-3">
-                <p className="text-[10px] text-gray-600 uppercase tracking-wide mb-1">Угод за 20</p>
+                <p className="text-xs text-gray-600 uppercase tracking-wide mb-1">Угод за 20</p>
                 <p className="text-lg font-bold text-white">{book?.trades.length ?? 0}</p>
               </div>
             </div>
@@ -287,10 +288,10 @@ function OrderBookPanel() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-800/60">
-                    <th className="px-3 py-2 text-left text-[10px] text-gray-600 uppercase">Ціна ₴</th>
-                    <th className="px-3 py-2 text-right text-[10px] text-gray-600 uppercase">К-ть</th>
-                    <th className="px-3 py-2 text-right text-[10px] text-gray-600 uppercase">Якість</th>
-                    <th className="px-3 py-2 text-right text-[10px] text-gray-600 uppercase">Продавець</th>
+                    <th className="px-3 py-2 text-left text-xs text-gray-600 uppercase">Ціна ₴</th>
+                    <th className="px-3 py-2 text-right text-xs text-gray-600 uppercase">К-ть</th>
+                    <th className="px-3 py-2 text-right text-xs text-gray-600 uppercase">Якість</th>
+                    <th className="px-3 py-2 text-right text-xs text-gray-600 uppercase">Продавець</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -301,7 +302,7 @@ function OrderBookPanel() {
                       <td className="px-3 py-2 relative">
                         <div className="absolute inset-0 bg-red-500/10 origin-left" style={{ width: `${(a.qty / maxAskQty) * 100}%` }} />
                         <span className="relative font-mono font-semibold text-red-400">₴{a.price.toFixed(2)}</span>
-                        {a.isMe && <span className="relative ml-1 text-[9px] text-amber-400 font-bold">ВИ</span>}
+                        {a.isMe && <span className="relative ml-1 text-xs text-amber-400 font-bold">ВИ</span>}
                       </td>
                       <td className="px-3 py-2 text-right font-mono text-gray-300">{formatNumber(a.qty)}</td>
                       <td className="px-3 py-2 text-right font-mono text-gray-400">{a.quality.toFixed(1)}</td>
@@ -323,10 +324,10 @@ function OrderBookPanel() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-800/60">
-                    <th className="px-3 py-2 text-left text-[10px] text-gray-600 uppercase">Ціна ₴</th>
-                    <th className="px-3 py-2 text-right text-[10px] text-gray-600 uppercase">К-ть</th>
-                    <th className="px-3 py-2 text-right text-[10px] text-gray-600 uppercase">Мін.як.</th>
-                    <th className="px-3 py-2 text-right text-[10px] text-gray-600 uppercase">Покупець</th>
+                    <th className="px-3 py-2 text-left text-xs text-gray-600 uppercase">Ціна ₴</th>
+                    <th className="px-3 py-2 text-right text-xs text-gray-600 uppercase">К-ть</th>
+                    <th className="px-3 py-2 text-right text-xs text-gray-600 uppercase">Мін.як.</th>
+                    <th className="px-3 py-2 text-right text-xs text-gray-600 uppercase">Покупець</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -337,7 +338,7 @@ function OrderBookPanel() {
                       <td className="px-3 py-2 relative">
                         <div className="absolute inset-0 bg-emerald-500/10 origin-left" style={{ width: `${(b.qty / maxBidQty) * 100}%` }} />
                         <span className="relative font-mono font-semibold text-emerald-400">₴{b.price.toFixed(2)}</span>
-                        {b.isMe && <span className="relative ml-1 text-[9px] text-amber-400 font-bold">ВИ</span>}
+                        {b.isMe && <span className="relative ml-1 text-xs text-amber-400 font-bold">ВИ</span>}
                       </td>
                       <td className="px-3 py-2 text-right font-mono text-gray-300">{formatNumber(b.qty)}</td>
                       <td className="px-3 py-2 text-right font-mono text-gray-400">{b.qualityMin.toFixed(1)}</td>
@@ -361,10 +362,10 @@ function OrderBookPanel() {
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="border-b border-gray-800/60">
-                      <th className="px-3 py-2 text-left text-[10px] text-gray-600 uppercase">Ціна</th>
-                      <th className="px-3 py-2 text-right text-[10px] text-gray-600 uppercase">К-ть</th>
-                      <th className="px-3 py-2 text-right text-[10px] text-gray-600 uppercase">Якість</th>
-                      <th className="px-3 py-2 text-right text-[10px] text-gray-600 uppercase">Час</th>
+                      <th className="px-3 py-2 text-left text-xs text-gray-600 uppercase">Ціна</th>
+                      <th className="px-3 py-2 text-right text-xs text-gray-600 uppercase">К-ть</th>
+                      <th className="px-3 py-2 text-right text-xs text-gray-600 uppercase">Якість</th>
+                      <th className="px-3 py-2 text-right text-xs text-gray-600 uppercase">Час</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -624,7 +625,7 @@ function OffersTab({ preselectId, fromUrl }: { preselectId?: string | null; from
               placeholder="Назва товару або продавець..."
               value={search} onChange={(e) => setSearch(e.target.value)}
             />
-            {search && <button onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-600 hover:text-gray-400"><X size={13} /></button>}
+            {search && <button onClick={() => setSearch("")} aria-label="Очистити пошук" className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-600 hover:text-gray-400"><X size={13} /></button>}
           </div>
 
           {/* Сортування */}
@@ -652,7 +653,7 @@ function OffersTab({ preselectId, fromUrl }: { preselectId?: string | null; from
           </div>
 
           <div className="flex items-center gap-1 ml-auto">
-            <button onClick={loadOffers} disabled={loading} className="p-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white transition-colors disabled:opacity-40">
+            <button onClick={loadOffers} disabled={loading} aria-label="Оновити" className="p-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white transition-colors disabled:opacity-40">
               <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
             </button>
             <Button size="sm" onClick={() => { setFormError(""); setModalOpen(true); }}>
@@ -868,7 +869,7 @@ function MyOrdersTab() {
         const daysLeft = Math.ceil((expires.getTime() - Date.now()) / 86400000);
         return (
           <div key={o.id} className="rounded-xl border border-gray-800 bg-gray-900 px-4 py-3 flex items-center gap-3">
-            <div className={cn("px-2 py-0.5 rounded text-[10px] font-bold tracking-wider shrink-0", o.type === "BUY" ? "bg-emerald-950 text-emerald-400" : "bg-blue-950 text-blue-400")}>
+            <div className={cn("px-2 py-0.5 rounded text-xs font-bold tracking-wider shrink-0", o.type === "BUY" ? "bg-emerald-950 text-emerald-400" : "bg-blue-950 text-blue-400")}>
               {o.type}
             </div>
             <div className="flex-1 min-w-0">
@@ -880,28 +881,29 @@ function MyOrdersTab() {
                 <div className="flex-1 bg-gray-800 rounded-full h-1 max-w-24">
                   <div className="bg-emerald-500 h-1 rounded-full" style={{ width: `${Math.round(filled * 100)}%` }} />
                 </div>
-                <span className="text-[10px] text-gray-500">{formatNumber(o.quantityFilled)}/{formatNumber(o.quantityTotal)} {o.unit}</span>
-                <span className={cn("text-[10px]", daysLeft <= 1 ? "text-red-400" : "text-gray-600")}>
+                <span className="text-xs text-gray-500">{formatNumber(o.quantityFilled)}/{formatNumber(o.quantityTotal)} {o.unit}</span>
+                <span className={cn("text-xs", daysLeft <= 1 ? "text-red-400" : "text-gray-600")}>
                   <Clock size={9} className="inline mr-0.5" />{daysLeft}д
                 </span>
               </div>
             </div>
             <div className="text-right shrink-0">
               <p className="text-xs text-gray-400 font-mono">{formatNumber(remaining)} {o.unit}</p>
-              <p className="text-[10px] text-gray-600">залишилось</p>
+              <p className="text-xs text-gray-600">залишилось</p>
             </div>
             <button
               onClick={() => cancel(o.id)}
               disabled={cancelling === o.id}
               className="p-1.5 rounded-lg text-gray-600 hover:text-red-400 hover:bg-red-950/30 transition-colors"
               title="Скасувати"
+              aria-label="Скасувати"
             >
               {cancelling === o.id ? <Loader2 size={13} className="animate-spin" /> : <X size={13} />}
             </button>
           </div>
         );
       })}
-      <p className="text-[10px] text-gray-600 text-center pt-1">Ордери виконуються автоматично на кожному тіку</p>
+      <p className="text-xs text-gray-600 text-center pt-1">Ордери виконуються автоматично на кожному тіку</p>
     </div>
   );
 }
@@ -1142,10 +1144,10 @@ function AutoContractTab() {
               <p>Виконано: <span className="text-white">{c.lastFilledQty.toFixed(1)}</span></p>
               <p>Витрати: <span className="text-white">₴{c.totalSpentUah.toFixed(0)}</span></p>
             </div>
-            <button onClick={() => toggle(c.id, c.isActive)} className={cn("text-[10px] px-2 py-1 rounded font-medium", c.isActive ? "bg-amber-700 text-amber-100 hover:bg-amber-600" : "bg-gray-700 text-gray-300 hover:bg-gray-600")}>
+            <button onClick={() => toggle(c.id, c.isActive)} className={cn("text-xs px-2 py-1 rounded font-medium", c.isActive ? "bg-amber-700 text-amber-100 hover:bg-amber-600" : "bg-gray-700 text-gray-300 hover:bg-gray-600")}>
               {c.isActive ? "Пауза" : "Увімкнути"}
             </button>
-            <button onClick={() => remove(c.id)} className="text-red-500 hover:text-red-400"><X size={14} /></button>
+            <button onClick={() => remove(c.id)} aria-label="Видалити" className="text-red-500 hover:text-red-400"><X size={14} /></button>
           </div>
         ))}
       </div>
@@ -1234,17 +1236,17 @@ function SupplyOffersTab() {
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-white">{o.productName} <span className="text-gray-500 text-xs">({o.productSku})</span></p>
               <p className="text-xs text-gray-500 mt-0.5">{o.quantityPerTick} {o.unit}/тік · ₴{o.pricePerUnit}/од · якість ≥{o.minQuality}</p>
-              {o.description && <p className="text-[10px] text-gray-600 mt-0.5 italic">{o.description}</p>}
+              {o.description && <p className="text-xs text-gray-600 mt-0.5 italic">{o.description}</p>}
             </div>
             <div className="text-right text-xs text-gray-400 shrink-0">
               <p className="text-white font-medium">{o.sellerName}</p>
               <p>Репутація {o.sellerRep.toFixed(1)} · Прийнято: {o.acceptedByCount}</p>
             </div>
             {o.isOwn ? (
-              <button onClick={() => withdraw(o.id)} className="text-[10px] px-2 py-1 rounded bg-red-900/50 text-red-300 hover:bg-red-800/60">Зняти</button>
+              <button onClick={() => withdraw(o.id)} className="text-xs px-2 py-1 rounded bg-red-900/50 text-red-300 hover:bg-red-800/60">Зняти</button>
             ) : (
               <button onClick={() => accept(o.id)} disabled={accepting === o.id}
-                className="text-[10px] px-3 py-1.5 rounded bg-emerald-700 hover:bg-emerald-600 text-white font-medium disabled:opacity-50">
+                className="text-xs px-3 py-1.5 rounded bg-emerald-700 hover:bg-emerald-600 text-white font-medium disabled:opacity-50">
                 {accepting === o.id ? "..." : "Підписати"}
               </button>
             )}
@@ -1325,9 +1327,9 @@ function PriceAlertsTab() {
                 {a.alertAbove != null && <span>Ціна ≥ ₴{a.alertAbove} </span>}
                 · Зараз: <span className="text-white">₴{a.currentPrice.toFixed(2)}</span>
               </p>
-              {!a.isActive && a.firedAt && <p className="text-[10px] text-amber-400 mt-0.5">Спрацювало {new Date(a.firedAt).toLocaleDateString("uk")}</p>}
+              {!a.isActive && a.firedAt && <p className="text-xs text-amber-400 mt-0.5">Спрацювало {new Date(a.firedAt).toLocaleDateString("uk")}</p>}
             </div>
-            <button onClick={() => remove(a.id)} className="text-red-500 hover:text-red-400"><X size={14} /></button>
+            <button onClick={() => remove(a.id)} aria-label="Видалити" className="text-red-500 hover:text-red-400"><X size={14} /></button>
           </div>
         ))}
       </div>

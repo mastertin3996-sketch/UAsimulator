@@ -151,7 +151,7 @@ export function WarehouseClient() {
                   <p className="text-xs text-gray-400">{o.city} · власник: {o.ownerName}</p>
                   {o.description && <p className="text-xs text-gray-500 mt-1">{o.description}</p>}
                 </div>
-                <span className={`shrink-0 text-[10px] font-medium px-2 py-0.5 rounded-full ${
+                <span className={`shrink-0 text-xs font-medium px-2 py-0.5 rounded-full ${
                   o.isSubscribed ? "bg-emerald-950 text-emerald-400" : "bg-gray-800 text-gray-400"
                 }`}>
                   {o.isSubscribed ? "✓ орендовано" : `${o.tenantCount} орендар${o.tenantCount === 1 ? "" : "ів"}`}
@@ -160,11 +160,11 @@ export function WarehouseClient() {
 
               <div className="grid grid-cols-2 gap-3 text-center">
                 <div className="rounded bg-gray-800 px-3 py-2">
-                  <p className="text-[10px] text-gray-500">Вартість</p>
+                  <p className="text-xs text-gray-500">Вартість</p>
                   <p className="text-sm font-semibold text-white">₴{o.pricePerTick.toLocaleString("uk-UA")}/тік</p>
                 </div>
                 <div className="rounded bg-gray-800 px-3 py-2">
-                  <p className="text-[10px] text-gray-500">Ємність</p>
+                  <p className="text-xs text-gray-500">Ємність</p>
                   <p className="text-sm font-semibold text-white">{o.capacityKg.toLocaleString("uk-UA")} кг</p>
                 </div>
               </div>

@@ -73,7 +73,7 @@ function DayChart({ data }: { data: DayPoint[] }) {
 
   return (
     <div>
-      <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-2">Обсяг за 14 днів</p>
+      <p className="text-xs text-gray-600 uppercase tracking-wider mb-2">Обсяг за 14 днів</p>
       <div className="flex items-end gap-[3px] h-16">
         {last14.map((d) => (
           <div key={d.date} className="flex-1 flex flex-col justify-end gap-[2px] group relative" title={`${fmtDate(d.date)}: -₴${formatNumber(Math.round(d.spent))} +₴${formatNumber(Math.round(d.earned))}`}>
@@ -92,7 +92,7 @@ function DayChart({ data }: { data: DayPoint[] }) {
           </div>
         ))}
       </div>
-      <div className="flex items-center gap-3 mt-1.5 text-[10px] text-gray-600">
+      <div className="flex items-center gap-3 mt-1.5 text-xs text-gray-600">
         <span className="flex items-center gap-1"><span className="w-2 h-2 bg-emerald-600/70 rounded-sm inline-block" />Продажі</span>
         <span className="flex items-center gap-1"><span className="w-2 h-2 bg-red-700/60 rounded-sm inline-block" />Закупки</span>
         <span className="ml-auto">{last14[0]?.date ? fmtDate(last14[0].date) : ""} — {last14[last14.length - 1]?.date ? fmtDate(last14[last14.length - 1].date) : ""}</span>
@@ -120,7 +120,7 @@ function TopProductsPanel({ products, role }: { products: TopProduct[]; role: Ro
 
   return (
     <div>
-      <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-3">Топ товарів</p>
+      <p className="text-xs text-gray-600 uppercase tracking-wider mb-3">Топ товарів</p>
       <div className="space-y-2">
         {sorted.map((p) => {
           const val = role === "buyer" ? p.spent : role === "seller" ? p.earned : p.total;
@@ -140,7 +140,7 @@ function TopProductsPanel({ products, role }: { products: TopProduct[]; role: Ro
                   style={{ width: `${pct}%` }}
                 />
               </div>
-              <div className="flex items-center gap-3 mt-0.5 text-[9px] text-gray-700">
+              <div className="flex items-center gap-3 mt-0.5 text-xs text-gray-700">
                 {(role === "all" || role === "buyer")  && p.buyCount  > 0 && <span>{p.buyCount} закуп.</span>}
                 {(role === "all" || role === "seller") && p.sellCount > 0 && <span>{p.sellCount} прод.</span>}
               </div>
@@ -190,14 +190,14 @@ function TxRow({ tx }: { tx: Tx }) {
           {Math.abs(priceDiff) >= 0.01 && (
             <>
               <span>·</span>
-              <span className={cn("text-[10px]", priceDiff > 0 ? "text-red-400/70" : "text-emerald-400/70")}>
+              <span className={cn("text-xs", priceDiff > 0 ? "text-red-400/70" : "text-emerald-400/70")}>
                 {priceDiff > 0 ? "+" : ""}{(priceDiff * 100).toFixed(0)}% від базової
               </span>
             </>
           )}
         </div>
 
-        <div className="flex items-center gap-3 mt-1 text-[10px] text-gray-600 flex-wrap">
+        <div className="flex items-center gap-3 mt-1 text-xs text-gray-600 flex-wrap">
           <span className="flex items-center gap-0.5">
             <Building2 size={9} />
             {tx.counterparty}
@@ -293,18 +293,18 @@ export default function MarketHistoryPage() {
       ) : stats && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div className="rounded-xl border border-emerald-900/30 bg-emerald-950/10 px-4 py-3">
-            <p className="text-[10px] text-emerald-500/70 uppercase tracking-wider mb-1">Всього зароблено</p>
+            <p className="text-xs text-emerald-500/70 uppercase tracking-wider mb-1">Всього зароблено</p>
             <p className="text-xl font-bold text-emerald-400 font-mono">₴{formatNumber(Math.round(stats.totalEarned))}</p>
           </div>
           <div className="rounded-xl border border-red-900/20 bg-red-950/10 px-4 py-3">
-            <p className="text-[10px] text-red-500/70 uppercase tracking-wider mb-1">Всього витрачено</p>
+            <p className="text-xs text-red-500/70 uppercase tracking-wider mb-1">Всього витрачено</p>
             <p className="text-xl font-bold text-red-400 font-mono">₴{formatNumber(Math.round(stats.totalSpent))}</p>
           </div>
           <div className={cn(
             "rounded-xl border px-4 py-3",
             stats.netCashFlow >= 0 ? "border-blue-900/30 bg-blue-950/10" : "border-red-900/30 bg-red-950/10",
           )}>
-            <p className={cn("text-[10px] uppercase tracking-wider mb-1", stats.netCashFlow >= 0 ? "text-blue-500/70" : "text-red-500/70")}>
+            <p className={cn("text-xs uppercase tracking-wider mb-1", stats.netCashFlow >= 0 ? "text-blue-500/70" : "text-red-500/70")}>
               Net cash flow
             </p>
             <p className={cn("text-xl font-bold font-mono flex items-center gap-1", stats.netCashFlow >= 0 ? "text-blue-400" : "text-red-400")}>
@@ -313,10 +313,10 @@ export default function MarketHistoryPage() {
             </p>
           </div>
           <div className="rounded-xl border border-gray-800 bg-gray-900 px-4 py-3">
-            <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Угод всього</p>
+            <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Угод всього</p>
             <p className="text-xl font-bold text-white font-mono">{formatNumber(stats.dealCount)}</p>
             {stats.dealCount > 0 && (
-              <p className="text-[10px] text-gray-600 mt-0.5">
+              <p className="text-xs text-gray-600 mt-0.5">
                 Сер. ₴{formatNumber(Math.round((stats.totalSpent + stats.totalEarned) / stats.dealCount))}
               </p>
             )}
@@ -385,7 +385,7 @@ export default function MarketHistoryPage() {
 
             {/* Quick stats table */}
             <div className="md:col-span-2 rounded-xl border border-gray-800 bg-gray-900 p-5">
-              <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-3">Зведення по товарах</p>
+              <p className="text-xs text-gray-600 uppercase tracking-wider mb-3">Зведення по товарах</p>
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
@@ -437,7 +437,7 @@ export default function MarketHistoryPage() {
             />
           </div>
 
-          <div className="text-[10px] text-gray-700">
+          <div className="text-xs text-gray-700">
             {search.trim() ? `${visible.length} результатів` : `${total} угод · показано ${txs.length}`}
           </div>
 

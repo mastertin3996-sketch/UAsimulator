@@ -70,7 +70,7 @@ function IpoModal({
       <div className="rounded-2xl border border-gray-800 bg-gray-950 p-6 w-full max-w-md space-y-4 shadow-2xl">
         <div className="flex items-center justify-between">
           <h3 className="text-base font-semibold text-white">Первинне публічне розміщення (IPO)</h3>
-          <button onClick={onClose} className="text-gray-500 hover:text-white"><X size={16} /></button>
+          <button onClick={onClose} aria-label="Закрити" className="text-gray-500 hover:text-white"><X size={16} /></button>
         </div>
 
         {!meetsValuation && (
@@ -175,7 +175,7 @@ function OrderModal({
       <div className="rounded-2xl border border-gray-800 bg-gray-950 p-6 w-full max-w-md space-y-4 shadow-2xl">
         <div className="flex items-center justify-between">
           <h3 className="text-base font-semibold text-white">Ордер · {ticker.symbol}</h3>
-          <button onClick={onClose} className="text-gray-500 hover:text-white"><X size={16} /></button>
+          <button onClick={onClose} aria-label="Закрити" className="text-gray-500 hover:text-white"><X size={16} /></button>
         </div>
 
         {err && <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{err}</p>}
@@ -202,7 +202,7 @@ function OrderModal({
             </div>
             <input type="number" min={1} value={qty} onChange={e => setQty(Math.max(1, parseInt(e.target.value) || 1))}
               className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-emerald-500" />
-            {type === "SELL" && <p className="text-[10px] text-gray-500 mt-0.5">У вас: {mySharesCount.toLocaleString()} акцій</p>}
+            {type === "SELL" && <p className="text-xs text-gray-500 mt-0.5">У вас: {mySharesCount.toLocaleString()} акцій</p>}
           </div>
 
           <div>
@@ -213,7 +213,7 @@ function OrderModal({
             <input type="number" min={0.01} step={0.01} value={price}
               onChange={e => setPrice(Math.max(0.01, parseFloat(e.target.value) || 0.01))}
               className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-emerald-500" />
-            <p className="text-[10px] text-gray-500 mt-0.5">Остання ціна: {formatUAH(ticker.lastTradedPriceUah)}</p>
+            <p className="text-xs text-gray-500 mt-0.5">Остання ціна: {formatUAH(ticker.lastTradedPriceUah)}</p>
           </div>
 
           <div className="rounded-lg border border-gray-800 bg-gray-900 px-4 py-3 flex justify-between">
@@ -268,7 +268,7 @@ function DividendModal({
       <div className="rounded-2xl border border-gray-800 bg-gray-950 p-6 w-full max-w-md space-y-4 shadow-2xl">
         <div className="flex items-center justify-between">
           <h3 className="text-base font-semibold text-white">Виплата дивідендів</h3>
-          <button onClick={onClose} className="text-gray-500 hover:text-white"><X size={16} /></button>
+          <button onClick={onClose} aria-label="Закрити" className="text-gray-500 hover:text-white"><X size={16} /></button>
         </div>
         {err && <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{err}</p>}
 
@@ -382,7 +382,7 @@ export default function StockExchangePage() {
           { label: "Активних ордерів", value: myOrders.length.toString(), color: "text-blue-400" },
         ].map(({ label, value, color }) => (
           <div key={label} className="rounded-xl border border-gray-800 bg-gray-900 px-4 py-3">
-            <p className="text-[10px] text-gray-500 uppercase tracking-wider">{label}</p>
+            <p className="text-xs text-gray-500 uppercase tracking-wider">{label}</p>
             <p className={cn("text-lg font-bold font-mono mt-0.5", color)}>{value}</p>
           </div>
         ))}
@@ -444,7 +444,7 @@ export default function StockExchangePage() {
                       <tr key={t.id} className="hover:bg-gray-900/50 transition-colors">
                         <td className="px-4 py-3">
                           <span className="font-mono font-semibold text-amber-400">{t.symbol}</span>
-                          {t.isOwn && <span className="ml-1.5 text-[10px] text-gray-500">(ваша)</span>}
+                          {t.isOwn && <span className="ml-1.5 text-xs text-gray-500">(ваша)</span>}
                         </td>
                         <td className="px-4 py-3 text-gray-300">{t.companyName}</td>
                         <td className="px-4 py-3 font-mono text-white">{formatUAH(t.lastTradedPriceUah)}</td>
@@ -519,7 +519,8 @@ export default function StockExchangePage() {
               </div>
               <Button size="sm" variant="outline" className="text-xs border-red-500/30 text-red-400 hover:bg-red-500/10"
                 disabled={cancelling === o.id}
-                onClick={() => cancelOrder(o.id)}>
+                onClick={() => cancelOrder(o.id)}
+                aria-label="Скасувати ордер">
                 {cancelling === o.id ? <Loader2 size={11} className="animate-spin" /> : <X size={11} />}
               </Button>
             </div>

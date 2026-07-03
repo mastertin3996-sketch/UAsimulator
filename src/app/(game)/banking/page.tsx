@@ -74,7 +74,7 @@ function LoanModal({
       <div className="rounded-2xl border border-gray-800 bg-gray-950 p-6 w-full max-w-md space-y-4 shadow-2xl">
         <div className="flex items-center justify-between">
           <h3 className="text-base font-semibold text-white">Взяти кредит</h3>
-          <button onClick={onClose} className="text-gray-500 hover:text-white"><X size={16} /></button>
+          <button onClick={onClose} aria-label="Закрити" className="text-gray-500 hover:text-white"><X size={16} /></button>
         </div>
 
         {err && <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{err}</p>}
@@ -88,7 +88,7 @@ function LoanModal({
             <input type="range" min={10_000} max={offer.maxAmount} step={10_000}
               value={amount} onChange={e => setAmount(Number(e.target.value))}
               className="w-full accent-emerald-500" />
-            <div className="flex justify-between text-[10px] text-gray-600 mt-0.5">
+            <div className="flex justify-between text-xs text-gray-600 mt-0.5">
               <span>10 000 ₴</span>
               <span>{formatUAH(offer.maxAmount)}</span>
             </div>
@@ -102,7 +102,7 @@ function LoanModal({
             <input type="range" min={3} max={60} step={3}
               value={term} onChange={e => setTerm(Number(e.target.value))}
               className="w-full accent-emerald-500" />
-            <div className="flex justify-between text-[10px] text-gray-600 mt-0.5">
+            <div className="flex justify-between text-xs text-gray-600 mt-0.5">
               <span>3 міс.</span>
               <span>60 міс.</span>
             </div>
@@ -172,7 +172,7 @@ function DepositModal({
       <div className="rounded-2xl border border-gray-800 bg-gray-950 p-6 w-full max-w-md space-y-4 shadow-2xl">
         <div className="flex items-center justify-between">
           <h3 className="text-base font-semibold text-white">Відкрити депозит</h3>
-          <button onClick={onClose} className="text-gray-500 hover:text-white"><X size={16} /></button>
+          <button onClick={onClose} aria-label="Закрити" className="text-gray-500 hover:text-white"><X size={16} /></button>
         </div>
 
         {err && <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{err}</p>}
@@ -364,7 +364,7 @@ export default function BankingPage() {
           },
         ].map(({ label, icon, value, color }) => (
           <div key={label} className="rounded-xl border border-gray-800 bg-gray-900 px-4 py-3">
-            <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1 flex items-center gap-1">
+            <p className="text-xs text-gray-500 uppercase tracking-wider mb-1 flex items-center gap-1">
               {icon} {label}
             </p>
             <p className={cn("text-lg font-bold font-mono", color)}>{value}</p>
@@ -381,11 +381,11 @@ export default function BankingPage() {
           </span>
           <div className="flex gap-4 ml-auto">
             <div className="text-center">
-              <p className="text-[10px] text-gray-600">UAH</p>
+              <p className="text-xs text-gray-600">UAH</p>
               <p className="text-sm font-mono font-semibold text-emerald-400">{depositRates.uahRate.toFixed(1)}%</p>
             </div>
             <div className="text-center">
-              <p className="text-[10px] text-gray-600">USD</p>
+              <p className="text-xs text-gray-600">USD</p>
               <p className="text-sm font-mono font-semibold text-blue-400">{depositRates.usdRate.toFixed(1)}%</p>
             </div>
           </div>
@@ -417,15 +417,15 @@ export default function BankingPage() {
           {creditOffer.eligible ? (
             <div className="flex items-center gap-6">
               <div>
-                <p className="text-[10px] text-gray-500">Максимум</p>
+                <p className="text-xs text-gray-500">Максимум</p>
                 <p className="text-lg font-bold text-white font-mono">{formatUAH(creditOffer.maxAmount)}</p>
               </div>
               <div>
-                <p className="text-[10px] text-gray-500">Ставка</p>
+                <p className="text-xs text-gray-500">Ставка</p>
                 <p className="text-lg font-bold text-amber-400 font-mono">{creditOffer.annualRatePct.toFixed(1)}%</p>
               </div>
               <div>
-                <p className="text-[10px] text-gray-500">Платіж / 1М</p>
+                <p className="text-xs text-gray-500">Платіж / 1М</p>
                 <p className="text-lg font-bold text-orange-400 font-mono">{formatUAH(creditOffer.monthlyPaymentPerMillion)}</p>
               </div>
             </div>
@@ -496,7 +496,7 @@ export default function BankingPage() {
                   <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
                     <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${progress}%` }} />
                   </div>
-                  <div className="flex justify-between text-[10px] text-gray-600">
+                  <div className="flex justify-between text-xs text-gray-600">
                     <span>{l.paidMonths} / {l.termMonths} місяців</span>
                     {l.missedPayments > 0 && <span className="text-red-400">{l.missedPayments} пропущених</span>}
                   </div>
@@ -598,7 +598,7 @@ export default function BankingPage() {
                     { label: "Вільно", value: formatUAH(overdraftFree), color: "text-emerald-400" },
                   ].map(({ label, value, color }) => (
                     <div key={label}>
-                      <p className="text-[10px] text-gray-500">{label}</p>
+                      <p className="text-xs text-gray-500">{label}</p>
                       <p className={cn("text-sm font-mono font-semibold", color ?? "text-white")}>{value}</p>
                     </div>
                   ))}

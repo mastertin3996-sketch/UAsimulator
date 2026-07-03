@@ -68,7 +68,7 @@ export function TopSalesChart({ data }: { data: SaleEntry[] }) {
                 </div>
                 <div className="text-right shrink-0">
                   <div className="text-xs font-mono text-white">{formatNumber(entry.revenue)} GC</div>
-                  <div className="text-[10px] text-gray-600">
+                  <div className="text-xs text-gray-600">
                     {total > 0 ? ((entry.revenue / total) * 100).toFixed(1) : 0}%
                   </div>
                 </div>

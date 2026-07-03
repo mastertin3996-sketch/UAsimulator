@@ -290,7 +290,7 @@ export default function DashboardClient() {
           <div>
             <p className="text-xs text-gray-500">Працівників</p>
             <p className="text-lg font-bold text-white">{stats.employeeCount}</p>
-            <p className="text-[10px] text-gray-600">еф. {(stats.avgEfficiency * 100).toFixed(0)}%</p>
+            <p className="text-xs text-gray-600">еф. {(stats.avgEfficiency * 100).toFixed(0)}%</p>
           </div>
         </div>
         <div className="rounded-xl border border-gray-800 bg-gray-900 p-3 flex items-center gap-3">
@@ -298,7 +298,7 @@ export default function DashboardClient() {
           <div>
             <p className="text-xs text-gray-500">Настрій</p>
             <p className="text-lg font-bold text-white">{(stats.avgMood * 100).toFixed(0)}%</p>
-            <p className="text-[10px] text-gray-600">{stats.avgMood >= 0.7 ? "Відмінний" : stats.avgMood >= 0.4 ? "Нормальний" : "Поганий"}</p>
+            <p className="text-xs text-gray-600">{stats.avgMood >= 0.7 ? "Відмінний" : stats.avgMood >= 0.4 ? "Нормальний" : "Поганий"}</p>
           </div>
         </div>
         <div className="rounded-xl border border-gray-800 bg-gray-900 p-3 flex items-center gap-3">
@@ -306,7 +306,7 @@ export default function DashboardClient() {
           <div>
             <p className="text-xs text-gray-500">Вироблено (день)</p>
             <p className="text-lg font-bold text-white">{formatNumber(Math.round(stats.totalUnitsThisTick))}</p>
-            <div className="text-[10px] text-gray-600">
+            <div className="text-xs text-gray-600">
               {stats.totalUnitsThisTick > 0
                 ? <QualityStars value={stats.avgQualityThisTick} />
                 : "ще не виробляли"}
@@ -318,7 +318,7 @@ export default function DashboardClient() {
           <div>
             <p className="text-xs text-gray-500">До місячних виплат</p>
             <p className="text-lg font-bold text-white">{stats.ticksUntilMonth}</p>
-            <p className="text-[10px] text-gray-600">днів (зарплата, оренда)</p>
+            <p className="text-xs text-gray-600">днів (зарплата, оренда)</p>
           </div>
         </div>
       </div>
@@ -341,7 +341,7 @@ export default function DashboardClient() {
                   <p className={`text-xs font-semibold ${cfg.color}`}>Макро-подія активна</p>
                   <p className="text-xs text-gray-300 truncate">{e.description}</p>
                 </div>
-                <span className="text-[10px] text-gray-500 shrink-0 font-mono">{e.ticksLeft} д.</span>
+                <span className="text-xs text-gray-500 shrink-0 font-mono">{e.ticksLeft} д.</span>
               </div>
             );
           })}
@@ -373,7 +373,7 @@ export default function DashboardClient() {
                         <p className="text-sm font-semibold text-white truncate">{e.name}</p>
                         <p className="text-xs text-gray-500">{TYPE_LABELS[e.type] ?? e.type} · {e.city}</p>
                       </div>
-                      <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0",
+                      <span className={cn("text-xs px-1.5 py-0.5 rounded-full font-medium shrink-0",
                         e.isFrozen ? "bg-red-950 text-red-400" : e.isActive ? "bg-emerald-950 text-emerald-400" : "bg-gray-800 text-gray-500")}>
                         {e.isFrozen ? "Заморожено" : e.isActive ? "Активне" : "Неактивне"}
                       </span>
@@ -492,7 +492,7 @@ export default function DashboardClient() {
         <div className="rounded-xl border border-orange-900/30 bg-orange-950/10 px-4 py-3">
           <div className="flex items-center justify-between mb-2">
             <p className="text-xs font-semibold text-orange-400">Податки (останній місяць)</p>
-            <span className={`text-[10px] px-2 py-0.5 rounded-full ${lastTax.isPaid ? "bg-emerald-950 text-emerald-400" : "bg-red-950 text-red-400"}`}>
+            <span className={`text-xs px-2 py-0.5 rounded-full ${lastTax.isPaid ? "bg-emerald-950 text-emerald-400" : "bg-red-950 text-red-400"}`}>
               {lastTax.isPaid ? "Сплачено" : "Не сплачено"}
             </span>
           </div>
@@ -549,7 +549,7 @@ export default function DashboardClient() {
           <div className="mt-2 h-1.5 bg-gray-800 rounded-full overflow-hidden">
             <div className="h-full bg-purple-500 rounded-full transition-all" style={{ width: `${activeResearch.pct}%` }} />
           </div>
-          <div className="flex justify-between text-[10px] text-gray-500 mt-1">
+          <div className="flex justify-between text-xs text-gray-500 mt-1">
             <span>{formatNumber(Math.round(activeResearch.current))} / {formatNumber(activeResearch.required)} RP</span>
             <span>{activeResearch.pct}%</span>
           </div>

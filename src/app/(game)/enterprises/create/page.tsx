@@ -114,7 +114,7 @@ function StepCity({ onSelect }: { onSelect: (c: City) => void }) {
                 { label: "Вільні ділянки", value: c.availablePlots.toString(), color: c.availablePlots > 0 ? "text-emerald-400" : "text-red-400" },
               ].map(({ label, value, color }) => (
                 <div key={label}>
-                  <p className="text-[10px] text-gray-600">{label}</p>
+                  <p className="text-xs text-gray-600">{label}</p>
                   <p className={cn("text-xs font-mono", color ?? "text-gray-300")}>{value}</p>
                 </div>
               ))}
@@ -213,11 +213,11 @@ function StepLand({
                   <p className="text-xs text-gray-500 mt-0.5">Площа: {p.totalAreaM2.toLocaleString("uk")} м²</p>
                   <div className="flex gap-4 mt-2">
                     <div>
-                      <p className="text-[10px] text-gray-600">Ціна купівлі</p>
+                      <p className="text-xs text-gray-600">Ціна купівлі</p>
                       <p className="text-sm font-mono text-white">{formatUAH(p.purchasePriceUah)}</p>
                     </div>
                     <div>
-                      <p className="text-[10px] text-gray-600">Оренда / міс</p>
+                      <p className="text-xs text-gray-600">Оренда / міс</p>
                       <p className="text-sm font-mono text-gray-300">{formatUAH(p.monthlyLeaseCostUah)}</p>
                     </div>
                   </div>
@@ -287,8 +287,8 @@ function StepType({
           >
             <span className="text-2xl mb-2 block">{e.icon}</span>
             <p className="text-xs font-semibold text-white leading-tight">{e.label}</p>
-            <p className="text-[10px] text-gray-500 mt-0.5 leading-snug">{e.desc}</p>
-            <p className="text-[10px] font-mono text-emerald-400 mt-2">{formatUAH(e.cost)}</p>
+            <p className="text-xs text-gray-500 mt-0.5 leading-snug">{e.desc}</p>
+            <p className="text-xs font-mono text-emerald-400 mt-2">{formatUAH(e.cost)}</p>
           </button>
         ))}
       </div>
@@ -513,6 +513,7 @@ export default function CreateEnterprisePage() {
       <div className="flex items-center gap-3">
         <button
           onClick={() => step > 1 ? setStep(s => s - 1) : router.push("/enterprises")}
+          aria-label="Назад"
           className="p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-gray-800 transition-colors"
         >
           <ArrowLeft size={16} />

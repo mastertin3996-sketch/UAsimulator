@@ -91,9 +91,9 @@ export default function ToastAlerts() {
             <div className="mt-0.5">{style.icon}</div>
             <div className="flex-1 min-w-0">
               <p className="text-xs font-semibold text-white truncate">{t.title}</p>
-              <p className="text-[10px] text-gray-300 mt-0.5 line-clamp-2">{t.body}</p>
+              <p className="text-xs text-gray-300 mt-0.5 line-clamp-2">{t.body}</p>
             </div>
-            <button onClick={() => dismiss(t.id)} className="shrink-0 text-gray-600 hover:text-gray-400 mt-0.5">
+            <button onClick={() => dismiss(t.id)} aria-label="Закрити" className="shrink-0 text-gray-600 hover:text-gray-400 mt-0.5">
               <X size={12} />
             </button>
           </div>
