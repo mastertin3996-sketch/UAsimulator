@@ -9,10 +9,6 @@ dist/
 .env.local
 .env.*.local
 
-# Prisma
-prisma/migrations/
-!prisma/migrations/.gitkeep
-
 # Logs
 *.log
 npm-debug.log*

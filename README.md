@@ -56,9 +56,20 @@ cp .env.example .env
 ### 3. Застосувати схему і засіяти базу початковими даними
 
 ```bash
-npm run db:push    # створює таблиці за prisma/schema.prisma
-npm run db:seed    # заповнює міста, продукти, рецепти, обладнання тощо
+npm run db:migrate:deploy   # застосовує міграції з prisma/migrations/
+npm run db:seed             # заповнює міста, продукти, рецепти, обладнання тощо
 ```
+
+Схема БД тепер відстежується через Prisma-міграції (`prisma/migrations/`), а не
+`db push`. Для змін схеми під час розробки:
+
+```bash
+npm run db:migrate   # створює + застосовує нову міграцію (інтерактивно, локально)
+```
+
+`npm run db:push` лишається доступним для швидкого прототипування без
+створення міграції — але перед комітом зміну треба оформити як міграцію
+через `db:migrate`, інакше БД і `prisma/migrations/` розійдуться.
 
 ### 4. Запустити
 
@@ -96,8 +107,9 @@ npm run engine:tick   # демон: тікає з інтервалом TICK_INTE
 | `npm run lint`         | ESLint                                             |
 | `npm run test`         | Vitest (один прогін)                               |
 | `npm run test:watch`   | Vitest у watch-режимі                              |
-| `npm run db:push`      | Синхронізувати схему Prisma з БД без міграцій       |
-| `npm run db:migrate`   | Створити/застосувати міграцію (`prisma migrate dev`)|
+| `npm run db:push`      | Швидке прототипування схеми без міграції (тільки dev)|
+| `npm run db:migrate`   | Створити/застосувати нову міграцію (`prisma migrate dev`)|
+| `npm run db:migrate:deploy` | Застосувати всі існуючі міграції (прод/CI, non-interactive) |
 | `npm run db:seed`      | Засіяти базу початковими даними                    |
 | `npm run db:studio`    | Prisma Studio — переглянути/редагувати дані вручну  |
 | `npm run engine:tick`  | Локальний демон ігрового тіку                      |
@@ -147,6 +159,13 @@ npm run test
    `Authorization: Bearer <CRON_SECRET>`. `vercel.json` містить власний
    резервний cron (раз на добу — ліміт Vercel Hobby), на випадок якщо
    GitHub Actions недоступний.
+4. `vercel.json`'s `buildCommand` автоматично прогонить `prisma migrate deploy`
+   перед кожним білдом — нові міграції з `prisma/migrations/` застосовуються
+   самі, вручну нічого запускати не треба.
+
+`GET /api/health` — легкий, без авторизації, ендпоінт для uptime-моніторингу
+(UptimeRobot, Better Uptime тощо): перевіряє з'єднання з БД (таймаут 3с),
+повертає `{status: "ok"|"degraded", db: "up"|"down"}`.
 
 ## CI
 

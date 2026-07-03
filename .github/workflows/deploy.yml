@@ -1,0 +1,38 @@
+name: Deploy to Vercel
+
+on:
+  workflow_dispatch:
+  # NOTE: intentionally NOT triggered on `push` — this project's owner deploys
+  # only after explicit confirmation each time (see project memory). Trigger
+  # this workflow manually from the GitHub Actions tab, or ask about switching
+  # to an automatic `push` trigger if that preference ever changes.
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    needs: []
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Pull Vercel environment info
+        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Build project artifacts
+        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Deploy to Vercel (production)
+        id: deploy
+        run: |
+          url=$(vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }})
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Point production alias at the new deployment
+        run: vercel alias set "${{ steps.deploy.outputs.url }}" uaeconomy-api.vercel.app --token=${{ secrets.VERCEL_TOKEN }}
