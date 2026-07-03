@@ -72,10 +72,10 @@ npm run dev
 ## Ігровий тік
 
 Гра просувається "тіками" (1 тік = виробництво, зарплати, ринок, кредити тощо
-за один прохід). У проді тік запускає зовнішній cron-сервіс (cron-job.org)
-щогодини через `GET /api/cron/tick` з заголовком
+за один прохід). У проді тік щогодини викликає GitHub Actions workflow
+(`.github/workflows/tick.yml`) через `GET /api/cron/tick` з заголовком
 `Authorization: Bearer <CRON_SECRET>` (Vercel Hobby не підтримує частіший
-за добовий cron, тому зовнішній сервіс обов'язковий).
+за добовий cron, тому `vercel.json` має лише резервний щоденний виклик).
 
 Для локальної розробки є два способи прогнати тік вручну:
 
@@ -138,6 +138,36 @@ npm run test
 Проєкт налаштований під Vercel (`vercel.json`). Потрібно:
 1. Прив'язати той самий `DATABASE_URL` (Neon) у Vercel env vars
 2. Додати `NEXTAUTH_SECRET`, `NEXTAUTH_URL` (продакшн-домен), `CRON_SECRET`
-3. Налаштувати зовнішній cron (напр. cron-job.org) на щогодинний
+3. Щогодинний тік викликає `.github/workflows/tick.yml` (GitHub Actions) —
    `GET https://<домен>/api/cron/tick` із заголовком
-   `Authorization: Bearer <CRON_SECRET>`
+   `Authorization: Bearer <CRON_SECRET>`. `vercel.json` містить власний
+   резервний cron (раз на добу — ліміт Vercel Hobby), на випадок якщо
+   GitHub Actions недоступний.
+
+## CI
+
+`.github/workflows/ci.yml` на кожен push/PR у `main`/`Test3` прогонятиме
+`lint` → `test` → `build`. Це не пускає у гілку код, який не білдиться.
+
+## Моніторинг помилок (опційно)
+
+Проєкт підключений до Sentry (`@sentry/nextjs`), але вимкнений за
+замовчуванням — без `SENTRY_DSN`/`NEXT_PUBLIC_SENTRY_DSN` в env vars SDK
+просто не ініціалізується і нічого нікуди не відправляє. Щоб увімкнути:
+1. Зареєструватись на [sentry.io](https://sentry.io) (безкоштовний тариф)
+2. Створити Next.js-проєкт, скопіювати DSN
+3. Додати `SENTRY_DSN` і `NEXT_PUBLIC_SENTRY_DSN` (те саме значення) у
+   Vercel env vars
+4. Опційно — `SENTRY_AUTH_TOKEN`/`SENTRY_ORG`/`SENTRY_PROJECT` для
+   завантаження source maps (читабельні стек-трейси в проді)
+
+## Rate-limiting (опційно, рекомендовано для проду)
+
+`src/lib/rateLimit.ts` захищає чутливі ендпоінти (видача кредиту, M&A-угоди)
+від спаму. Без налаштувань працює як in-memory лічильник у межах одного
+"теплого" serverless-інстансу — краще, ніж нічого, але не переживає холодний
+старт і не ділиться станом між інстансами. Для надійного захисту на масштабі:
+1. Зареєструватись на [upstash.com](https://upstash.com) (безкоштовний тариф),
+   створити Redis-базу
+2. Скопіювати `UPSTASH_REDIS_REST_URL`/`UPSTASH_REDIS_REST_TOKEN` (REST API
+   секція) у Vercel env vars — код автоматично перемкнеться на Redis
