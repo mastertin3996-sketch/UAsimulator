@@ -225,6 +225,12 @@ async function main() {
     { sku: 'EQ-KNITMACHINE',  name:'Knitting Machine',   nameUa:'В’язальна машина',            category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
     { sku: 'EQ-SEWINGLINE',   name:'Sewing Line',        nameUa:'Швейна лінія',                category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
     { sku: 'EQ-DYEINGVAT',    name:'Dyeing Vat',         nameUa:'Фарбувальний чан',            category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
+    // Equipment items — warehouse (Wave 3)
+    { sku: 'EQ-RACKING',      name:'Racking Systems',    nameUa:'Стелажні системи',            category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
+    { sku: 'EQ-FORKLIFT',     name:'Forklift',           nameUa:'Навантажувач',                category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
+    { sku: 'EQ-CLIMATE',      name:'Climate Control',    nameUa:'Клімат-контроль',             category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
+    { sku: 'EQ-COLDROOM',     name:'Cold Room',          nameUa:'Холодильна камера',           category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
+    { sku: 'EQ-WMS',          name:'WMS System',         nameUa:'Система WMS',                  category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
     // Equipment items — retail
     { sku: 'EQ-CASHREGISTER',name:'Cash Register',           nameUa:'Касовий апарат',             category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
     { sku: 'EQ-POSTERMINAL', name:'POS Terminal',            nameUa:'POS-термінал',               category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },

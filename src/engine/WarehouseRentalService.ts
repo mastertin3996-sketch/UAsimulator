@@ -70,4 +70,61 @@ export class WarehouseRentalService {
 
     return processed;
   }
+
+  // ── Wave 3: 3PL сервісний дохід ────────────────────────────────────────────
+  /** SKU складської техніки, що дає обробні потужності (3PL). */
+  static readonly HANDLING_SKUS = new Set(['EQ-RACKING', 'EQ-FORKLIFT', 'EQ-WMS', 'EQ-CLIMATE', 'EQ-COLDROOM']);
+  static readonly HANDLING_PROFS = new Set(['WAREHOUSE_MANAGER', 'FORKLIFT_OPERATOR', 'INVENTORY_CLERK']);
+  static readonly THREE_PL_BASE = 500;      // ₴/тік за одиницю обробної техніки
+  static readonly THREE_PL_CAP  = 10_000;   // стеля доходу/тік на склад
+
+  /**
+   * Пасивний 3PL-дохід власникам складів, що інвестували в техніку+персонал
+   * (обробка/зберігання для NPC-клієнтів). Склад без техніки/персоналу не заробляє.
+   * Дзеркалить пасивний патерн агротуризму; без нової колонки, з жорсткою стелею.
+   */
+  async processStorageServices(tickNumber: bigint): Promise<number> {
+    const warehouses = await this.db.enterprise.findMany({
+      where:  { type: 'WAREHOUSE', isOperational: true, isSeized: false },
+      select: {
+        id: true, playerId: true, name: true,
+        employees: { select: { profession: true, isOnStrike: true } },
+        workshops: { select: { equipment: { select: { isBroken: true, wearAndTear: true, catalogProduct: { select: { sku: true } } } } } },
+      },
+    });
+    if (warehouses.length === 0) return 0;
+
+    let paid = 0;
+    for (const wh of warehouses) {
+      let handlingUnits = 0;
+      for (const w of wh.workshops)
+        for (const eq of w.equipment)
+          if (!eq.isBroken && eq.wearAndTear < 1.0 && WarehouseRentalService.HANDLING_SKUS.has(eq.catalogProduct.sku))
+            handlingUnits++;
+      const staff = wh.employees.filter(e => !e.isOnStrike && WarehouseRentalService.HANDLING_PROFS.has(e.profession)).length;
+      // Потрібні і техніка, і персонал — інакше 0 (склад без інвестицій не заробляє).
+      if (handlingUnits === 0 || staff === 0) continue;
+
+      const staffFactor = 1 + Math.min(staff, 4) * 0.15;   // до +60%
+      const income = Math.min(
+        WarehouseRentalService.THREE_PL_BASE * Math.min(handlingUnits, 5) * staffFactor,
+        WarehouseRentalService.THREE_PL_CAP,
+      );
+      const rounded = Math.round(income);
+      if (rounded <= 0) continue;
+
+      await this.db.$transaction([
+        this.db.player.update({ where: { id: wh.playerId }, data: { cashBalance: { increment: rounded } } }),
+        this.db.financialLog.create({
+          data: {
+            playerId: wh.playerId, category: 'REVENUE_B2B', amountUah: rounded,
+            description: `3PL-послуги складу "${wh.name}" (${handlingUnits} од. техніки, ${staff} персоналу)`,
+            tickNumber,
+          },
+        }),
+      ]);
+      paid++;
+    }
+    return paid;
+  }
 }

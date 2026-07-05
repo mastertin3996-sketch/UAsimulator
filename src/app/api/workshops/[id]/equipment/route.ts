@@ -43,12 +43,15 @@ export async function GET(_req: NextRequest, { params }: Params) {
   // TEXTILE_FACTORY: базові (FURNACE/SAWMILL для «важких» рецептів) + профільні верстати (Wave 2)
   const TEXTILE_SKUS = ['EQ-FURNACE','EQ-SAWMILL',
                         'EQ-SPINNINGMILL','EQ-LOOM','EQ-KNITMACHINE','EQ-SEWINGLINE','EQ-DYEINGVAT'];
+  // WAREHOUSE: складська техніка (Wave 3)
+  const WAREHOUSE_SKUS = ['EQ-RACKING','EQ-FORKLIFT','EQ-CLIMATE','EQ-COLDROOM','EQ-WMS'];
   // entType is Prisma EnterpriseType string; triple-equals comparison
   const allowedSkus = entType === 'RETAIL_STORE'    ? RETAIL_SKUS
                     : entType === 'OFFICE'           ? OFFICE_SKUS
                     : entType === 'AGRO_FARM'        ? AGRO_SKUS
                     : entType === 'FOOD_PROCESSING'  ? FOOD_SKUS
                     : entType === 'TEXTILE_FACTORY'  ? TEXTILE_SKUS
+                    : entType === 'WAREHOUSE'        ? WAREHOUSE_SKUS
                     : FACTORY_SKUS;
 
   const catalogItems = await prisma.product.findMany({

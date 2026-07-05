@@ -264,6 +264,8 @@ export class TickEngine {
         .catch(e => console.error(`[Tick ${tickNumber}] Syndicate votes failed:`, e)),
       this.warehouseRents.processRentals(tickNumber)
         .catch(e => console.error(`[Tick ${tickNumber}] Warehouse rentals failed:`, e)),
+      this.warehouseRents.processStorageServices(tickNumber)
+        .catch(e => console.error(`[Tick ${tickNumber}] Warehouse 3PL services failed:`, e)),
       this.agro.processLocalWeather(tickNumber)
         .catch(e => console.error(`[Tick ${tickNumber}] Agro weather failed:`, e)),
       this.agro.processForwardContracts(tickNumber)

@@ -195,6 +195,10 @@ const PROF_UA: Record<string, string> = {
   CHEESEMAKER: "Сировар", BREWER: "Пивовар",
   // Текстиль
   SPINNER: "Прядильник", GARMENT_WORKER: "Швачка", DYER: "Фарбувальник",
+  // Склад / логістика
+  WAREHOUSE_MANAGER: "Завідувач складу", FORKLIFT_OPERATOR: "Оператор навантажувача",
+  INVENTORY_CLERK: "Комірник",
+  DISPATCHER: "Диспетчер", MECHANIC: "Механік", LOGISTICIAN: "Логіст",
 };
 
 const PROF_SALARY: Record<string, number> = {
@@ -211,6 +215,8 @@ const PROF_SALARY: Record<string, number> = {
   WEAVER: 21_000, TAILOR: 23_000,
   MILLER: 20_000, BAKER: 21_000, BUTCHER: 22_000, CHEESEMAKER: 24_000, BREWER: 25_000,
   SPINNER: 20_000, GARMENT_WORKER: 19_000, DYER: 22_000,
+  WAREHOUSE_MANAGER: 28_000, FORKLIFT_OPERATOR: 18_000, INVENTORY_CLERK: 19_000,
+  DISPATCHER: 24_000, MECHANIC: 23_000, LOGISTICIAN: 30_000,
 };
 
 // Які професії доступні для кожного типу підприємства
@@ -222,11 +228,15 @@ const AGRO_PROFS       = ["AGRONOMIST","COMBINE_OPERATOR","FIELD_WORKER","GRAIN_
 const AGRO_ADMIN_PROFS = ["MANAGER","ACCOUNTANT","DRIVER"];
 const TEXTILE_PROFS    = ["WEAVER","TAILOR","SPINNER","GARMENT_WORKER","DYER"];
 const FOOD_PROFS       = ["MILLER","BAKER","BUTCHER","CHEESEMAKER","BREWER"];
+const WAREHOUSE_PROFS  = ["WAREHOUSE_MANAGER","FORKLIFT_OPERATOR","INVENTORY_CLERK"];
+const LOGISTICS_PROFS  = ["DISPATCHER","MECHANIC","LOGISTICIAN","DRIVER"];
 
 function professionsForType(enterpriseType: string): string[] {
   if (enterpriseType === "RETAIL_STORE") return [...UNIVERSAL_PROFS, ...RETAIL_PROFS];
   if (enterpriseType === "RD_LABORATORY") return [...UNIVERSAL_PROFS, ...PRODUCTION_PROFS, ...LAB_PROFS];
   if (enterpriseType === "AGRO_FARM") return [...AGRO_ADMIN_PROFS, ...AGRO_PROFS];
+  if (enterpriseType === "WAREHOUSE") return [...UNIVERSAL_PROFS, ...WAREHOUSE_PROFS];
+  if (enterpriseType === "LOGISTICS_HUB") return [...UNIVERSAL_PROFS, ...LOGISTICS_PROFS];
   if (enterpriseType === "TEXTILE_FACTORY") return [...UNIVERSAL_PROFS, ...PRODUCTION_PROFS, ...TEXTILE_PROFS];
   if (enterpriseType === "FOOD_PROCESSING") return [...UNIVERSAL_PROFS, ...PRODUCTION_PROFS, ...FOOD_PROFS];
   return [...UNIVERSAL_PROFS, ...PRODUCTION_PROFS];

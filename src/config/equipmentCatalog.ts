@@ -262,6 +262,59 @@ const TEXTILE_SPECS: Record<string, EquipmentSpec> = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// WAREHOUSE EQUIPMENT (Wave 3 — ємність, обробка, холодовий ланцюг, WMS)
+// ─────────────────────────────────────────────────────────────────────────────
+//   EQ-RACKING    0.05 kW — стелажні системи (пасивні, LED-підсвітка)
+//   EQ-FORKLIFT   3.0 kW  — електронавантажувач (зарядка АКБ, усереднено)
+//   EQ-CLIMATE    8.0 kW  — система клімат-контролю (HVAC) ~6–10 кВт
+//   EQ-COLDROOM   18 kW   — холодильна камера (компресор) ~15–22 кВт (cold-chain)
+//   EQ-WMS        1.5 kW  — сервер+термінали системи керування складом
+// ─────────────────────────────────────────────────────────────────────────────
+
+const WAREHOUSE_SPECS: Record<string, EquipmentSpec> = {
+  'EQ-RACKING': {
+    nameUa:              'Стелажні системи',
+    energyConsumptionKw: 0.05,
+    wearRatePerTick:     0.002,
+    baseQualityModifier: 1.0,
+    footprintM2:         60,
+    basePriceUah:        120_000,
+  },
+  'EQ-FORKLIFT': {
+    nameUa:              'Навантажувач',
+    energyConsumptionKw: 3.0,
+    wearRatePerTick:     0.008,
+    baseQualityModifier: 1.0,
+    footprintM2:         12,
+    basePriceUah:        180_000,
+  },
+  'EQ-CLIMATE': {
+    nameUa:              'Клімат-контроль',
+    energyConsumptionKw: 8.0,
+    wearRatePerTick:     0.005,
+    baseQualityModifier: 1.0,
+    footprintM2:         20,
+    basePriceUah:        220_000,
+  },
+  'EQ-COLDROOM': {
+    nameUa:              'Холодильна камера',
+    energyConsumptionKw: 18,
+    wearRatePerTick:     0.005,
+    baseQualityModifier: 1.0,
+    footprintM2:         50,
+    basePriceUah:        340_000,
+  },
+  'EQ-WMS': {
+    nameUa:              'Система WMS',
+    energyConsumptionKw: 1.5,
+    wearRatePerTick:     0.004,
+    baseQualityModifier: 1.0,
+    footprintM2:         8,
+    basePriceUah:        160_000,
+  },
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // RETAIL EQUIPMENT
 // ─────────────────────────────────────────────────────────────────────────────
 //
@@ -467,6 +520,7 @@ export const EQUIPMENT_CATALOG: Readonly<Record<string, EquipmentSpec>> = {
   ...FACTORY_SPECS,
   ...FOOD_SPECS,
   ...TEXTILE_SPECS,
+  ...WAREHOUSE_SPECS,
   ...RETAIL_SPECS,
   ...OFFICE_SPECS,
 } as const;
