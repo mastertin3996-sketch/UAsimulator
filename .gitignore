@@ -4,10 +4,10 @@ node_modules/
 # Build output
 dist/
 
-# Environment variables — never commit real secrets
-.env
-.env.local
-.env.*.local
+# Environment variables — never commit real secrets.
+# Ignore ALL .env* files, keep only the placeholder template.
+.env*
+!.env.example
 
 # Logs
 *.log
@@ -29,6 +29,5 @@ coverage/
 
 .vercel
 .next
-.env.local
 virtunomix-api-reference/
 express-legacy/
