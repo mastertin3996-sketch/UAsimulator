@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, type Mock } from 'vitest';
 import type { PrismaClient } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { mockDeep, mockReset, type DeepMockProxy } from 'vitest-mock-extended';
@@ -154,12 +154,13 @@ describe('MarketService.matchOrders', () => {
 describe('MarketService.updateNpcMarketPrices', () => {
   it('clamps a chronically-undersupplied referencePrice to 1.4x the base price', async () => {
     prismaMock.player.findFirst.mockResolvedValue(null as never); // no derzhprom configured
-    prismaMock.npcDemand.groupBy.mockResolvedValueOnce([
+    // groupBy has heavily-overloaded typing that mockDeep can't expose mock methods on — cast to Mock.
+    (prismaMock.npcDemand.groupBy as unknown as Mock).mockResolvedValueOnce([
       { productId: 'bread-id', _sum: { baseUnitsPerDay: 6211 }, _avg: { referencePrice: new Decimal(1597.80) } },
-    ] as never);
-    prismaMock.marketOrder.groupBy.mockResolvedValueOnce([
+    ]);
+    (prismaMock.marketOrder.groupBy as unknown as Mock).mockResolvedValueOnce([
       { productId: 'bread-id', _sum: { quantityTotal: 400 } }, // fillRatio ~0.064 -> deficit -> upward drift
-    ] as never);
+    ]);
     prismaMock.product.findMany.mockResolvedValueOnce([{ id: 'bread-id', sku: 'FG-BREAD' }] as never);
     prismaMock.npcDemand.updateMany.mockResolvedValue({} as never);
     prismaMock.$transaction.mockImplementation((arr: unknown) => Promise.all(arr as Promise<unknown>[]) as never);

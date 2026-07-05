@@ -26,6 +26,12 @@ const PROF_UA: Record<Profession, string> = {
   MILKMAID: "Доярка", MILKING_OPERATOR: "Оператор доїльної станції",
   DEBONER: "Обвалювальник", SLAUGHTER_TECH: "Технік цеху забою",
   WEAVER: "Ткач", TAILOR: "Кравець",
+  MILLER: "Мірошник", BAKER: "Пекар", BUTCHER: "М'ясник",
+  CHEESEMAKER: "Сировар", BREWER: "Пивовар",
+  SPINNER: "Прядильник", GARMENT_WORKER: "Швачка", DYER: "Фарбувальник",
+  WAREHOUSE_MANAGER: "Завідувач складу", FORKLIFT_OPERATOR: "Оператор навантажувача",
+  INVENTORY_CLERK: "Комірник",
+  DISPATCHER: "Диспетчер", MECHANIC: "Механік", LOGISTICIAN: "Логіст",
 };
 
 const TYPE_NAME: Record<EnterpriseType, string> = {

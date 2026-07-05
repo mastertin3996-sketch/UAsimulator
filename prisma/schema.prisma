@@ -49,6 +49,24 @@ enum Profession {
   SLAUGHTER_TECH     // AGRO_FARM: технік цеху забою — обов'язковий для цеху забою
   WEAVER             // TEXTILE_FACTORY: ткач — +5%/особу (макс 3) до виробництва тканини (SF-FABRIC)
   TAILOR             // TEXTILE_FACTORY: кравець — +5%/особу (макс 3) до пошиву одягу/трикотажу (FG-CLOTHING, FG-KNITWEAR)
+  // FOOD_PROCESSING — профільні професії (+5%/особу, макс 3, гейт за SKU виходу)
+  MILLER             // мірошник — борошно/крохмаль/цукор
+  BAKER              // пекар — хліб/паста/торт/печиво/пельмені
+  BUTCHER            // м'ясник — м'ясні FG
+  CHEESEMAKER        // сировар — молочні FG
+  BREWER             // пивовар — пиво/спирт
+  // TEXTILE_FACTORY — профільні професії
+  SPINNER            // прядильник — тканини/нитки
+  GARMENT_WORKER     // швачка — одяг/білизна
+  DYER               // фарбувальник — +якість текстильних FG
+  // WAREHOUSE — профільні професії
+  WAREHOUSE_MANAGER  // завskлад — керує ємністю та 3PL-доходом
+  FORKLIFT_OPERATOR  // оператор навантажувача — пропускна здатність
+  INVENTORY_CLERK    // комірник — облік/ефективність
+  // LOGISTICS_HUB — профільні професії
+  DISPATCHER         // диспетчер — координація замовлень
+  MECHANIC           // механік — обслуговування флоту
+  LOGISTICIAN        // логіст — оптимізація тарифів/маршрутів
 }
 
 enum EnterpriseType {
