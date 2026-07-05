@@ -46,6 +46,7 @@ import { SyndicateVoteService }      from './SyndicateVoteService';
 import { WarehouseRentalService }    from './WarehouseRentalService';
 import { NpcCompetitorService }          from './NpcCompetitorService';
 import { AgroService }                   from './AgroService';
+import { FoodProcessingService }          from './FoodProcessingService';
 import { CreditScoreService }            from './CreditScoreService';
 import { LogisticsFreightService }       from './LogisticsFreightService';
 import { B2bTransferService }            from './B2bTransferService';
@@ -113,6 +114,7 @@ export class TickEngine {
   private readonly warehouseRents:   WarehouseRentalService;
   private readonly npcCompetitors:   NpcCompetitorService;
   private readonly agro:             AgroService;
+  private readonly foodProcessing:   FoodProcessingService;
   private readonly creditScore:      CreditScoreService;
   private readonly freightSvc:       LogisticsFreightService;
   private readonly b2bTransfer:      B2bTransferService;
@@ -148,6 +150,7 @@ export class TickEngine {
     this.warehouseRents  = new WarehouseRentalService(prismaClient);
     this.npcCompetitors  = new NpcCompetitorService(prismaClient);
     this.agro            = new AgroService(prismaClient);
+    this.foodProcessing  = new FoodProcessingService(prismaClient);
     this.creditScore     = new CreditScoreService(prismaClient);
     this.freightSvc      = new LogisticsFreightService(prismaClient);
     this.b2bTransfer     = new B2bTransferService(prismaClient);
@@ -273,6 +276,8 @@ export class TickEngine {
         .catch(e => console.error(`[Tick ${tickNumber}] Grain moisture failed:`, e)),
       this.agro.updatePlantedSeasonTick(tickNumber)
         .catch(e => console.error(`[Tick ${tickNumber}] Planted season tick failed:`, e)),
+      this.foodProcessing.processPerishability()
+        .catch(e => console.error(`[Tick ${tickNumber}] Food perishability failed:`, e)),
       this.db.retailListing.updateMany({
         where: { promotionActive: true, promotionEndTick: { lte: tickNumber } },
         data:  { promotionActive: false, promotionEndTick: null },

@@ -179,6 +179,15 @@ async function main() {
     { sku: 'FG-BUTTER',           name: 'Butter',            nameUa: 'Вершкове масло',          category: 'FINISHED_GOOD', unit: 'kg',   baseWeightKg: 1 },
     { sku: 'FG-SAUSAGE',          name: 'Sausage',           nameUa: 'Ковбаса',                 category: 'FINISHED_GOOD', unit: 'kg',   baseWeightKg: 1 },
     { sku: 'FG-HONEY',            name: 'Natural Honey',     nameUa: 'Мед натуральний',         category: 'FINISHED_GOOD', unit: 'kg',   baseWeightKg: 1.4 },
+    // ── FOOD_PROCESSING Wave 1: нові напівфабрикати (вхідні) + готові продукти ──
+    { sku: 'SF-DOUGH',            name: 'Dough',             nameUa: 'Тісто',                   category: 'SEMI_FINISHED', unit: 'kg',   baseWeightKg: 1 },
+    { sku: 'SF-MINCE',            name: 'Minced Meat',       nameUa: 'Фарш',                    category: 'SEMI_FINISHED', unit: 'kg',   baseWeightKg: 1 },
+    { sku: 'FG-YOGURT',           name: 'Yogurt',            nameUa: 'Йогурт',                  category: 'FINISHED_GOOD', unit: 'kg',   baseWeightKg: 1 },
+    { sku: 'FG-SOURCREAM',        name: 'Sour Cream',        nameUa: 'Сметана',                 category: 'FINISHED_GOOD', unit: 'kg',   baseWeightKg: 1 },
+    { sku: 'FG-COOKIES',          name: 'Cookies',           nameUa: 'Печиво',                  category: 'FINISHED_GOOD', unit: 'kg',   baseWeightKg: 1 },
+    { sku: 'FG-DUMPLINGS',        name: 'Dumplings',         nameUa: 'Пельмені',                category: 'FINISHED_GOOD', unit: 'kg',   baseWeightKg: 1 },
+    { sku: 'FG-MAYO',             name: 'Mayonnaise',        nameUa: 'Майонез',                 category: 'FINISHED_GOOD', unit: 'kg',   baseWeightKg: 1 },
+    { sku: 'FG-CANNED-MEAT',      name: 'Canned Meat',       nameUa: 'Тушонка',                 category: 'FINISHED_GOOD', unit: 'unit', baseWeightKg: 0.5 },
     // ── Будівельні матеріали (RAW_MATERIAL / SEMI_FINISHED) ─────────────────
     // Ціни-орієнтири 2026 (UAH/тонна або UAH/шт):
     //   Цемент М500:    3 800 UAH/т  (2.8 т = 1 м³ бетону М300)
@@ -204,6 +213,12 @@ async function main() {
     { sku: 'EQ-DAIRYLINE',  name:'Dairy Processing Line',   nameUa:'Молочна лінія',              category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
     { sku: 'EQ-SILO',       name:'Grain Silo',               nameUa:'Силос (зерносховище)',        category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
     { sku: 'EQ-BEEHIVE',    name:'Beehive',                  nameUa:'Вулик (пасіка)',              category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
+    // Equipment items — food processing (Wave 1)
+    { sku: 'EQ-BAKELINE',         name:'Bakery Line',           nameUa:'Хлібопекарська лінія',        category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
+    { sku: 'EQ-MEATLINE',         name:'Meat Processing Line',  nameUa:'М’ясопереробна лінія',        category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
+    { sku: 'EQ-CHEESEVAT',        name:'Cheese Vat',            nameUa:'Сироварний чан',              category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
+    { sku: 'EQ-BOTTLING',         name:'Bottling Line',         nameUa:'Лінія розливу',               category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
+    { sku: 'EQ-REFRIGERATOR-IND', name:'Industrial Refrigerator', nameUa:'Промислова холодильна камера', category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
     // Equipment items — retail
     { sku: 'EQ-CASHREGISTER',name:'Cash Register',           nameUa:'Касовий апарат',             category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
     { sku: 'EQ-POSTERMINAL', name:'POS Terminal',            nameUa:'POS-термінал',               category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
@@ -336,6 +351,55 @@ async function main() {
       ticksToComplete: 2,             laborHoursPerUnit: 0.07, baseQuality: 8.5, powerKwhPerUnit: 0.12,
       inputs:  [{ sku: 'RM-MILK', qty: 1.8 }, { sku: 'SF-SUGAR', qty: 0.25 }],
       outputs: [{ sku: 'FG-CONDENSED-MILK', qty: 1.0 }],
+    },
+    // ── FOOD_PROCESSING Wave 1: нові рецепти ──
+    {
+      name: 'Dough Kneading',         enterpriseType: 'FOOD_PROCESSING',
+      ticksToComplete: 1,             laborHoursPerUnit: 0.05, baseQuality: 7.5, powerKwhPerUnit: 0.09,
+      inputs:  [{ sku: 'SF-FLOUR', qty: 0.75 }],
+      outputs: [{ sku: 'SF-DOUGH', qty: 1.0 }],
+    },
+    {
+      name: 'Meat Mincing',           enterpriseType: 'FOOD_PROCESSING',
+      ticksToComplete: 1,             laborHoursPerUnit: 0.06, baseQuality: 7.6, powerKwhPerUnit: 0.11,
+      inputs:  [{ sku: 'RM-PIGS', qty: 0.012 }], // ~83 кг фаршу з голови свині
+      outputs: [{ sku: 'SF-MINCE', qty: 1.0 }],
+    },
+    {
+      name: 'Yogurt Production',      enterpriseType: 'FOOD_PROCESSING',
+      ticksToComplete: 1,             laborHoursPerUnit: 0.07, baseQuality: 8.0, powerKwhPerUnit: 0.10,
+      inputs:  [{ sku: 'RM-MILK', qty: 1.1 }, { sku: 'SF-SUGAR', qty: 0.08 }],
+      outputs: [{ sku: 'FG-YOGURT', qty: 1.0 }],
+    },
+    {
+      name: 'Sour Cream Production',  enterpriseType: 'FOOD_PROCESSING',
+      ticksToComplete: 1,             laborHoursPerUnit: 0.06, baseQuality: 8.1, powerKwhPerUnit: 0.09,
+      inputs:  [{ sku: 'RM-MILK', qty: 1.6 }],
+      outputs: [{ sku: 'FG-SOURCREAM', qty: 1.0 }],
+    },
+    {
+      name: 'Cookie Baking',          enterpriseType: 'FOOD_PROCESSING',
+      ticksToComplete: 2,             laborHoursPerUnit: 0.08, baseQuality: 7.9, powerKwhPerUnit: 0.16,
+      inputs:  [{ sku: 'SF-FLOUR', qty: 0.6 }, { sku: 'SF-SUGAR', qty: 0.3 }, { sku: 'FG-BUTTER', qty: 0.12 }],
+      outputs: [{ sku: 'FG-COOKIES', qty: 1.0 }],
+    },
+    {
+      name: 'Dumpling Making',        enterpriseType: 'FOOD_PROCESSING',
+      ticksToComplete: 2,             laborHoursPerUnit: 0.10, baseQuality: 7.8, powerKwhPerUnit: 0.14,
+      inputs:  [{ sku: 'SF-DOUGH', qty: 0.55 }, { sku: 'SF-MINCE', qty: 0.45 }],
+      outputs: [{ sku: 'FG-DUMPLINGS', qty: 1.0 }],
+    },
+    {
+      name: 'Mayonnaise Production',  enterpriseType: 'FOOD_PROCESSING',
+      ticksToComplete: 1,             laborHoursPerUnit: 0.06, baseQuality: 7.7, powerKwhPerUnit: 0.10,
+      inputs:  [{ sku: 'FG-SUNOIL', qty: 0.65 }, { sku: 'FG-EGGS', qty: 0.05 }],
+      outputs: [{ sku: 'FG-MAYO', qty: 1.0 }],
+    },
+    {
+      name: 'Meat Canning',           enterpriseType: 'FOOD_PROCESSING',
+      ticksToComplete: 2,             laborHoursPerUnit: 0.09, baseQuality: 8.0, powerKwhPerUnit: 0.20,
+      inputs:  [{ sku: 'FG-MEAT', qty: 0.55 }],
+      outputs: [{ sku: 'FG-CANNED-MEAT', qty: 1.0 }],
     },
     // AGRO_FARM — рослинництво і тваринництво
     {
@@ -579,6 +643,13 @@ async function main() {
     'RM-CORN-ORG':        { baseUnits:  12,  priceUah: 7_200, elasticity: -1.3, qualityWeight: 0.80 }, // органічна кукурудза (B2B)
     // ── ПАСІКА ───────────────────────────────────────────────────────────────
     'FG-HONEY':           { baseUnits:  45,  priceUah:   380, elasticity: -1.1, qualityWeight: 0.75 }, // мед натуральний
+    // ── FOOD_PROCESSING Wave 1 ─────────────────────────────────────────────────
+    'FG-YOGURT':          { baseUnits: 180,  priceUah:    65, elasticity: -1.0, qualityWeight: 0.55 }, // йогурт
+    'FG-SOURCREAM':       { baseUnits: 120,  priceUah:    75, elasticity: -1.0, qualityWeight: 0.55 }, // сметана
+    'FG-COOKIES':         { baseUnits:  90,  priceUah:   130, elasticity: -1.2, qualityWeight: 0.65 }, // печиво
+    'FG-DUMPLINGS':       { baseUnits: 110,  priceUah:   160, elasticity: -1.1, qualityWeight: 0.65 }, // пельмені
+    'FG-MAYO':            { baseUnits: 100,  priceUah:    95, elasticity: -1.0, qualityWeight: 0.50 }, // майонез
+    'FG-CANNED-MEAT':     { baseUnits:  80,  priceUah:   120, elasticity: -1.0, qualityWeight: 0.60 }, // тушонка
   };
 
   // Попит з боку будівельної галузі (B2B-орієнтований, але частина йде через роздріб)

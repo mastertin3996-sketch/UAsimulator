@@ -24,6 +24,8 @@ export const NPC_BASE_PRICES: Record<string, number> = {
   'SF-SUGAR':       15.0,
   'SF-CORN-STARCH': 11.0,
   'SF-MALT':        18.0,
+  'SF-DOUGH':       14.0,  // тісто (вхідний н/ф — Wave 1)
+  'SF-MINCE':      150.0,  // фарш (вхідний н/ф — Wave 1)
   // Напівфабрикати промислові
   'SF-STEEL':       42.0,
   'SF-PLANKS':      15.0,

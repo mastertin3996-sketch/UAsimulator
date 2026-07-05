@@ -247,3 +247,71 @@ describe('ProductionService.processProduction', () => {
     expect(utilisationByWorkshop.get('ws-2')).toBe(0);
   });
 });
+
+describe('ProductionService FOOD_PROCESSING bonuses (Wave 1)', () => {
+  function stubGlobalLookups(eqSkus: Array<{ id: string; sku: string }> = []) {
+    prismaMock.product.findFirst.mockResolvedValue(null as never);
+    prismaMock.macroEvent.findMany.mockResolvedValue([] as never);
+    prismaMock.license.findMany.mockResolvedValue([] as never);
+    prismaMock.product.findMany.mockResolvedValue(eqSkus as never); // EQ-* catalog → productIdToSku
+  }
+
+  // Build a FOOD_PROCESSING enterprise producing `outputSku`, with `count` employees of `profession`,
+  // and one equipment unit whose catalogProductId is `eqProductId`.
+  function makeFood(outputSku: string, profession: string, count: number, eqProductId = 'eq-generic') {
+    const employees = Array.from({ length: count }, (_, i) => ({
+      isOnStrike: false, efficiency: 1.0, mood: 1.0, profession, workshopId: 'ws-1', id: `emp-${i}`,
+    }));
+    return {
+      id: 'ent-1', type: 'FOOD_PROCESSING', employees,
+      landPlot: null, extraFieldAreaM2: 0, localWeatherMod: 1.0,
+      inventory: [{ id: 'inv-input', productId: 'input-1', quantity: 1000, avgQuality: 6 }],
+      farmMachinery: [], livestockHerds: [],
+      workshops: [{
+        id: 'ws-1', footprintM2: 100, maxCapacity: 20, currentVolume: 0, plantedSeasonTick: null,
+        equipment: [{ status: 'NEW', wearAndTear: 0, isBroken: false, catalogProductId: eqProductId }],
+        productionOrders: [{
+          id: 'order-1', targetQuantity: 1000, completedQuantity: 0, ticksRemaining: 10,
+          recipe: {
+            id: 'recipe-1', powerKwhPerUnit: 1,
+            inputs: [{ productId: 'input-1', quantityPerUnit: 1 }],
+            outputs: [{ quantityPerUnit: 1, product: { sku: outputSku, nameUa: 'X' } }],
+          },
+        }],
+      }],
+    };
+  }
+
+  async function runUnits(ent: ReturnType<typeof makeFood>, eqSkus: Array<{ id: string; sku: string }> = []) {
+    stubGlobalLookups(eqSkus);
+    prismaMock.enterprise.findMany.mockResolvedValueOnce([ent] as never).mockResolvedValueOnce([] as never);
+    prismaMock.enterpriseInventory.update.mockResolvedValue({} as never);
+    prismaMock.enterpriseInventory.create.mockResolvedValue({} as never);
+    prismaMock.productionOrder.update.mockResolvedValue({} as never);
+    const svc = new ProductionService(prismaMock);
+    const { results } = await svc.processProduction('player-1');
+    return results[0]?.unitsProduced ?? 0;
+  }
+
+  it('BAKER boosts a baked SKU by ~5%/person (×1.15 at 3) vs same-headcount non-baker', async () => {
+    const withBakers   = await runUnits(makeFood('FG-BREAD', 'BAKER', 3));
+    const withOperators = await runUnits(makeFood('FG-BREAD', 'OPERATOR', 3));
+    expect(withOperators).toBeGreaterThan(0);
+    expect(withBakers / withOperators).toBeCloseTo(1.15, 2);
+  });
+
+  it('BAKER does NOT boost a non-baked (mill) SKU — cross-family isolation', async () => {
+    const bakerMilling    = await runUnits(makeFood('SF-FLOUR', 'BAKER', 3));
+    const operatorMilling = await runUnits(makeFood('SF-FLOUR', 'OPERATOR', 3));
+    expect(operatorMilling).toBeGreaterThan(0);
+    expect(bakerMilling / operatorMilling).toBeCloseTo(1.0, 2);
+  });
+
+  it('EQ-BAKELINE multiplies a baked SKU by 1.25 vs equal-health non-bakeline equipment', async () => {
+    const eqMap = [{ id: 'eq-bakeline', sku: 'EQ-BAKELINE' }, { id: 'eq-furnace', sku: 'EQ-FURNACE' }];
+    const withBakeline = await runUnits(makeFood('FG-BREAD', 'OPERATOR', 3, 'eq-bakeline'), eqMap);
+    const withFurnace  = await runUnits(makeFood('FG-BREAD', 'OPERATOR', 3, 'eq-furnace'),  eqMap);
+    expect(withFurnace).toBeGreaterThan(0);
+    expect(withBakeline / withFurnace).toBeCloseTo(1.25, 2);
+  });
+});

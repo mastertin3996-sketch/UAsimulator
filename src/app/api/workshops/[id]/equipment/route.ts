@@ -37,10 +37,14 @@ export async function GET(_req: NextRequest, { params }: Params) {
                        'EQ-SERVER','EQ-PBXPHONE','EQ-AIRCON','EQ-COFFEEMACH','EQ-OFFICESAFE'];
   const FACTORY_SKUS = ['EQ-MILLGRIND','EQ-OILPRESS','EQ-FURNACE','EQ-TRACTOR','EQ-SAWMILL','EQ-DAIRYLINE'];
   const AGRO_SKUS    = ['EQ-TRACTOR','EQ-SILO','EQ-BEEHIVE','EQ-IRRIGATION','EQ-MILKING_STATION','EQ-SLAUGHTER_POULTRY','EQ-SLAUGHTER_PIGS','EQ-SLAUGHTER_CATTLE'];
+  // FOOD_PROCESSING: базові переробні (MILLGRIND/OILPRESS/FURNACE/DAIRYLINE) + профільні лінії (Wave 1)
+  const FOOD_SKUS    = ['EQ-MILLGRIND','EQ-OILPRESS','EQ-FURNACE','EQ-DAIRYLINE',
+                        'EQ-BAKELINE','EQ-MEATLINE','EQ-CHEESEVAT','EQ-BOTTLING','EQ-REFRIGERATOR-IND'];
   // entType is Prisma EnterpriseType string; triple-equals comparison
-  const allowedSkus = entType === 'RETAIL_STORE' ? RETAIL_SKUS
-                    : entType === 'OFFICE'        ? OFFICE_SKUS
-                    : entType === 'AGRO_FARM'     ? AGRO_SKUS
+  const allowedSkus = entType === 'RETAIL_STORE'   ? RETAIL_SKUS
+                    : entType === 'OFFICE'          ? OFFICE_SKUS
+                    : entType === 'AGRO_FARM'       ? AGRO_SKUS
+                    : entType === 'FOOD_PROCESSING' ? FOOD_SKUS
                     : FACTORY_SKUS;
 
   const catalogItems = await prisma.product.findMany({

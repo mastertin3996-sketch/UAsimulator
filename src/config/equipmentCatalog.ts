@@ -156,6 +156,59 @@ const FACTORY_SPECS: Record<string, EquipmentSpec> = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// FOOD_PROCESSING EQUIPMENT (Wave 1 — профільні лінії, +yield/quality у FOOD-гілці ProductionService)
+// ─────────────────────────────────────────────────────────────────────────────
+//   EQ-BAKELINE          28 kW — тунельна хлібопекарська піч + тістоміс ~25–35 кВт
+//   EQ-MEATLINE          32 kW — м'ясопереробна лінія (кутер + шприц + термокамера) ~30 кВт
+//   EQ-CHEESEVAT         20 kW — сироварний чан з мішалкою + водяна сорочка ~18–25 кВт
+//   EQ-BOTTLING          18 kW — лінія розливу/фасування рідин ~15–22 кВт
+//   EQ-REFRIGERATOR-IND  24 kW — промислова холодильна камера (компресор) ~20–30 кВт (cold-chain)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const FOOD_SPECS: Record<string, EquipmentSpec> = {
+  'EQ-BAKELINE': {
+    nameUa:              'Хлібопекарська лінія',
+    energyConsumptionKw: 28,
+    wearRatePerTick:     0.007,
+    baseQualityModifier: 0.95,
+    footprintM2:         40,
+    basePriceUah:        320_000,
+  },
+  'EQ-MEATLINE': {
+    nameUa:              'М’ясопереробна лінія',
+    energyConsumptionKw: 32,
+    wearRatePerTick:     0.009, // ножі, шнеки, термокамери — вища зношуваність
+    baseQualityModifier: 0.94,
+    footprintM2:         50,
+    basePriceUah:        420_000,
+  },
+  'EQ-CHEESEVAT': {
+    nameUa:              'Сироварний чан',
+    energyConsumptionKw: 20,
+    wearRatePerTick:     0.006,
+    baseQualityModifier: 0.96,
+    footprintM2:         30,
+    basePriceUah:        280_000,
+  },
+  'EQ-BOTTLING': {
+    nameUa:              'Лінія розливу',
+    energyConsumptionKw: 18,
+    wearRatePerTick:     0.006,
+    baseQualityModifier: 0.95,
+    footprintM2:         35,
+    basePriceUah:        260_000,
+  },
+  'EQ-REFRIGERATOR-IND': {
+    nameUa:              'Промислова холодильна камера',
+    energyConsumptionKw: 24,
+    wearRatePerTick:     0.005,
+    baseQualityModifier: 1.0, // не впливає на якість виробництва; тримає холодовий ланцюг (антипсування)
+    footprintM2:         45,
+    basePriceUah:        350_000,
+  },
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // RETAIL EQUIPMENT
 // ─────────────────────────────────────────────────────────────────────────────
 //
@@ -359,6 +412,7 @@ const OFFICE_SPECS: Record<string, EquipmentSpec> = {
 
 export const EQUIPMENT_CATALOG: Readonly<Record<string, EquipmentSpec>> = {
   ...FACTORY_SPECS,
+  ...FOOD_SPECS,
   ...RETAIL_SPECS,
   ...OFFICE_SPECS,
 } as const;

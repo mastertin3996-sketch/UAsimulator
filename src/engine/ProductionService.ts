@@ -40,6 +40,14 @@ export class ProductionService {
     'SF-COMPOST':    [1.0, 1.0, 1.0,  1.00],
   };
 
+  // FOOD_PROCESSING — родини SKU виходу для профільних професій/техніки (Wave 1)
+  private static readonly FOOD_MILL_SKUS   = new Set(['SF-FLOUR', 'SF-CORN-STARCH', 'SF-SUGAR', 'SF-MALT']);
+  private static readonly FOOD_BAKE_SKUS   = new Set(['FG-BREAD', 'FG-PASTA', 'FG-CAKE', 'FG-COOKIES', 'FG-DUMPLINGS']);
+  private static readonly FOOD_MEAT_SKUS   = new Set(['FG-MEAT', 'FG-SAUSAGE', 'FG-BEEF', 'FG-PORK', 'FG-CHICKEN', 'FG-CANNED-MEAT']);
+  private static readonly FOOD_DAIRY_SKUS  = new Set(['FG-CHEESE', 'FG-BUTTER', 'FG-CONDENSED-MILK', 'FG-MILK', 'FG-YOGURT', 'FG-SOURCREAM']);
+  private static readonly FOOD_BREW_SKUS   = new Set(['FG-BEER', 'FG-SPIRITS']);
+  private static readonly FOOD_LIQUID_SKUS = new Set(['FG-MILK', 'FG-SUNOIL', 'FG-YOGURT', 'FG-SOURCREAM', 'FG-BEER', 'FG-SPIRITS', 'FG-CORN-SYRUP', 'FG-MAYO']);
+
   async processProduction(playerId: string, tickNumber?: bigint): Promise<{
     results: ProductionResult[];
     utilisationByWorkshop: Map<string, number>;
@@ -391,6 +399,33 @@ export class ProductionService {
             }
 
             baseCapacity = ws.footprintM2 * soilMult * seasonMult * rotationMult * droughtMult * irrigationBonus * agronomistMult * plantingBonus * fieldAreaMult * localWeatherMod * tractorBonus * tractorOperatorGate * machineryMult * fertBonus * pestMult * seedMult * diseaseMult * plowBonus * cultivateBonus * sowBonus * npkMult * moistureMult * growthStageMult * intercroppingMult * combineBonus * fieldWorkerMult * beekeeperMult * irrigatorMult * livestockMult * honeyGate;
+          } else if (ent.type === 'FOOD_PROCESSING') {
+            // Профільні бонуси (opt-in множники ≥1.0 — підприємства без цих професій/техніки
+            // отримують baseCapacity = ws.maxCapacity, як і раніше; жодних регресій).
+            const outputSku = recipe.outputs[0]?.product.sku ?? '';
+            const MILL_SKUS  = ProductionService.FOOD_MILL_SKUS;
+            const BAKE_SKUS  = ProductionService.FOOD_BAKE_SKUS;
+            const MEAT_SKUS  = ProductionService.FOOD_MEAT_SKUS;
+            const DAIRY_SKUS = ProductionService.FOOD_DAIRY_SKUS;
+            const BREW_SKUS  = ProductionService.FOOD_BREW_SKUS;
+            const LIQUID_SKUS = ProductionService.FOOD_LIQUID_SKUS;
+            // Професії: +5%/особу (макс 3), лише для відповідної родини SKU виходу
+            const proMult = (applies: boolean, prof: string) =>
+              applies ? 1 + Math.min(wsEmployees.filter(e => e.profession === prof).length, 3) * 0.05 : 1.0;
+            const millerMult      = proMult(MILL_SKUS.has(outputSku),  'MILLER');
+            const bakerMult       = proMult(BAKE_SKUS.has(outputSku),  'BAKER');
+            const butcherMult     = proMult(MEAT_SKUS.has(outputSku),  'BUTCHER');
+            const cheesemakerMult = proMult(DAIRY_SKUS.has(outputSku), 'CHEESEMAKER');
+            const brewerMult      = proMult(BREW_SKUS.has(outputSku),  'BREWER');
+            // Профільна техніка: множник урожайності за родиною SKU (потрібна робоча одиниця)
+            const hasEq = (sku: string) => ws.equipment.some(eq =>
+              (productIdToSku.get(eq.catalogProductId) ?? '') === sku && !eq.isBroken && eq.wearAndTear < 1.0);
+            const bakelineMult  = (BAKE_SKUS.has(outputSku)   && hasEq('EQ-BAKELINE'))  ? 1.25 : 1.0;
+            const meatlineMult  = (MEAT_SKUS.has(outputSku)   && hasEq('EQ-MEATLINE'))  ? 1.25 : 1.0;
+            const cheesevatMult = (DAIRY_SKUS.has(outputSku)  && hasEq('EQ-CHEESEVAT')) ? 1.20 : 1.0;
+            const bottlingMult  = (LIQUID_SKUS.has(outputSku) && hasEq('EQ-BOTTLING'))  ? 1.15 : 1.0;
+            baseCapacity = ws.maxCapacity * millerMult * bakerMult * butcherMult * cheesemakerMult * brewerMult
+                         * bakelineMult * meatlineMult * cheesevatMult * bottlingMult;
           } else if (ent.type === 'TEXTILE_FACTORY') {
             // Бонус-мультиплікатори (не штрафні — щоб не зачепити існуючі підприємства без цих професій)
             const outputSku = recipe.outputs[0]?.product.sku ?? '';
