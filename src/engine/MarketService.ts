@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import type { TradeResult, NpcSaleResult } from '../types';
 import { weightedAvgQuality } from '../types';
+import { NPC_BASE_PRICES, NPC_PRICE_CEILING_MULT } from '../config/npcBasePrices';
 
 export class MarketService {
   private _derzhpromId: string | null = null;
@@ -888,7 +889,14 @@ export class MarketService {
       const sku           = skuById.get(d.productId) ?? '';
       const seasonFactors = MarketService.SEASONAL_PRICE_FACTORS[sku];
       const seasonMult    = seasonFactors ? seasonFactors[seasonIdx] : 1.0;
-      const newRef        = Math.max(1, currentRef * (1 + pctChange) * seasonMult);
+      let   newRef        = Math.max(1, currentRef * (1 + pctChange) * seasonMult);
+
+      // Стеля: за хронічного дефіциту довідкова ціна не може компаундитись необмежено —
+      // не більше NPC_PRICE_CEILING_MULT (×1.4) від базової ціни товару.
+      const basePrice = NPC_BASE_PRICES[sku];
+      if (basePrice) {
+        newRef = Math.min(newRef, basePrice * NPC_PRICE_CEILING_MULT);
+      }
 
       if (Math.abs(newRef - currentRef) >= 0.001) {
         updates.push({ productId: d.productId, newRef });
@@ -1062,81 +1070,7 @@ export class MarketService {
       select: { id: true },
     });
 
-    // Базові ціни (UAH/кг або UAH/од) для сировини та напівфабрикатів
-    const FALLBACK_PRICES: Record<string, number> = {
-      // Зернові / польові культури
-      'RM-WHEAT':        3.8,
-      'RM-CORN':         3.2,
-      'RM-SUNFL':        6.5,
-      'RM-SUGBEET':      1.4,
-      'RM-BARLEY':       3.0,
-      // Тваринництво-сировина
-      'RM-MILK':         8.5,
-      // Метали / важка промисловість
-      'RM-IRONORE':      4.2,
-      'RM-COAL':         3.6,
-      // Деревина
-      'RM-LUMBER':      12.0,
-      // Текстиль
-      'RM-COTTON':      28.0,
-      'RM-WOOL':        45.0,
-      // Напівфабрикати харчові
-      'SF-FLOUR':        8.5,
-      'SF-SUGAR':       15.0,
-      'SF-CORN-STARCH': 11.0,
-      'SF-MALT':        18.0,
-      // Напівфабрикати промислові
-      'SF-STEEL':       42.0,
-      'SF-PLANKS':      15.0,
-      'SF-FABRIC':      65.0,
-      'SF-YARN':        55.0,
-      // Тваринництво (жива худоба — ціна за голову)
-      'RM-LIVESTOCK':      250,
-      'RM-CATTLE':      45_000,
-      'RM-PIGS':        12_000,
-      'RM-POULTRY':       120,
-      // Молочне
-      'SF-MILK':           8.5,
-      // Органічні культури (ціна за тонну)
-      'RM-WHEAT-ORG':  9_500,
-      'RM-CORN-ORG':   7_200,
-      // Готові товари (FG) — ціна з NpcDemand, тут fallback
-      'FG-BREAD':         32,
-      'FG-SUNOIL':        75,
-      'FG-MILK':          28,
-      'FG-PASTA':         52,
-      'FG-STEEL-P':      185,
-      'FG-FURN':        8_500,
-      'FG-MEAT':         175,
-      'FG-CAKE':         145,
-      'FG-CORN-SYRUP':    95,
-      'FG-CONDENSED-MILK':88,
-      'FG-CHEESE':       185,
-      'FG-BUTTER':       220,
-      'FG-SAUSAGE':      210,
-      'FG-HONEY':        380,
-      'FG-BEER':          55,
-      'FG-SPIRITS':      220,
-      'FG-CLOTHING':     850,
-      'FG-KNITWEAR':     680,
-      'FG-BEEF':         290,
-      'FG-PORK':         195,
-      'FG-CHICKEN':      125,
-      'FG-EGGS':          58,
-      // Агро витратники
-      'AG-FERTILIZER':  200.0,  // концентрат мінеральний, ₴/кг
-      'SF-COMPOST':       1.3,  // органічний компост, ₴/кг
-      'RM-PESTICIDE':    4.5,
-      // Будівельні матеріали (ціна за одиницю: тонна або шт)
-      'CM-CEMENT':    3_800,
-      'CM-SAND':        450,
-      'CM-GRAVEL':      800,
-      'CM-BRICK':         9,
-      'CM-CONCRETE':  4_500,
-      'CM-REBAR':    42_000,
-      'CM-TIMBER':   12_000,
-    };
-    const NPC_SELL_SKUS = Object.keys(FALLBACK_PRICES);
+    const NPC_SELL_SKUS = Object.keys(NPC_BASE_PRICES);
 
     // Скасувати старі NPC sell-ордери
     await this.prisma.marketOrder.updateMany({
@@ -1166,7 +1100,7 @@ export class MarketService {
     // Будуємо дані для batch-операцій
     const toCreate: { productId: string; sku: string; price: number; qty: number }[] = [];
     for (const product of products) {
-      const ref = priceMap.get(product.id) ?? FALLBACK_PRICES[product.sku] ?? 0;
+      const ref = priceMap.get(product.id) ?? NPC_BASE_PRICES[product.sku] ?? 0;
       if (ref === 0) continue;
       toCreate.push({ productId: product.id, sku: product.sku, price: +(ref * 1.05).toFixed(2), qty: Math.round(300 + Math.random() * 1200) });
     }

@@ -150,3 +150,28 @@ describe('MarketService.matchOrders', () => {
     expect(prismaMock.marketTrade.create).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('MarketService.updateNpcMarketPrices', () => {
+  it('clamps a chronically-undersupplied referencePrice to 1.4x the base price', async () => {
+    prismaMock.player.findFirst.mockResolvedValue(null as never); // no derzhprom configured
+    prismaMock.npcDemand.groupBy.mockResolvedValueOnce([
+      { productId: 'bread-id', _sum: { baseUnitsPerDay: 6211 }, _avg: { referencePrice: new Decimal(1597.80) } },
+    ] as never);
+    prismaMock.marketOrder.groupBy.mockResolvedValueOnce([
+      { productId: 'bread-id', _sum: { quantityTotal: 400 } }, // fillRatio ~0.064 -> deficit -> upward drift
+    ] as never);
+    prismaMock.product.findMany.mockResolvedValueOnce([{ id: 'bread-id', sku: 'FG-BREAD' }] as never);
+    prismaMock.npcDemand.updateMany.mockResolvedValue({} as never);
+    prismaMock.$transaction.mockImplementation((arr: unknown) => Promise.all(arr as Promise<unknown>[]) as never);
+
+    const svc = new MarketService(prismaMock);
+    await svc.updateNpcMarketPrices(0n);
+
+    // Base price for FG-BREAD is 32 -> ceiling 32 * 1.4 = 44.8, regardless of how far
+    // the deficit-driven drift would otherwise have pushed the reference price.
+    expect(prismaMock.npcDemand.updateMany).toHaveBeenCalledWith({
+      where: { productId: 'bread-id' },
+      data:  { referencePrice: 44.8 },
+    });
+  });
+});
