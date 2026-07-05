@@ -477,6 +477,9 @@ export class MarketService {
           inventory:      true,
           retailListings: { where: { isActive: true } },
           landPlot:       { include: { city: true } },
+          // Wave 5: персонал + техніка магазину для retailBoost (конверсія продажів)
+          employees:      { select: { profession: true, isOnStrike: true } },
+          workshops:      { select: { equipment: { select: { isBroken: true, wearAndTear: true, catalogProduct: { select: { sku: true } } } } } },
         },
       }),
       this.prisma.npcDemand.findMany({
@@ -498,6 +501,29 @@ export class MarketService {
     );
     const playerMap      = new Map(allPlayers.map(p => [p.id, new Decimal(p.cashBalance.toString())]));
     const exciseShopIds  = new Set(exciseLicenses.map(l => l.enterpriseId));
+
+    // ── Wave 5: retailBoost — конверсія продажів від персоналу+техніки ──────
+    // Строго ≥1.0 із cap +30% → магазин без персоналу/техніки = поведінка як раніше.
+    const retailBoostByShop = new Map<string, number>();
+    for (const shop of allShops) {
+      const staff = shop.employees.filter(e => !e.isOnStrike);
+      const merchandisers  = staff.filter(e => e.profession === 'MERCHANDISER').length;
+      const salesAssistants = staff.filter(e => e.profession === 'SALES_ASSISTANT').length;
+      const hasCashier      = staff.some(e => e.profession === 'CASHIER');
+      const opEq = new Set<string>();
+      for (const w of shop.workshops)
+        for (const eq of w.equipment)
+          if (!eq.isBroken && eq.wearAndTear < 1.0) opEq.add(eq.catalogProduct.sku);
+      const hasCheckout = opEq.has('EQ-CASHREGISTER') || opEq.has('EQ-SELFCHECKOUT');
+      let boost = 1.0
+        + Math.min(merchandisers, 3) * 0.03    // мерчандайзинг: до +9%
+        + Math.min(salesAssistants, 5) * 0.02  // консультанти: до +10%
+        + (hasCashier && hasCheckout ? 0.04 : 0) // касир + каса: пропускна +4%
+        + (opEq.has('EQ-PRICETAG') ? 0.02 : 0)   // електронні цінники: +2%
+        + (opEq.has('EQ-CCTV') ? 0.02 : 0);      // відеонагляд: −усушка, +2%
+      boost = Math.min(boost, 1.30);
+      if (boost !== 1.0) retailBoostByShop.set(shop.id, boost);
+    }
 
     // Group shops and demands by city
     const shopsByCity = new Map<string, typeof allShops>();
@@ -546,7 +572,8 @@ export class MarketService {
             const pFactor      = refPrice > 0 ? Math.pow(refPrice / Math.max(price, 0.01), Math.abs(Number(demand.priceElasticity))) : 1;
             const promoBoost   = promoActive ? 1.5 : 1.0;
             const campaignBoost = campaignPlayerIds.has(shop.playerId) ? 1.20 : 1.0;
-            return { shop, inv, price, score: qFactor * pFactor * promoBoost * campaignBoost };
+            const retailBoost   = retailBoostByShop.get(shop.id) ?? 1.0;
+            return { shop, inv, price, score: qFactor * pFactor * promoBoost * campaignBoost * retailBoost };
           })
           .filter((c): c is NonNullable<typeof c> => c !== null);
 
