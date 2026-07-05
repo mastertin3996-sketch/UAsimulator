@@ -12,7 +12,7 @@ export async function POST() {
   const newPrestigeLevel = (current?.prestigeLevel ?? 0) + 1;
   // М'який престиж: кожен reset дає невеликий постійний бонус до стартового капіталу
   // та кредитного рейтингу — reset відчувається як прогрес, а не втрата.
-  const prestigeStartCash   = 50_000 + newPrestigeLevel * 5_000;
+  const prestigeStartCash   = 500_000 + newPrestigeLevel * 5_000;
   const prestigeCreditBonus = Math.min(1.0, newPrestigeLevel * 0.1);
 
   // Get enterprise IDs first (needed for nested deletes)
