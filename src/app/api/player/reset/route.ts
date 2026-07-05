@@ -59,8 +59,10 @@ export async function POST() {
     prisma.regulatoryInspection.deleteMany({ where: { playerId } }),
     prisma.warehouse.deleteMany({ where: { playerId } }),
     prisma.office.deleteMany({ where: { playerId } }),
+    prisma.trainingSession.deleteMany({ where: { playerId } }),
     prisma.employee.deleteMany({ where: { enterpriseId: { in: entIds } } }),
     prisma.equipment.deleteMany({ where: { workshopId: { in: wsIds } } }),
+    prisma.productionOrder.deleteMany({ where: { workshopId: { in: wsIds } } }),
     prisma.workshop.deleteMany({ where: { enterpriseId: { in: entIds } } }),
     prisma.enterprise.deleteMany({ where: { playerId } }),
     // Звільнити всі орендовані / куплені ділянки
