@@ -6,8 +6,10 @@ export default function StaffTab({ enterpriseId }: { enterpriseId: string }) {
   const [employees, setEmployees] = useState<{
     id: string; name: string; profession: string; salary: number; mood: number;
     efficiency: number; baseEfficiency: number; qualificationLevel: number; isOnStrike: boolean;
+    workshopId: string | null; workshopName: string | null;
     activeTraining: { targetLevel: number; ticksRemaining: number; ticksRequired: number } | null;
   }[]>([]);
+  const [workshops, setWorkshops] = useState<{ id: string; name: string }[]>([]);
   const [loading,  setLoading]  = useState(true);
   const [training, setTraining] = useState<string | null>(null);
   const [msgs,     setMsgs]     = useState<Record<string, string>>({});
@@ -18,6 +20,10 @@ export default function StaffTab({ enterpriseId }: { enterpriseId: string }) {
       .then(d => setEmployees(d.employees ?? []))
       .catch(() => {})
       .finally(() => setLoading(false));
+    fetch(`/api/enterprises/${enterpriseId}`)
+      .then(r => r.json())
+      .then(d => setWorkshops((d.enterprise?.workshops ?? []).map((w: { id: string; name: string }) => ({ id: w.id, name: w.name }))))
+      .catch(() => {});
   };
   useEffect(() => { load(); }, [enterpriseId]);
 
@@ -33,14 +39,30 @@ export default function StaffTab({ enterpriseId }: { enterpriseId: string }) {
     setTraining(null);
   };
 
+  const reassign = async (empId: string, workshopId: string | null) => {
+    await fetch(`/api/enterprises/${enterpriseId}/employees/${empId}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body:   JSON.stringify({ workshopId }),
+    });
+    load();
+  };
+
   const TRAINING_COST: Record<number, number> = { 1: 8_000, 2: 12_000, 3: 18_000, 4: 24_000, 5: 35_000 };
   const moodColor = (m: number) => m < 0.3 ? "text-red-400" : m < 0.6 ? "text-amber-400" : "text-emerald-400";
 
   if (loading) return <p className="text-gray-500 text-sm">Завантаження...</p>;
   if (employees.length === 0) return <p className="text-gray-500 text-sm">Немає найнятих працівників.</p>;
 
+  const unassignedCount = employees.filter(e => !e.workshopId).length;
+
   return (
     <div className="space-y-3">
+      {unassignedCount > 0 && (
+        <div className="rounded-lg border border-amber-800/40 bg-amber-950/10 px-3 py-2 text-xs text-amber-400">
+          Неприкріплені ({unassignedCount}) — не впливають на виробництво жодного цеху
+        </div>
+      )}
+
       {employees.map(e => (
         <div key={e.id} className="rounded-xl border border-gray-800 bg-gray-900 p-4 space-y-3">
           <div className="flex items-start justify-between gap-3">
@@ -67,6 +89,18 @@ export default function StaffTab({ enterpriseId }: { enterpriseId: string }) {
               <p className="text-gray-500">Базова eff.</p>
               <p className="font-semibold text-white">{(e.baseEfficiency * 100).toFixed(0)}%</p>
             </div>
+          </div>
+
+          <div>
+            <p className="text-xs text-gray-500 mb-1">Цех</p>
+            <select
+              value={e.workshopId ?? ""}
+              onChange={ev => reassign(e.id, ev.target.value || null)}
+              className={`w-full rounded-lg border px-2 py-1.5 text-xs bg-gray-800 focus:outline-none focus:border-emerald-500 ${e.workshopId ? "border-gray-700 text-white" : "border-amber-700/50 text-amber-400"}`}
+            >
+              <option value="">— без цеху —</option>
+              {workshops.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+            </select>
           </div>
 
           {e.activeTraining ? (

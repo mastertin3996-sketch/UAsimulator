@@ -78,6 +78,7 @@ interface Employee {
   id: string; firstName: string; lastName: string; profession: string;
   salaryUah: number; mood: number; efficiency: number;
   isOnStrike: boolean; hiredAt: string; accruedSalaryUah: number;
+  workshopId: string | null;
 }
 
 interface Equipment {
@@ -237,10 +238,11 @@ function MoodBar({ value }: { value: number }) {
 // ─── Hire Modal ────────────────────────────────────────────────────────────────
 
 function HireModal({
-  enterpriseId, enterpriseType, onHired, onClose,
-}: { enterpriseId: string; enterpriseType: string; onHired: () => void; onClose: () => void }) {
+  enterpriseId, enterpriseType, workshops, onHired, onClose,
+}: { enterpriseId: string; enterpriseType: string; workshops: { id: string; name: string }[]; onHired: () => void; onClose: () => void }) {
   const professions = professionsForType(enterpriseType).map(k => [k, PROF_UA[k] ?? k] as [string, string]);
   const [profession, setProfession] = useState(professions[0][0]);
+  const [workshopId, setWorkshopId] = useState(workshops[0]?.id ?? "");
   const [salary, setSalary]         = useState(PROF_SALARY[professions[0][0]] ?? 20000);
   const [saving, setSaving]         = useState(false);
   const [err, setErr]               = useState("");
@@ -251,11 +253,12 @@ function HireModal({
   }
 
   async function hire() {
+    if (!workshopId) { setErr("Спершу побудуйте хоча б один цех"); return; }
     setSaving(true); setErr("");
     const res = await fetch(`/api/enterprises/${enterpriseId}/hire`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ profession, salaryUah: salary }),
+      body: JSON.stringify({ profession, workshopId, salaryUah: salary }),
     });
     const data = await res.json();
     if (!res.ok) { setErr(data.error ?? "Помилка"); setSaving(false); return; }
@@ -273,6 +276,23 @@ function HireModal({
         {err && <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{err}</p>}
 
         <div className="space-y-3">
+          <div>
+            <label className="text-xs text-gray-500">Цех</label>
+            <div className="relative mt-1">
+              <select
+                value={workshopId}
+                onChange={e => setWorkshopId(e.target.value)}
+                disabled={workshops.length === 0}
+                className="w-full rounded-lg border border-gray-800 bg-gray-900 px-3 py-2 text-sm text-white appearance-none focus:outline-none focus:border-emerald-500 pr-8 disabled:opacity-50"
+              >
+                {workshops.length === 0
+                  ? <option value="">Немає жодного цеху</option>
+                  : workshops.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+              </select>
+              <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+            </div>
+          </div>
+
           <div>
             <label className="text-xs text-gray-500">Посада</label>
             <div className="relative mt-1">
@@ -321,7 +341,7 @@ function HireModal({
 
         <div className="flex gap-2 pt-1">
           <Button variant="outline" className="flex-1" onClick={onClose} disabled={saving}>Скасувати</Button>
-          <Button className="flex-1" onClick={hire} disabled={saving}>
+          <Button className="flex-1" onClick={hire} disabled={saving || workshops.length === 0}>
             {saving ? <Loader2 size={13} className="animate-spin mr-1" /> : null}
             Найняти
           </Button>
@@ -844,6 +864,7 @@ function HRTab({
         <HireModal
           enterpriseId={enterprise.id}
           enterpriseType={enterprise.type}
+          workshops={enterprise.workshops}
           onHired={() => { setHireModal(false); onRefresh(); }}
           onClose={() => setHireModal(false)}
         />
@@ -1347,6 +1368,21 @@ function TeamColumn({
     onRefresh();
   }
 
+  async function reassign(employeeId: string, workshopId: string | null) {
+    await fetch(`/api/enterprises/${enterprise.id}/employees/${employeeId}`, {
+      method:  "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ workshopId }),
+    });
+    onRefresh();
+  }
+
+  const unassigned = employees.filter(e => !e.workshopId);
+  const groups: { id: string | null; name: string; employees: Employee[] }[] = [
+    ...enterprise.workshops.map(ws => ({ id: ws.id, name: ws.name, employees: employees.filter(e => e.workshopId === ws.id) })),
+    ...(unassigned.length > 0 ? [{ id: null, name: "Неприкріплені", employees: unassigned }] : []),
+  ];
+
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between px-3 py-2.5 border-b border-gray-800 bg-gray-900/50 sticky top-0 z-10">
@@ -1369,50 +1405,79 @@ function TeamColumn({
         </div>
       )}
 
+      {unassigned.length > 0 && (
+        <div className="mx-2 mt-2 rounded-lg border border-amber-800/40 bg-amber-950/10 px-3 py-2 text-[11px] text-amber-400 flex items-center gap-2">
+          <AlertCircle size={11} />
+          <span className="flex-1">{unassigned.length} без цеху — не впливають на виробництво</span>
+        </div>
+      )}
+
       <div className="flex-1 overflow-y-auto">
         {employees.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-32 text-gray-600">
             <Users size={20} className="mb-2" />
             <p className="text-xs">Немає персоналу</p>
           </div>
-        ) : employees.map(emp => {
-          const moodPct = Math.round(emp.mood * 100);
-          const moodBg  = moodPct >= 70 ? "bg-emerald-500" : moodPct >= 40 ? "bg-amber-500" : "bg-red-500";
-          const moodTxt = moodPct >= 70 ? "text-emerald-400" : moodPct >= 40 ? "text-amber-400" : "text-red-400";
-          const dotBg   = emp.isOnStrike ? "bg-red-400 animate-pulse" : moodPct >= 70 ? "bg-emerald-400" : moodPct >= 40 ? "bg-amber-400" : "bg-red-400";
-          return (
-            <div key={emp.id} className={cn(
-              "px-3 py-2.5 border-b border-gray-800/60 hover:bg-gray-800/20 transition-colors",
-              emp.isOnStrike ? "bg-red-950/10" : "",
+        ) : groups.map(group => (
+          <div key={group.id ?? "unassigned"}>
+            <div className={cn(
+              "px-3 py-1 text-[10px] uppercase tracking-wider sticky top-0 bg-gray-900/80",
+              group.id === null ? "text-amber-500" : "text-gray-600",
             )}>
-              <div className="flex items-center gap-2 mb-1.5">
-                <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", dotBg)} />
-                <span className="text-xs font-medium text-white truncate flex-1">
-                  {emp.firstName} {emp.lastName}
-                </span>
-                <button onClick={() => fireEmployee(emp.id)} disabled={firing === emp.id}
-                  aria-label="Звільнити"
-                  className="text-gray-700 hover:text-red-400 transition-colors shrink-0">
-                  {firing === emp.id ? <Loader2 size={11} className="animate-spin" /> : <Trash2 size={11} />}
-                </button>
-              </div>
-              <div className="flex items-center gap-1.5 pl-3.5">
-                <span className="text-xs text-gray-500 w-20 truncate shrink-0">
-                  {PROF_UA[emp.profession] ?? emp.profession}
-                </span>
-                <div className="flex-1 h-1.5 bg-gray-800 rounded-full overflow-hidden">
-                  <div className={cn("h-full rounded-full", moodBg)} style={{ width: `${moodPct}%` }} />
-                </div>
-                <span className={cn("text-xs font-mono w-9 text-right shrink-0", moodTxt)}>{moodPct}%</span>
-              </div>
-              <div className="pl-3.5 mt-0.5">
-                <span className="text-xs text-gray-600 font-mono">
-                  ₴{(emp.salaryUah / 1000).toFixed(0)}к/міс · {Math.round(emp.efficiency * 100)}% ефект.
-                </span>
-              </div>
+              {group.name} · {group.employees.length}
             </div>
-          );
-        })}
+            {group.employees.map(emp => {
+              const moodPct = Math.round(emp.mood * 100);
+              const moodBg  = moodPct >= 70 ? "bg-emerald-500" : moodPct >= 40 ? "bg-amber-500" : "bg-red-500";
+              const moodTxt = moodPct >= 70 ? "text-emerald-400" : moodPct >= 40 ? "text-amber-400" : "text-red-400";
+              const dotBg   = emp.isOnStrike ? "bg-red-400 animate-pulse" : moodPct >= 70 ? "bg-emerald-400" : moodPct >= 40 ? "bg-amber-400" : "bg-red-400";
+              return (
+                <div key={emp.id} className={cn(
+                  "px-3 py-2.5 border-b border-gray-800/60 hover:bg-gray-800/20 transition-colors",
+                  emp.isOnStrike ? "bg-red-950/10" : "",
+                )}>
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", dotBg)} />
+                    <span className="text-xs font-medium text-white truncate flex-1">
+                      {emp.firstName} {emp.lastName}
+                    </span>
+                    <button onClick={() => fireEmployee(emp.id)} disabled={firing === emp.id}
+                      aria-label="Звільнити"
+                      className="text-gray-700 hover:text-red-400 transition-colors shrink-0">
+                      {firing === emp.id ? <Loader2 size={11} className="animate-spin" /> : <Trash2 size={11} />}
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-1.5 pl-3.5">
+                    <span className="text-xs text-gray-500 w-20 truncate shrink-0">
+                      {PROF_UA[emp.profession] ?? emp.profession}
+                    </span>
+                    <div className="flex-1 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                      <div className={cn("h-full rounded-full", moodBg)} style={{ width: `${moodPct}%` }} />
+                    </div>
+                    <span className={cn("text-xs font-mono w-9 text-right shrink-0", moodTxt)}>{moodPct}%</span>
+                  </div>
+                  <div className="pl-3.5 mt-0.5">
+                    <span className="text-xs text-gray-600 font-mono">
+                      ₴{(emp.salaryUah / 1000).toFixed(0)}к/міс · {Math.round(emp.efficiency * 100)}% ефект.
+                    </span>
+                  </div>
+                  <div className="pl-3.5 mt-1">
+                    <select
+                      value={emp.workshopId ?? ""}
+                      onChange={e => reassign(emp.id, e.target.value || null)}
+                      className="w-full text-[10px] rounded border border-gray-800 bg-gray-900 px-1.5 py-1 text-gray-400 focus:outline-none focus:border-emerald-500"
+                    >
+                      <option value="">— без цеху —</option>
+                      {enterprise.workshops.map(ws => (
+                        <option key={ws.id} value={ws.id}>{ws.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ))}
       </div>
 
       {employees.length > 0 && (
@@ -1434,6 +1499,7 @@ function TeamColumn({
         <HireModal
           enterpriseId={enterprise.id}
           enterpriseType={enterprise.type}
+          workshops={enterprise.workshops}
           onHired={() => { setHireModal(false); onRefresh(); }}
           onClose={() => setHireModal(false)}
         />

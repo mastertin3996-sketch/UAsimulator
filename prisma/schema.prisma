@@ -695,6 +695,7 @@ model Workshop {
   enterprise       Enterprise        @relation(fields: [enterpriseId], references: [id])
   equipment        Equipment[]
   productionOrders ProductionOrder[]
+  employees        Employee[]
 
   @@index([enterpriseId])
 }
@@ -743,6 +744,8 @@ model Employee {
   id            String     @id @default(uuid())
   playerId      String
   enterpriseId  String
+  // Цех, до якого приписаний співробітник; NULL = неприкріплений (не впливає на виробництво жодного цеху)
+  workshopId    String?
   firstName     String
   lastName      String
   profession    Profession
@@ -768,11 +771,13 @@ model Employee {
 
   player          Player            @relation(fields: [playerId],     references: [id])
   enterprise      Enterprise        @relation(fields: [enterpriseId], references: [id])
+  workshop        Workshop?         @relation(fields: [workshopId],   references: [id], onDelete: SetNull)
   trainingSessions TrainingSession[]
 
   @@index([playerId])
   @@index([enterpriseId])
   @@index([profession])
+  @@index([workshopId])
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

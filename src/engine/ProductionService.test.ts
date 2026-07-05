@@ -103,7 +103,7 @@ describe('ProductionService.processProduction', () => {
     prismaMock.product.findMany.mockResolvedValue([] as never); // EQ-* catalog
   }
 
-  const employee = { isOnStrike: false, efficiency: 1.0, mood: 1.0, profession: 'CASHIER' };
+  const employee = { isOnStrike: false, efficiency: 1.0, mood: 1.0, profession: 'CASHIER', workshopId: 'ws-1' };
   const equipment = { status: 'NEW', wearAndTear: 0, isBroken: false, catalogProductId: 'eq-1' };
 
   function makeEnterprise(overrides: Record<string, unknown> = {}) {
@@ -206,5 +206,44 @@ describe('ProductionService.processProduction', () => {
     const { results } = await svc.processProduction('player-1');
 
     expect(results).toHaveLength(0);
+  });
+
+  it('produces nothing when the only employee is unassigned (workshopId null)', async () => {
+    stubGlobalLookups();
+    const ent = makeEnterprise({ employees: [{ ...employee, workshopId: null }] });
+    prismaMock.enterprise.findMany
+      .mockResolvedValueOnce([ent] as never)
+      .mockResolvedValueOnce([] as never);
+
+    const svc = new ProductionService(prismaMock);
+    const { results } = await svc.processProduction('player-1');
+
+    expect(results).toHaveLength(0);
+  });
+
+  it('only the workshop with assigned staff produces, in a 2-workshop enterprise', async () => {
+    stubGlobalLookups();
+    const base = makeEnterprise();
+    const ws1 = base.workshops[0]; // has productionOrders, staffed via `employee` fixture (workshopId 'ws-1')
+    const ws2 = {
+      ...ws1,
+      id: 'ws-2',
+      productionOrders: [{ ...ws1.productionOrders[0], id: 'order-2' }],
+    };
+    const ent = makeEnterprise({ workshops: [ws1, ws2] });
+    prismaMock.enterprise.findMany
+      .mockResolvedValueOnce([ent] as never)
+      .mockResolvedValueOnce([] as never);
+    prismaMock.enterpriseInventory.update.mockResolvedValue({} as never);
+    prismaMock.enterpriseInventory.create.mockResolvedValue({} as never);
+    prismaMock.productionOrder.update.mockResolvedValue({} as never);
+
+    const svc = new ProductionService(prismaMock);
+    const { results, utilisationByWorkshop } = await svc.processProduction('player-1');
+
+    expect(results).toHaveLength(1);
+    expect(results[0]).toMatchObject({ workshopId: 'ws-1' });
+    expect(utilisationByWorkshop.get('ws-1')).toBeGreaterThan(0);
+    expect(utilisationByWorkshop.get('ws-2')).toBe(0);
   });
 });

@@ -8,6 +8,7 @@ type Params = { params: Promise<{ id: string }> };
 
 const hireSchema = z.object({
   profession: z.string().min(1),
+  workshopId: z.string().min(1),
   salaryUah:  z.number().finite().optional(),
   firstName:  z.string().optional(),
   lastName:   z.string().optional(),
@@ -50,14 +51,17 @@ export async function POST(req: NextRequest, { params }: Params) {
   const rawBody = await req.json().catch(() => null);
   const parsed  = hireSchema.safeParse(rawBody);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Вкажіть profession" }, { status: 400 });
+    return NextResponse.json({ error: "Вкажіть profession і workshopId" }, { status: 400 });
   }
-  const { profession, salaryUah, firstName, lastName } = parsed.data;
+  const { profession, workshopId, salaryUah, firstName, lastName } = parsed.data;
 
   const validProfessions = Object.values(Profession) as string[];
   if (!validProfessions.includes(profession)) {
     return NextResponse.json({ error: "Невідома посада" }, { status: 400 });
   }
+
+  const workshop = await prisma.workshop.findFirst({ where: { id: workshopId, enterpriseId } });
+  if (!workshop) return NextResponse.json({ error: "Цех не знайдено" }, { status: 404 });
 
   const isMale    = Math.random() > 0.5;
   const fName     = firstName?.trim() || randomItem(isMale ? MALE_FIRST : FEMALE_FIRST);
@@ -68,7 +72,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   const employee = await prisma.employee.create({
     data: {
-      playerId, enterpriseId,
+      playerId, enterpriseId, workshopId,
       firstName: fName, lastName: lName,
       profession: profession as Profession,
       salaryUah: salary,
@@ -84,6 +88,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       id: employee.id,
       firstName: employee.firstName, lastName: employee.lastName,
       profession: employee.profession, salaryUah: Number(employee.salaryUah),
+      workshopId: employee.workshopId,
     },
   }, { status: 201 });
 }

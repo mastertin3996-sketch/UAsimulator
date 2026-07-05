@@ -46,7 +46,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
           id: true, firstName: true, lastName: true, profession: true,
           salaryUah: true, mood: true, efficiency: true, baseEfficiency: true,
           isOnStrike: true, strikeStartedTick: true, hiredAt: true,
-          accruedSalaryUah: true, lastPaidAt: true,
+          accruedSalaryUah: true, lastPaidAt: true, workshopId: true,
         },
       },
       workshops: {

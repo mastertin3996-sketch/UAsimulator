@@ -22,6 +22,7 @@ export async function GET(_req: Request, { params }: Params) {
       id: true, firstName: true, lastName: true, profession: true,
       salaryUah: true, mood: true, efficiency: true, qualificationLevel: true,
       isOnStrike: true, baseEfficiency: true,
+      workshopId: true, workshop: { select: { name: true } },
       trainingSessions: {
         where:   { isCompleted: false },
         select:  { id: true, targetLevel: true, ticksRemaining: true, ticksRequired: true },
@@ -43,6 +44,8 @@ export async function GET(_req: Request, { params }: Params) {
       baseEfficiency:    +e.baseEfficiency.toFixed(2),
       qualificationLevel: e.qualificationLevel,
       isOnStrike:        e.isOnStrike,
+      workshopId:        e.workshopId,
+      workshopName:      e.workshop?.name ?? null,
       activeTraining:    e.trainingSessions[0] ?? null,
     })),
   });

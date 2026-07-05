@@ -1151,6 +1151,9 @@ export class TickEngine {
       const eid = herd.enterprise.id;
 
       // FARM_WORKER gate: без різнороба — голодування та відсутність виходу
+      // Навмисно enterprise-wide (не по workshopId): LivestockHerd не має зв'язку
+      // з Workshop узагалі — стадо належить підприємству, а не конкретному цеху,
+      // тож "який цех" тут не має ігрового сенсу. Постійний виняток, не TODO.
       const allEmployees = (herd.enterprise as unknown as { employees?: { profession: string }[] }).employees ?? [];
       const farmWorkers = allEmployees.filter(e => e.profession === 'FARM_WORKER').length;
       if (farmWorkers === 0) {

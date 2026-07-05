@@ -661,6 +661,9 @@ export class AgroService {
       const hasIrrigation = farm.workshops.some(ws =>
         ws.equipment.some(eq => eq.name.includes('EQ-IRRIGATION'))
       );
+      // Навмисно enterprise-wide (не filter по workshopId): moistureLevel належить
+      // LandPlot, спільному на все підприємство, а не окремому цеху — "який цех" тут
+      // не має ігрового сенсу. Постійний виняток із workshop-scoped staffing, не TODO.
       const irrigators = farm.employees.filter(e => e.profession === 'IRRIGATOR').length;
 
       let delta = -baseEvap;
@@ -738,7 +741,7 @@ export class AgroService {
       select: {
         id: true,
         localWeatherMod: true,
-        employees: { select: { profession: true } },
+        employees: { select: { profession: true, workshopId: true } },
         workshops: {
           where: { isActive: true },
           select: {
@@ -756,13 +759,17 @@ export class AgroService {
     for (const farm of farms) {
       const localWeatherMod = farm.localWeatherMod ?? 1.0;
       const rainBonus = localWeatherMod > 1.1 ? 2 : 0;
-      const grainSpecialists = farm.employees.filter(e => e.profession === 'GRAIN_SPECIALIST').length;
 
       for (const ws of farm.workshops) {
         const hasCrop = ws.productionOrders
           .flatMap(po => po.recipe?.outputs ?? [])
           .some(o => FIELD_CROPS.has(o.product.sku));
         if (!hasCrop) continue;
+
+        // По цеху (workshopId === ws.id) — на відміну від processMoistureTick(),
+        // цей ефект уже й так пише в ws.grainMoisturePct, тобто прив'язка до
+        // конкретного цеху тут природна, а не адміністративна.
+        const grainSpecialists = farm.employees.filter(e => e.workshopId === ws.id && e.profession === 'GRAIN_SPECIALIST').length;
 
         const current = ws.grainMoisturePct ?? (BASE_MOISTURE[seasonIdx] + rainBonus);
 

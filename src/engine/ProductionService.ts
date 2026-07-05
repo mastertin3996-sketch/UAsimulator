@@ -183,18 +183,21 @@ export class ProductionService {
     };
 
     for (const ent of enterprises) {
-      const labourEff  = this.hrSvc.workshopLabourEfficiency(ent.employees);
-      const avgMood    = this.hrSvc.avgActiveMood(ent.employees); // 0.0–1.0
-      const moodFactor = avgMood * 10; // конвертуємо до 0–10 для формули якості
-
-      // Active (non-striking) staff count — shared across all workshops of this enterprise
-      const activeStaffCount = ent.employees.filter(e => !e.isOnStrike).length;
-
       for (const ws of ent.workshops) {
         if (ws.productionOrders.length === 0) {
           utilisationByWorkshop.set(ws.id, 0);
           continue;
         }
+
+        // Персонал, приписаний саме до цього цеху (workshop-scoped staffing).
+        // Неприкріплені співробітники (workshopId === null) свідомо не входять
+        // у жоден wsEmployees — вони не впливають на виробництво, доки гравець
+        // не призначить їх на конкретний цех.
+        const wsEmployees = ent.employees.filter(e => e.workshopId === ws.id);
+        const labourEff  = this.hrSvc.workshopLabourEfficiency(wsEmployees);
+        const avgMood    = this.hrSvc.avgActiveMood(wsEmployees); // 0.0–1.0
+        const moodFactor = avgMood * 10; // конвертуємо до 0–10 для формули якості
+        const activeStaffCount = wsEmployees.filter(e => !e.isOnStrike).length;
 
         const equipFactor  = this.equipmentSvc.workshopEquipmentFactor(ws.equipment);
         const equipQuality = this.equipmentSvc.workshopQualityFactor(ws.equipment); // 0–10
@@ -263,25 +266,28 @@ export class ProductionService {
             const irrigationBonus = (hasIrrigation && season === 1) ? 1.10 : 1.0;
 
             // AGRONOMIST: без агронома польові культури дають -40% (не hard zero, але значний штраф)
-            const agronomists    = ent.employees.filter(e => e.profession === 'AGRONOMIST').length;
+            const agronomists    = wsEmployees.filter(e => e.profession === 'AGRONOMIST').length;
             const agronomistMult = FIELD_CROPS.has(cropSku)
               ? (agronomists > 0 ? 1 + Math.min(agronomists, 2) * 0.08 : 0.60)
               : 1.0;
 
             // COMBINE_OPERATOR: +15% при збиранні FIELD_CROPS
-            const combineOps  = ent.employees.filter(e => e.profession === 'COMBINE_OPERATOR').length;
+            const combineOps  = wsEmployees.filter(e => e.profession === 'COMBINE_OPERATOR').length;
             const combineBonus = FIELD_CROPS.has(cropSku) ? 1 + Math.min(combineOps, 2) * 0.15 : 1.0;
 
             // FIELD_WORKER: +5% на польові роботи (стек до 3 осіб)
-            const fieldWorkers  = ent.employees.filter(e => e.profession === 'FIELD_WORKER').length;
+            const fieldWorkers  = wsEmployees.filter(e => e.profession === 'FIELD_WORKER').length;
             const fieldWorkerMult = FIELD_CROPS.has(cropSku) ? 1 + Math.min(fieldWorkers, 3) * 0.05 : 1.0;
 
             // BEEKEEPER: +25% до меду (тільки FG-HONEY)
-            const beekeepers  = ent.employees.filter(e => e.profession === 'BEEKEEPER').length;
+            const beekeepers  = wsEmployees.filter(e => e.profession === 'BEEKEEPER').length;
             const beekeeperMult = (cropSku === 'FG-HONEY') ? 1 + Math.min(beekeepers, 2) * 0.25 : 1.0;
 
-            // IRRIGATOR: зменшує штраф від посухи (зараз ефект у AgroService; тут +5% при зрошенні)
-            const irrigators  = ent.employees.filter(e => e.profession === 'IRRIGATOR').length;
+            // IRRIGATOR: зменшує штраф від посухи (зараз ефект у AgroService; тут +5% при зрошенні).
+            // Тут — по цеху (як і решта бонусів цього циклу). Окремий ефект вологості ґрунту в
+            // AgroService.processMoistureTick() навмисно лишається enterprise-wide — LandPlot.moistureLevel
+            // спільний на все підприємство, а не на цех (див. план workshop-scoped staffing).
+            const irrigators  = wsEmployees.filter(e => e.profession === 'IRRIGATOR').length;
             const irrigatorMult = (hasIrrigation && irrigators > 0) ? 1.05 : 1.0;
 
             // Planting bonus: +20% if field crop order runs in first 5 ticks of spring
@@ -302,7 +308,7 @@ export class ProductionService {
             const tractorBonus = hasTractor ? 1.30 : 1.0;
 
             // TRACTOR_OPERATOR: обов'язковий для польових культур — без нього 0 виробництва
-            const tractorOperators = ent.employees.filter(e => e.profession === 'TRACTOR_OPERATOR').length;
+            const tractorOperators = wsEmployees.filter(e => e.profession === 'TRACTOR_OPERATOR').length;
             const tractorOperatorGate = FIELD_CROPS.has(cropSku) ? (tractorOperators > 0 ? 1.0 : 0.0) : 1.0;
 
             // FarmMachinery bonuses: enterprise-level agro machines (Технiка вкладка)
@@ -388,8 +394,8 @@ export class ProductionService {
           } else if (ent.type === 'TEXTILE_FACTORY') {
             // Бонус-мультиплікатори (не штрафні — щоб не зачепити існуючі підприємства без цих професій)
             const outputSku = recipe.outputs[0]?.product.sku ?? '';
-            const weavers = ent.employees.filter(e => e.profession === 'WEAVER').length;
-            const tailors = ent.employees.filter(e => e.profession === 'TAILOR').length;
+            const weavers = wsEmployees.filter(e => e.profession === 'WEAVER').length;
+            const tailors = wsEmployees.filter(e => e.profession === 'TAILOR').length;
             // WEAVER: +5%/особу (макс 3) до виробництва тканини
             const weaverMult = (outputSku === 'SF-FABRIC') ? 1 + Math.min(weavers, 3) * 0.05 : 1.0;
             // TAILOR: +5%/особу (макс 3) до пошиву готового одягу/трикотажу
