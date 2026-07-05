@@ -19,6 +19,10 @@ export const NPC_BASE_PRICES: Record<string, number> = {
   // Текстиль
   'RM-COTTON':      28.0,
   'RM-WOOL':        45.0,
+  'RM-FLAX':        22.0,  // льон-сирець (вхідний — Wave 2)
+  'SF-LINEN':       90.0,  // лляна тканина (вхідний н/ф — Wave 2)
+  'SF-DENIM':       95.0,  // джинсова тканина (вхідний н/ф — Wave 2)
+  'SF-THREAD':      70.0,  // нитки швейні (вхідний н/ф — Wave 2)
   // Напівфабрикати харчові
   'SF-FLOUR':        8.5,
   'SF-SUGAR':       15.0,

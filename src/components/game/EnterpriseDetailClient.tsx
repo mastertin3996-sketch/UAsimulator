@@ -193,6 +193,8 @@ const PROF_UA: Record<string, string> = {
   // Харчова переробка
   MILLER: "Мірошник", BAKER: "Пекар", BUTCHER: "М'ясник",
   CHEESEMAKER: "Сировар", BREWER: "Пивовар",
+  // Текстиль
+  SPINNER: "Прядильник", GARMENT_WORKER: "Швачка", DYER: "Фарбувальник",
 };
 
 const PROF_SALARY: Record<string, number> = {
@@ -208,6 +210,7 @@ const PROF_SALARY: Record<string, number> = {
   MILKING_OPERATOR: 20_000, DEBONER: 21_000, SLAUGHTER_TECH: 19_000,
   WEAVER: 21_000, TAILOR: 23_000,
   MILLER: 20_000, BAKER: 21_000, BUTCHER: 22_000, CHEESEMAKER: 24_000, BREWER: 25_000,
+  SPINNER: 20_000, GARMENT_WORKER: 19_000, DYER: 22_000,
 };
 
 // Які професії доступні для кожного типу підприємства
@@ -217,7 +220,7 @@ const RETAIL_PROFS     = ["CASHIER","SALES_ASSISTANT","MERCHANDISER","SALES_REP"
 const LAB_PROFS        = ["RESEARCHER","DATA_SCIENTIST"];
 const AGRO_PROFS       = ["AGRONOMIST","COMBINE_OPERATOR","FIELD_WORKER","GRAIN_SPECIALIST","BEEKEEPER","LIVESTOCK_WORKER","IRRIGATOR","VETERINARIAN","TECHNICIAN","TRACTOR_OPERATOR","FARM_WORKER","MILKMAID","MILKING_OPERATOR","DEBONER","SLAUGHTER_TECH"];
 const AGRO_ADMIN_PROFS = ["MANAGER","ACCOUNTANT","DRIVER"];
-const TEXTILE_PROFS    = ["WEAVER","TAILOR"];
+const TEXTILE_PROFS    = ["WEAVER","TAILOR","SPINNER","GARMENT_WORKER","DYER"];
 const FOOD_PROFS       = ["MILLER","BAKER","BUTCHER","CHEESEMAKER","BREWER"];
 
 function professionsForType(enterpriseType: string): string[] {

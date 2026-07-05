@@ -315,3 +315,66 @@ describe('ProductionService FOOD_PROCESSING bonuses (Wave 1)', () => {
     expect(withBakeline / withFurnace).toBeCloseTo(1.25, 2);
   });
 });
+
+describe('ProductionService TEXTILE_FACTORY bonuses (Wave 2)', () => {
+  function stubGlobalLookups(eqSkus: Array<{ id: string; sku: string }> = []) {
+    prismaMock.product.findFirst.mockResolvedValue(null as never);
+    prismaMock.macroEvent.findMany.mockResolvedValue([] as never);
+    prismaMock.license.findMany.mockResolvedValue([] as never);
+    prismaMock.product.findMany.mockResolvedValue(eqSkus as never);
+  }
+  // TEXTILE_FACTORY minStaff=4, minWorkshopAreaM2=100 → 4 employees, footprint 150.
+  function makeTextile(outputSku: string, profession: string, count: number, eqProductId = 'eq-generic') {
+    const employees = Array.from({ length: count }, (_, i) => ({
+      isOnStrike: false, efficiency: 1.0, mood: 1.0, profession, workshopId: 'ws-1', id: `emp-${i}`,
+    }));
+    return {
+      id: 'ent-1', type: 'TEXTILE_FACTORY', employees,
+      landPlot: null, extraFieldAreaM2: 0, localWeatherMod: 1.0,
+      inventory: [{ id: 'inv-input', productId: 'input-1', quantity: 100000, avgQuality: 6 }],
+      farmMachinery: [], livestockHerds: [],
+      workshops: [{
+        id: 'ws-1', footprintM2: 150, maxCapacity: 20, currentVolume: 0, plantedSeasonTick: null,
+        equipment: [{ status: 'NEW', wearAndTear: 0, isBroken: false, catalogProductId: eqProductId }],
+        productionOrders: [{
+          id: 'order-1', targetQuantity: 100000, completedQuantity: 0, ticksRemaining: 10,
+          recipe: { id: 'recipe-1', powerKwhPerUnit: 1,
+            inputs: [{ productId: 'input-1', quantityPerUnit: 1 }],
+            outputs: [{ quantityPerUnit: 1, product: { sku: outputSku, nameUa: 'X' } }] },
+        }],
+      }],
+    };
+  }
+  async function runUnits(ent: ReturnType<typeof makeTextile>, eqSkus: Array<{ id: string; sku: string }> = []) {
+    stubGlobalLookups(eqSkus);
+    prismaMock.enterprise.findMany.mockResolvedValueOnce([ent] as never).mockResolvedValueOnce([] as never);
+    prismaMock.enterpriseInventory.update.mockResolvedValue({} as never);
+    prismaMock.enterpriseInventory.create.mockResolvedValue({} as never);
+    prismaMock.productionOrder.update.mockResolvedValue({} as never);
+    const svc = new ProductionService(prismaMock);
+    const { results } = await svc.processProduction('player-1');
+    return results[0]?.unitsProduced ?? 0;
+  }
+
+  it('SPINNER boosts a fabric SKU (×1.15 at 3+) vs same-headcount operators', async () => {
+    const withSpinners  = await runUnits(makeTextile('SF-LINEN', 'SPINNER', 4));
+    const withOperators = await runUnits(makeTextile('SF-LINEN', 'OPERATOR', 4));
+    expect(withOperators).toBeGreaterThan(0);
+    expect(withSpinners / withOperators).toBeCloseTo(1.15, 2);
+  });
+
+  it('SPINNER does NOT boost a garment SKU (cross-family isolation)', async () => {
+    const spinnerGarment  = await runUnits(makeTextile('FG-JEANS', 'SPINNER', 4));
+    const operatorGarment = await runUnits(makeTextile('FG-JEANS', 'OPERATOR', 4));
+    expect(operatorGarment).toBeGreaterThan(0);
+    expect(spinnerGarment / operatorGarment).toBeCloseTo(1.0, 2);
+  });
+
+  it('EQ-LOOM multiplies a fabric SKU by 1.20 vs equal-health non-loom equipment', async () => {
+    const eqMap = [{ id: 'eq-loom', sku: 'EQ-LOOM' }, { id: 'eq-furnace', sku: 'EQ-FURNACE' }];
+    const withLoom    = await runUnits(makeTextile('SF-LINEN', 'OPERATOR', 4, 'eq-loom'), eqMap);
+    const withFurnace = await runUnits(makeTextile('SF-LINEN', 'OPERATOR', 4, 'eq-furnace'), eqMap);
+    expect(withFurnace).toBeGreaterThan(0);
+    expect(withLoom / withFurnace).toBeCloseTo(1.20, 2);
+  });
+});

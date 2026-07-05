@@ -28,7 +28,7 @@ const PROF_UA: Record<Profession, string> = {
   WEAVER: "Ткач", TAILOR: "Кравець",
   MILLER: "Мірошник", BAKER: "Пекар", BUTCHER: "М'ясник",
   CHEESEMAKER: "Сировар", BREWER: "Пивовар",
-  SPINNER: "Прядильник", GARMENT_WORKER: "Швачка", DYER: "Фарбувальник",
+  SPINNER: "Прядильник", GARMENT_WORKER: "Швачка", DYER: "Фарбувальник", // TEXTILE Wave 2
   WAREHOUSE_MANAGER: "Завідувач складу", FORKLIFT_OPERATOR: "Оператор навантажувача",
   INVENTORY_CLERK: "Комірник",
   DISPATCHER: "Диспетчер", MECHANIC: "Механік", LOGISTICIAN: "Логіст",

@@ -209,6 +209,59 @@ const FOOD_SPECS: Record<string, EquipmentSpec> = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// TEXTILE_FACTORY EQUIPMENT (Wave 2 — верстати/машини, +yield/quality у TEXTILE-гілці)
+// ─────────────────────────────────────────────────────────────────────────────
+//   EQ-SPINNINGMILL  30 kW — прядильна машина (ватер/пневмопрядіння) ~25–35 кВт
+//   EQ-LOOM          22 kW — ткацький верстат (рапірний/пневморапірний) ~18–26 кВт
+//   EQ-KNITMACHINE   18 kW — в'язальна машина (кругла/плоска) ~15–22 кВт
+//   EQ-SEWINGLINE    12 kW — швейна лінія (промислові машини + розкрій) ~10–15 кВт
+//   EQ-DYEINGVAT     26 kW — фарбувально-оздоблювальний чан (нагрів + мішалка) ~22–30 кВт
+// ─────────────────────────────────────────────────────────────────────────────
+
+const TEXTILE_SPECS: Record<string, EquipmentSpec> = {
+  'EQ-SPINNINGMILL': {
+    nameUa:              'Прядильна машина',
+    energyConsumptionKw: 30,
+    wearRatePerTick:     0.008,
+    baseQualityModifier: 0.94,
+    footprintM2:         45,
+    basePriceUah:        380_000,
+  },
+  'EQ-LOOM': {
+    nameUa:              'Ткацький верстат',
+    energyConsumptionKw: 22,
+    wearRatePerTick:     0.008,
+    baseQualityModifier: 0.95,
+    footprintM2:         40,
+    basePriceUah:        300_000,
+  },
+  'EQ-KNITMACHINE': {
+    nameUa:              'В’язальна машина',
+    energyConsumptionKw: 18,
+    wearRatePerTick:     0.007,
+    baseQualityModifier: 0.95,
+    footprintM2:         35,
+    basePriceUah:        260_000,
+  },
+  'EQ-SEWINGLINE': {
+    nameUa:              'Швейна лінія',
+    energyConsumptionKw: 12,
+    wearRatePerTick:     0.006,
+    baseQualityModifier: 0.96,
+    footprintM2:         50,
+    basePriceUah:        220_000,
+  },
+  'EQ-DYEINGVAT': {
+    nameUa:              'Фарбувальний чан',
+    energyConsumptionKw: 26,
+    wearRatePerTick:     0.007,
+    baseQualityModifier: 1.0, // ефект — через якісний бонус DYER, не через baseQualityModifier
+    footprintM2:         30,
+    basePriceUah:        240_000,
+  },
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // RETAIL EQUIPMENT
 // ─────────────────────────────────────────────────────────────────────────────
 //
@@ -413,6 +466,7 @@ const OFFICE_SPECS: Record<string, EquipmentSpec> = {
 export const EQUIPMENT_CATALOG: Readonly<Record<string, EquipmentSpec>> = {
   ...FACTORY_SPECS,
   ...FOOD_SPECS,
+  ...TEXTILE_SPECS,
   ...RETAIL_SPECS,
   ...OFFICE_SPECS,
 } as const;

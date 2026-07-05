@@ -48,6 +48,14 @@ export class ProductionService {
   private static readonly FOOD_BREW_SKUS   = new Set(['FG-BEER', 'FG-SPIRITS']);
   private static readonly FOOD_LIQUID_SKUS = new Set(['FG-MILK', 'FG-SUNOIL', 'FG-YOGURT', 'FG-SOURCREAM', 'FG-BEER', 'FG-SPIRITS', 'FG-CORN-SYRUP', 'FG-MAYO']);
 
+  // TEXTILE_FACTORY — родини SKU для профільних професій/техніки (Wave 2)
+  private static readonly TEXTILE_FABRIC_SKUS  = new Set(['SF-FABRIC', 'SF-YARN', 'SF-LINEN', 'SF-DENIM', 'SF-THREAD']);
+  private static readonly TEXTILE_GARMENT_SKUS = new Set(['FG-CLOTHING', 'FG-KNITWEAR', 'FG-JEANS', 'FG-BEDDING', 'FG-WORKWEAR', 'FG-CARPET']);
+  private static readonly TEXTILE_DYE_SKUS = new Set([
+    'SF-FABRIC', 'SF-YARN', 'SF-LINEN', 'SF-DENIM', 'SF-THREAD',
+    'FG-CLOTHING', 'FG-KNITWEAR', 'FG-JEANS', 'FG-BEDDING', 'FG-WORKWEAR', 'FG-CARPET',
+  ]);
+
   async processProduction(playerId: string, tickNumber?: bigint): Promise<{
     results: ProductionResult[];
     utilisationByWorkshop: Map<string, number>;
@@ -427,16 +435,28 @@ export class ProductionService {
             baseCapacity = ws.maxCapacity * millerMult * bakerMult * butcherMult * cheesemakerMult * brewerMult
                          * bakelineMult * meatlineMult * cheesevatMult * bottlingMult;
           } else if (ent.type === 'TEXTILE_FACTORY') {
-            // Бонус-мультиплікатори (не штрафні — щоб не зачепити існуючі підприємства без цих професій)
+            // Бонус-мультиплікатори (opt-in ≥1.0 — існуючі підприємства без нових професій/техніки без змін).
             const outputSku = recipe.outputs[0]?.product.sku ?? '';
-            const weavers = wsEmployees.filter(e => e.profession === 'WEAVER').length;
-            const tailors = wsEmployees.filter(e => e.profession === 'TAILOR').length;
-            // WEAVER: +5%/особу (макс 3) до виробництва тканини
+            const isFabric  = ProductionService.TEXTILE_FABRIC_SKUS.has(outputSku);
+            const isGarment = ProductionService.TEXTILE_GARMENT_SKUS.has(outputSku);
+            const weavers        = wsEmployees.filter(e => e.profession === 'WEAVER').length;
+            const tailors        = wsEmployees.filter(e => e.profession === 'TAILOR').length;
+            const spinners       = wsEmployees.filter(e => e.profession === 'SPINNER').length;
+            const garmentWorkers = wsEmployees.filter(e => e.profession === 'GARMENT_WORKER').length;
+            // WEAVER/TAILOR — збережено первісні вузькі гейти (без регресій)
             const weaverMult = (outputSku === 'SF-FABRIC') ? 1 + Math.min(weavers, 3) * 0.05 : 1.0;
-            // TAILOR: +5%/особу (макс 3) до пошиву готового одягу/трикотажу
             const tailorMult = (outputSku === 'FG-CLOTHING' || outputSku === 'FG-KNITWEAR')
               ? 1 + Math.min(tailors, 3) * 0.05 : 1.0;
-            baseCapacity = ws.maxCapacity * weaverMult * tailorMult;
+            // Нові професії — на всю родину SKU
+            const spinnerMult = isFabric  ? 1 + Math.min(spinners, 3) * 0.05 : 1.0;
+            const garmentMult = isGarment ? 1 + Math.min(garmentWorkers, 3) * 0.05 : 1.0;
+            // Профільна техніка (потрібна робоча одиниця)
+            const hasEq = (sku: string) => ws.equipment.some(eq =>
+              (productIdToSku.get(eq.catalogProductId) ?? '') === sku && !eq.isBroken && eq.wearAndTear < 1.0);
+            const loomMult = (isFabric && (hasEq('EQ-LOOM') || hasEq('EQ-SPINNINGMILL'))) ? 1.20 : 1.0;
+            const knitMult = (outputSku === 'FG-KNITWEAR' && hasEq('EQ-KNITMACHINE')) ? 1.20 : 1.0;
+            const sewMult  = (isGarment && hasEq('EQ-SEWINGLINE')) ? 1.20 : 1.0;
+            baseCapacity = ws.maxCapacity * weaverMult * tailorMult * spinnerMult * garmentMult * loomMult * knitMult * sewMult;
           } else {
             baseCapacity = ws.maxCapacity;
           }
@@ -495,11 +515,20 @@ export class ProductionService {
             if (hasSunfl) beeBonus = 1.5; // +1.5 on 0-10 scale ≈ +15%
           }
 
+          // DYER + EQ-DYEINGVAT: бонус до якості текстилю (Wave 2), opt-in ≥0
+          let dyerBonus = 0;
+          if (ent.type === 'TEXTILE_FACTORY' && ProductionService.TEXTILE_DYE_SKUS.has(outputSku)) {
+            const dyers  = wsEmployees.filter(e => e.profession === 'DYER').length;
+            const hasVat = ws.equipment.some(eq =>
+              (productIdToSku.get(eq.catalogProductId) ?? '') === 'EQ-DYEINGVAT' && !eq.isBroken && eq.wearAndTear < 1.0);
+            dyerBonus = Math.min(dyers, 3) * 0.4 + (hasVat ? 0.6 : 0); // до +1.8 на шкалі 0–10
+          }
+
           const outputQuality = clamp(
             QUALITY_WEIGHTS.EQUIPMENT * equipQuality +
             QUALITY_WEIGHTS.MOOD      * moodFactor   +
             QUALITY_WEIGHTS.INPUT     * inputQualityFactor +
-            rdBonus + beeBonus,
+            rdBonus + beeBonus + dyerBonus,
             0, 10,
           );
 

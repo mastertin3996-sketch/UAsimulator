@@ -219,6 +219,12 @@ async function main() {
     { sku: 'EQ-CHEESEVAT',        name:'Cheese Vat',            nameUa:'Сироварний чан',              category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
     { sku: 'EQ-BOTTLING',         name:'Bottling Line',         nameUa:'Лінія розливу',               category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
     { sku: 'EQ-REFRIGERATOR-IND', name:'Industrial Refrigerator', nameUa:'Промислова холодильна камера', category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
+    // Equipment items — textile (Wave 2)
+    { sku: 'EQ-SPINNINGMILL', name:'Spinning Mill',      nameUa:'Прядильна машина',            category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
+    { sku: 'EQ-LOOM',         name:'Weaving Loom',       nameUa:'Ткацький верстат',            category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
+    { sku: 'EQ-KNITMACHINE',  name:'Knitting Machine',   nameUa:'В’язальна машина',            category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
+    { sku: 'EQ-SEWINGLINE',   name:'Sewing Line',        nameUa:'Швейна лінія',                category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
+    { sku: 'EQ-DYEINGVAT',    name:'Dyeing Vat',         nameUa:'Фарбувальний чан',            category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
     // Equipment items — retail
     { sku: 'EQ-CASHREGISTER',name:'Cash Register',           nameUa:'Касовий апарат',             category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
     { sku: 'EQ-POSTERMINAL', name:'POS Terminal',            nameUa:'POS-термінал',               category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
@@ -253,6 +259,15 @@ async function main() {
     { sku: 'RM-WOOL',    name: 'Raw Wool',              nameUa: 'Вовна необроблена',    category: 'RAW_MATERIAL',  unit: 'kg',   baseWeightKg: 1 },
     { sku: 'SF-YARN',    name: 'Woolen Yarn',           nameUa: 'Вовняна пряжа',        category: 'SEMI_FINISHED', unit: 'kg',   baseWeightKg: 1 },
     { sku: 'FG-KNITWEAR',name: 'Knitwear (set)',        nameUa: 'Трикотаж (комплект)',  category: 'FINISHED_GOOD', unit: 'unit', baseWeightKg: 0.6 },
+    // ── TEXTILE_FACTORY Wave 2: льон, нові тканини, готові вироби ──────────────
+    { sku: 'RM-FLAX',    name: 'Raw Flax',              nameUa: 'Льон-сирець',          category: 'RAW_MATERIAL',  unit: 'kg',   baseWeightKg: 1 },
+    { sku: 'SF-LINEN',   name: 'Linen Fabric',          nameUa: 'Лляна тканина',        category: 'SEMI_FINISHED', unit: 'kg',   baseWeightKg: 1 },
+    { sku: 'SF-DENIM',   name: 'Denim Fabric',          nameUa: 'Джинсова тканина',     category: 'SEMI_FINISHED', unit: 'kg',   baseWeightKg: 1 },
+    { sku: 'SF-THREAD',  name: 'Sewing Thread',         nameUa: 'Нитки швейні',         category: 'SEMI_FINISHED', unit: 'kg',   baseWeightKg: 1 },
+    { sku: 'FG-BEDDING', name: 'Bedding Set',           nameUa: 'Постільна білизна',    category: 'FINISHED_GOOD', unit: 'unit', baseWeightKg: 1.5 },
+    { sku: 'FG-JEANS',   name: 'Jeans',                 nameUa: 'Джинси',               category: 'FINISHED_GOOD', unit: 'unit', baseWeightKg: 0.7 },
+    { sku: 'FG-CARPET',  name: 'Carpet',                nameUa: 'Килим',                category: 'FINISHED_GOOD', unit: 'unit', baseWeightKg: 8   },
+    { sku: 'FG-WORKWEAR',name: 'Workwear',              nameUa: 'Спецодяг',             category: 'FINISHED_GOOD', unit: 'unit', baseWeightKg: 1.0 },
     // ── ОРГАНІЧНЕ ЗЕМЛЕРОБСТВО ────────────────────────────────────────────────
     { sku: 'RM-WHEAT-ORG', name: 'Organic Wheat',      nameUa: 'Органічна пшениця',   category: 'RAW_MATERIAL',  unit: 'tonne', baseWeightKg: 1000 },
     { sku: 'RM-CORN-ORG',  name: 'Organic Corn',       nameUa: 'Органічна кукурудза', category: 'RAW_MATERIAL',  unit: 'tonne', baseWeightKg: 1000 },
@@ -543,6 +558,49 @@ async function main() {
       inputs:  [{ sku: 'SF-YARN', qty: 0.80 }],
       outputs: [{ sku: 'FG-KNITWEAR', qty: 1.0 }],
     },
+    // ── TEXTILE_FACTORY Wave 2: нові рецепти ──
+    {
+      name: 'Flax Spinning',            enterpriseType: 'TEXTILE_FACTORY',
+      ticksToComplete: 1,               laborHoursPerUnit: 0.13, baseQuality: 7.6, powerKwhPerUnit: 0.26,
+      inputs:  [{ sku: 'RM-FLAX', qty: 1.35 }],
+      outputs: [{ sku: 'SF-LINEN', qty: 1.0 }],
+    },
+    {
+      name: 'Denim Weaving',            enterpriseType: 'TEXTILE_FACTORY',
+      ticksToComplete: 1,               laborHoursPerUnit: 0.14, baseQuality: 7.7, powerKwhPerUnit: 0.30,
+      inputs:  [{ sku: 'RM-COTTON', qty: 1.45 }],
+      outputs: [{ sku: 'SF-DENIM', qty: 1.0 }],
+    },
+    {
+      name: 'Thread Spinning',          enterpriseType: 'TEXTILE_FACTORY',
+      ticksToComplete: 1,               laborHoursPerUnit: 0.09, baseQuality: 7.8, powerKwhPerUnit: 0.18,
+      inputs:  [{ sku: 'RM-COTTON', qty: 1.10 }],
+      outputs: [{ sku: 'SF-THREAD', qty: 1.0 }],
+    },
+    {
+      name: 'Bedding Manufacturing',    enterpriseType: 'TEXTILE_FACTORY',
+      ticksToComplete: 2,               laborHoursPerUnit: 0.80, baseQuality: 7.9, powerKwhPerUnit: 0.16,
+      inputs:  [{ sku: 'SF-LINEN', qty: 2.20 }, { sku: 'SF-THREAD', qty: 0.10 }],
+      outputs: [{ sku: 'FG-BEDDING', qty: 1.0 }],
+    },
+    {
+      name: 'Jeans Manufacturing',      enterpriseType: 'TEXTILE_FACTORY',
+      ticksToComplete: 2,               laborHoursPerUnit: 0.95, baseQuality: 7.8, powerKwhPerUnit: 0.19,
+      inputs:  [{ sku: 'SF-DENIM', qty: 1.30 }, { sku: 'SF-THREAD', qty: 0.06 }],
+      outputs: [{ sku: 'FG-JEANS', qty: 1.0 }],
+    },
+    {
+      name: 'Carpet Weaving',           enterpriseType: 'TEXTILE_FACTORY',
+      ticksToComplete: 3,               laborHoursPerUnit: 1.30, baseQuality: 8.0, powerKwhPerUnit: 0.35,
+      inputs:  [{ sku: 'SF-YARN', qty: 4.50 }],
+      outputs: [{ sku: 'FG-CARPET', qty: 1.0 }],
+    },
+    {
+      name: 'Workwear Manufacturing',   enterpriseType: 'TEXTILE_FACTORY',
+      ticksToComplete: 2,               laborHoursPerUnit: 0.85, baseQuality: 7.7, powerKwhPerUnit: 0.17,
+      inputs:  [{ sku: 'SF-FABRIC', qty: 1.50 }, { sku: 'SF-THREAD', qty: 0.08 }],
+      outputs: [{ sku: 'FG-WORKWEAR', qty: 1.0 }],
+    },
     // ── ТВАРИННИЦТВО — переробка (FOOD_PROCESSING) ───────────────────────────
     {
       name: 'Beef Processing',          enterpriseType: 'FOOD_PROCESSING',
@@ -650,6 +708,11 @@ async function main() {
     'FG-DUMPLINGS':       { baseUnits: 110,  priceUah:   160, elasticity: -1.1, qualityWeight: 0.65 }, // пельмені
     'FG-MAYO':            { baseUnits: 100,  priceUah:    95, elasticity: -1.0, qualityWeight: 0.50 }, // майонез
     'FG-CANNED-MEAT':     { baseUnits:  80,  priceUah:   120, elasticity: -1.0, qualityWeight: 0.60 }, // тушонка
+    // ── TEXTILE_FACTORY Wave 2 ─────────────────────────────────────────────────
+    'FG-BEDDING':         { baseUnits:  20,  priceUah:   680, elasticity: -1.3, qualityWeight: 0.70 }, // постільна білизна
+    'FG-JEANS':           { baseUnits:  35,  priceUah:   720, elasticity: -1.4, qualityWeight: 0.72 }, // джинси
+    'FG-CARPET':          { baseUnits:   8,  priceUah:  2_400, elasticity: -1.5, qualityWeight: 0.78 }, // килими
+    'FG-WORKWEAR':        { baseUnits:  25,  priceUah:   540, elasticity: -1.1, qualityWeight: 0.68 }, // спецодяг (B2B)
   };
 
   // Попит з боку будівельної галузі (B2B-орієнтований, але частина йде через роздріб)

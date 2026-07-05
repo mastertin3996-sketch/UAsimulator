@@ -674,6 +674,10 @@ export class MarketService {
     'FG-SAUSAGE':           [1.0, 1.1, 1.2, 1.3],  // осінь/зима — пікніки та свята
     'FG-CLOTHING':          [0.7, 0.8, 1.2, 1.8],  // зимовий пік — пальта, куртки
     'FG-KNITWEAR':          [0.6, 0.7, 1.3, 1.9],  // зимовий пік — светри, шарфи
+    'FG-BEDDING':           [1.0, 1.1, 1.0, 1.1],  // рівномірний, легкий пік холоду
+    'FG-JEANS':             [1.1, 1.0, 1.2, 1.0],  // весна/осінь
+    'FG-CARPET':            [0.8, 0.7, 1.2, 1.5],  // осінньо-зимовий (утеплення дому)
+    'FG-WORKWEAR':          [1.1, 1.1, 1.1, 1.0],  // стабільний B2B-попит
     'FG-BEER':              [0.8, 2.0, 1.0, 0.7],  // літній пік — спека, відпочинок
     'FG-SPIRITS':           [0.9, 0.7, 1.0, 1.5],  // зимовий пік — свята
     // Зернові: низький попит влітку/восени (жнива = надлишок), пік взимку/навесні
@@ -694,6 +698,8 @@ export class MarketService {
 
     const GRAIN_SKUS   = new Set(['RM-WHEAT', 'RM-SUNFL', 'RM-SUGBEET', 'RM-CORN']);
     const ORGANIC_SKUS = new Set(['RM-WHEAT-ORG', 'RM-CORN-ORG']);
+    // Wave 2: текстильні FG отримують преміальний тариф за високу якість (avgQuality≥8 → ×1.15)
+    const TEXTILE_FG_SKUS = new Set(['FG-CLOTHING', 'FG-KNITWEAR', 'FG-JEANS', 'FG-BEDDING', 'FG-WORKWEAR', 'FG-CARPET']);
 
     // ── Pre-fetch everything in parallel ─────────────────────────────────
     const [currencyShock, demands, products, organicCertIds, allPlayerSells, allPlayers] = await Promise.all([
@@ -801,7 +807,10 @@ export class MarketService {
         const grainQualityMult = isGrain
           ? (GRAIN_QUALITY_MULT[grainQualityMap.get(sell.playerId) ?? 2] ?? 1.0)
           : 1.0;
-        const effectivePrice = grainQualityMult !== 1.0 ? sellPrice.times(grainQualityMult) : sellPrice;
+        // Wave 2: преміум за високоякісний текстиль (avgQuality≥8). Низ = ×1.0 → без регресій.
+        const textileQualityMult = (TEXTILE_FG_SKUS.has(sku) && (sell.quality ?? 5) >= 8) ? 1.15 : 1.0;
+        const payoutMult   = grainQualityMult * textileQualityMult;
+        const effectivePrice = payoutMult !== 1.0 ? sellPrice.times(payoutMult) : sellPrice;
         const tradeValue = effectivePrice.times(tradeQty);
         const newFilled  = sell.quantityFilled + tradeQty;
         const isFilled   = newFilled >= sell.quantityTotal - 0.001;
