@@ -242,6 +242,9 @@ async function main() {
     { sku: 'EQ-SPECTROMETER',  name:'Spectrometer',      nameUa:'Спектрометр',                 category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
     { sku: 'EQ-3DPRINTER',     name:'3D Printer',        nameUa:'3D-принтер',                  category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
     { sku: 'EQ-SERVERCLUSTER', name:'Compute Cluster',   nameUa:'Обчислювальний кластер',      category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
+    // Equipment items — heavy industry
+    { sku: 'EQ-BLASTFURNACE',  name:'Blast Furnace',     nameUa:'Доменна піч',                 category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
+    { sku: 'EQ-WOODPLANER',    name:'Wood Planer',       nameUa:'Стругальний верстат',          category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
     // Equipment items — retail
     { sku: 'EQ-CASHREGISTER',name:'Cash Register',           nameUa:'Касовий апарат',             category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
     { sku: 'EQ-POSTERMINAL', name:'POS Terminal',            nameUa:'POS-термінал',               category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
@@ -506,27 +509,27 @@ async function main() {
       inputs:  [{ sku: 'RM-LIVESTOCK', qty: 2.0 }, { sku: 'SF-CORN-STARCH', qty: 0.3 }],
       outputs: [{ sku: 'FG-SAUSAGE', qty: 1.0 }],
     },
-    // TEXTILE_FACTORY — важка промисловість і деревообробка (поки найближчий тип)
+    // HEAVY_INDUSTRY — важка промисловість і деревообробка
     {
-      name: 'Steel Smelting',         enterpriseType: 'TEXTILE_FACTORY',
+      name: 'Steel Smelting',         enterpriseType: 'HEAVY_INDUSTRY',
       ticksToComplete: 3,             laborHoursPerUnit: 0.25, baseQuality: 6.5, powerKwhPerUnit: 1.80,
       inputs:  [{ sku: 'RM-IRONORE', qty: 1.60 }, { sku: 'RM-COAL', qty: 0.55 }],
       outputs: [{ sku: 'SF-STEEL',   qty: 1.0 }],
     },
     {
-      name: 'Steel Product Fabrication', enterpriseType: 'TEXTILE_FACTORY',
+      name: 'Steel Product Fabrication', enterpriseType: 'HEAVY_INDUSTRY',
       ticksToComplete: 2,             laborHoursPerUnit: 0.20, baseQuality: 6.8, powerKwhPerUnit: 0.90,
       inputs:  [{ sku: 'SF-STEEL',   qty: 1.20 }],
       outputs: [{ sku: 'FG-STEEL-P', qty: 1.0 }],
     },
     {
-      name: 'Sawmilling',             enterpriseType: 'TEXTILE_FACTORY',
+      name: 'Sawmilling',             enterpriseType: 'HEAVY_INDUSTRY',
       ticksToComplete: 1,             laborHoursPerUnit: 0.08, baseQuality: 7.0, powerKwhPerUnit: 0.22,
       inputs:  [{ sku: 'RM-LUMBER',  qty: 1.40 }],
       outputs: [{ sku: 'SF-PLANKS',  qty: 1.0 }],
     },
     {
-      name: 'Furniture Manufacturing', enterpriseType: 'TEXTILE_FACTORY',
+      name: 'Furniture Manufacturing', enterpriseType: 'HEAVY_INDUSTRY',
       ticksToComplete: 2,              laborHoursPerUnit: 0.80, baseQuality: 7.0, powerKwhPerUnit: 0.35,
       inputs:  [{ sku: 'SF-PLANKS',  qty: 50 }, { sku: 'SF-STEEL', qty: 5 }],
       outputs: [{ sku: 'FG-FURN',    qty: 1.0 }],

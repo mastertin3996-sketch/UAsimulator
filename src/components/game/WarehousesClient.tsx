@@ -54,6 +54,7 @@ const TYPE_ICON: Record<string, string> = {
   WAREHOUSE       : "📦",
   RD_LABORATORY   : "🔬",
   LOGISTICS_HUB   : "🚛",
+  HEAVY_INDUSTRY  : "⚙️",
 };
 
 function enterpriseIcon(type: string): string {

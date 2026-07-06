@@ -7,6 +7,7 @@ const TYPE_ICON: Record<EnterpriseType, string> = {
   OFFICE: "🏢", AGRO_FARM: "🌾", TEXTILE_FACTORY: "🧵",
   FOOD_PROCESSING: "🏭", RETAIL_STORE: "🏪",
   WAREHOUSE: "📦", LOGISTICS_HUB: "🚛", RD_LABORATORY: "🔬",
+  HEAVY_INDUSTRY: "⚙️",
 };
 
 const TYPE_CAT: Record<EnterpriseType, string> = {
@@ -14,6 +15,7 @@ const TYPE_CAT: Record<EnterpriseType, string> = {
   TEXTILE_FACTORY: "PRODUCTION", FOOD_PROCESSING: "PRODUCTION",
   RETAIL_STORE: "TRADE", WAREHOUSE: "LOGISTICS",
   LOGISTICS_HUB: "LOGISTICS", RD_LABORATORY: "PRODUCTION",
+  HEAVY_INDUSTRY: "PRODUCTION",
 };
 
 export async function GET() {

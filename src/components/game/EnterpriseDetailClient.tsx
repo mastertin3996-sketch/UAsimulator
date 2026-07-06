@@ -27,6 +27,9 @@ const LivestockTab = dynamic(() => import("@/components/game/enterprise-tabs/Liv
 const FreightTab = dynamic(() => import("@/components/game/enterprise-tabs/FreightTab"), {
   loading: () => <p className="text-xs text-gray-500 p-2">Завантаження...</p>,
 });
+const WarehouseRentalTab = dynamic(() => import("@/components/game/enterprise-tabs/WarehouseTab"), {
+  loading: () => <p className="text-xs text-gray-500 p-2">Завантаження...</p>,
+});
 const B2bTab = dynamic(() => import("@/components/game/enterprise-tabs/B2bTab"), {
   loading: () => <p className="text-gray-500 text-sm">Завантаження...</p>,
 });
@@ -82,7 +85,7 @@ interface Employee {
 }
 
 interface Equipment {
-  id: string; name: string; nameUa: string | null; status: string; wearAndTear: number;
+  id: string; name: string; nameUa: string | null; sku: string | null; status: string; wearAndTear: number;
   energyConsumptionKw: number; marketValueUah: number; isBroken: boolean;
   maintenanceCostUah: number;
 }
@@ -199,6 +202,7 @@ const PROF_UA: Record<string, string> = {
   WAREHOUSE_MANAGER: "Завідувач складу", FORKLIFT_OPERATOR: "Оператор навантажувача",
   INVENTORY_CLERK: "Комірник",
   DISPATCHER: "Диспетчер", MECHANIC: "Механік", LOGISTICIAN: "Логіст",
+  STEELWORKER: "Сталевар", CARPENTER: "Тесля",
 };
 
 const PROF_SALARY: Record<string, number> = {
@@ -217,6 +221,7 @@ const PROF_SALARY: Record<string, number> = {
   SPINNER: 20_000, GARMENT_WORKER: 19_000, DYER: 22_000,
   WAREHOUSE_MANAGER: 28_000, FORKLIFT_OPERATOR: 18_000, INVENTORY_CLERK: 19_000,
   DISPATCHER: 24_000, MECHANIC: 23_000, LOGISTICIAN: 30_000,
+  STEELWORKER: 26_000, CARPENTER: 23_000,
 };
 
 // Які професії доступні для кожного типу підприємства
@@ -230,6 +235,7 @@ const TEXTILE_PROFS    = ["WEAVER","TAILOR","SPINNER","GARMENT_WORKER","DYER"];
 const FOOD_PROFS       = ["MILLER","BAKER","BUTCHER","CHEESEMAKER","BREWER"];
 const WAREHOUSE_PROFS  = ["WAREHOUSE_MANAGER","FORKLIFT_OPERATOR","INVENTORY_CLERK"];
 const LOGISTICS_PROFS  = ["DISPATCHER","MECHANIC","LOGISTICIAN","DRIVER"];
+const HEAVY_PROFS       = ["STEELWORKER","CARPENTER"];
 
 function professionsForType(enterpriseType: string): string[] {
   if (enterpriseType === "RETAIL_STORE") return [...UNIVERSAL_PROFS, ...RETAIL_PROFS];
@@ -239,6 +245,7 @@ function professionsForType(enterpriseType: string): string[] {
   if (enterpriseType === "LOGISTICS_HUB") return [...UNIVERSAL_PROFS, ...LOGISTICS_PROFS];
   if (enterpriseType === "TEXTILE_FACTORY") return [...UNIVERSAL_PROFS, ...PRODUCTION_PROFS, ...TEXTILE_PROFS];
   if (enterpriseType === "FOOD_PROCESSING") return [...UNIVERSAL_PROFS, ...PRODUCTION_PROFS, ...FOOD_PROFS];
+  if (enterpriseType === "HEAVY_INDUSTRY") return [...UNIVERSAL_PROFS, ...PRODUCTION_PROFS, ...HEAVY_PROFS];
   return [...UNIVERSAL_PROFS, ...PRODUCTION_PROFS];
 }
 
@@ -1279,14 +1286,18 @@ function ExpandTab({ enterpriseId, enterpriseType }: { enterpriseId: string; ent
   const [name,      setName]      = useState("");
   const [msg,       setMsg]       = useState("");
   const [loading,   setLoading]   = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
-  useEffect(() => {
+  const loadRecipes = () => {
+    setLoading(true);
+    setLoadError(false);
     fetch("/api/recipes?type=" + enterpriseType)
       .then(r => r.json())
       .then(d => { setRecipes(d.recipes ?? []); if ((d.recipes ?? []).length > 0) setRecipeId(d.recipes[0].id); })
-      .catch(() => {})
+      .catch(err => { console.error("ExpandTab: recipes fetch failed", err); setLoadError(true); })
       .finally(() => setLoading(false));
-  }, [enterpriseType]);
+  };
+  useEffect(() => { loadRecipes(); }, [enterpriseType]);
 
   const cost = Math.round(parseFloat(areaM2 || "0") * 2500);
   const ticks = Math.max(2, Math.ceil(parseFloat(areaM2 || "0") / 50));
@@ -1302,6 +1313,14 @@ function ExpandTab({ enterpriseId, enterpriseType }: { enterpriseId: string; ent
   };
 
   if (loading) return <p className="text-gray-500 text-sm">Завантаження рецептів...</p>;
+  if (loadError && recipes.length === 0) {
+    return (
+      <div className="rounded-lg border border-red-800/40 bg-red-950/10 px-3 py-2 text-xs text-red-400 flex items-center justify-between gap-2">
+        <span>⚠ Не вдалося завантажити рецепти для побудови цеху.</span>
+        <button onClick={loadRecipes} className="underline hover:text-red-300 shrink-0">Повторити</button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -1824,6 +1843,7 @@ export default function EnterpriseDetailClient({ enterpriseId, initialTab }: Pro
       { key: "livestock", label: "Тваринництво",    emoji: "🐄" },
     ] : []),
     ...(enterprise.type === "LOGISTICS_HUB"  ? [{ key: "freight",   label: "Вантаж",          emoji: "🚛" }] : []),
+    ...(enterprise.type === "WAREHOUSE"      ? [{ key: "warehouse-rental", label: "Оренда та 3PL", emoji: "📦" }] : []),
     { key: "b2b",       label: "B2B",              emoji: "🔗" },
     { key: "staff",     label: "Кваліфікація",     emoji: "📚" },
     { key: "expand",    label: "Розширення",        emoji: "🔧" },
@@ -1934,6 +1954,7 @@ export default function EnterpriseDetailClient({ enterpriseId, initialTab }: Pro
       {secSection === "machinery" && <MachineryTab enterpriseId={enterpriseId} />}
       {secSection === "livestock" && <LivestockTab enterpriseId={enterpriseId} employees={enterprise.employees} />}
       {secSection === "freight"   && <FreightTab enterpriseId={enterpriseId} />}
+      {secSection === "warehouse-rental" && <WarehouseRentalTab enterprise={enterprise} />}
       {secSection === "b2b"       && <B2bTab enterpriseId={enterpriseId} />}
       {secSection === "staff"     && <StaffTab enterpriseId={enterpriseId} />}
       {secSection === "expand"    && <ExpandTab enterpriseId={enterpriseId} enterpriseType={enterprise.type} />}

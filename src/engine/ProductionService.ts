@@ -56,6 +56,10 @@ export class ProductionService {
     'FG-CLOTHING', 'FG-KNITWEAR', 'FG-JEANS', 'FG-BEDDING', 'FG-WORKWEAR', 'FG-CARPET',
   ]);
 
+  // HEAVY_INDUSTRY — родини SKU для профільних професій/техніки
+  private static readonly HEAVY_STEEL_SKUS = new Set(['SF-STEEL', 'FG-STEEL-P']);
+  private static readonly HEAVY_WOOD_SKUS  = new Set(['SF-PLANKS', 'FG-FURN']);
+
   async processProduction(playerId: string, tickNumber?: bigint): Promise<{
     results: ProductionResult[];
     utilisationByWorkshop: Map<string, number>;
@@ -457,6 +461,20 @@ export class ProductionService {
             const knitMult = (outputSku === 'FG-KNITWEAR' && hasEq('EQ-KNITMACHINE')) ? 1.20 : 1.0;
             const sewMult  = (isGarment && hasEq('EQ-SEWINGLINE')) ? 1.20 : 1.0;
             baseCapacity = ws.maxCapacity * weaverMult * tailorMult * spinnerMult * garmentMult * loomMult * knitMult * sewMult;
+          } else if (ent.type === 'HEAVY_INDUSTRY') {
+            // Бонус-мультиплікатори (opt-in ≥1.0 — без нових професій/техніки поведінка незмінна).
+            const outputSku = recipe.outputs[0]?.product.sku ?? '';
+            const isSteel = ProductionService.HEAVY_STEEL_SKUS.has(outputSku);
+            const isWood  = ProductionService.HEAVY_WOOD_SKUS.has(outputSku);
+            const steelworkers = wsEmployees.filter(e => e.profession === 'STEELWORKER').length;
+            const carpenters   = wsEmployees.filter(e => e.profession === 'CARPENTER').length;
+            const steelworkerMult = isSteel ? 1 + Math.min(steelworkers, 3) * 0.05 : 1.0;
+            const carpenterMult   = isWood  ? 1 + Math.min(carpenters, 3) * 0.05 : 1.0;
+            const hasEq = (sku: string) => ws.equipment.some(eq =>
+              (productIdToSku.get(eq.catalogProductId) ?? '') === sku && !eq.isBroken && eq.wearAndTear < 1.0);
+            const blastfurnaceMult = (isSteel && hasEq('EQ-BLASTFURNACE')) ? 1.20 : 1.0;
+            const woodplanerMult   = (isWood  && hasEq('EQ-WOODPLANER'))   ? 1.20 : 1.0;
+            baseCapacity = ws.maxCapacity * steelworkerMult * carpenterMult * blastfurnaceMult * woodplanerMult;
           } else {
             baseCapacity = ws.maxCapacity;
           }

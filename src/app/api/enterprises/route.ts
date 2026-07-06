@@ -22,6 +22,7 @@ const CATEGORY_MAP: Record<EnterpriseType, "EXTRACTION" | "PRODUCTION" | "TRADE"
   WAREHOUSE: "LOGISTICS",
   LOGISTICS_HUB: "LOGISTICS",
   RD_LABORATORY: "PRODUCTION",
+  HEAVY_INDUSTRY: "PRODUCTION",
 };
 
 const TYPE_NAME: Record<EnterpriseType, string> = {
@@ -33,6 +34,7 @@ const TYPE_NAME: Record<EnterpriseType, string> = {
   WAREHOUSE: "Склад",
   LOGISTICS_HUB: "Логістичний хаб",
   RD_LABORATORY: "НДЛабораторія",
+  HEAVY_INDUSTRY: "Важка промисловість",
 };
 
 const TYPE_ICON: Record<EnterpriseType, string> = {
@@ -44,6 +46,7 @@ const TYPE_ICON: Record<EnterpriseType, string> = {
   WAREHOUSE: "📦",
   LOGISTICS_HUB: "🚛",
   RD_LABORATORY: "🔬",
+  HEAVY_INDUSTRY: "⚙️",
 };
 
 const TICKS_PER_MONTH = 30;
@@ -154,6 +157,7 @@ const ENTERPRISE_COST: Record<string, number> = {
   WAREHOUSE: 150_000,
   LOGISTICS_HUB: 200_000,
   RD_LABORATORY: 400_000,
+  HEAVY_INDUSTRY: 350_000,
 };
 
 const DEFAULT_FOOTPRINT: Record<string, number> = {
@@ -165,6 +169,7 @@ const DEFAULT_FOOTPRINT: Record<string, number> = {
   WAREHOUSE: 3_000,
   LOGISTICS_HUB: 4_000,
   RD_LABORATORY: 500,
+  HEAVY_INDUSTRY: 2_500,
 };
 
 export async function POST(req: NextRequest) {

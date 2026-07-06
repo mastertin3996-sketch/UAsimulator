@@ -111,6 +111,14 @@ export const ENTERPRISE_REQUIREMENTS: Readonly<Record<string, EnterpriseTypeRequ
     minEquipmentUnits:        0,
     requiredEquipmentSkus:    [],
   },
+
+  HEAVY_INDUSTRY: {
+    minStaff:                3,
+    recommendedStaffPer100m2: 1.5,
+    minWorkshopAreaM2:        120,
+    minEquipmentUnits:        1,     // furnace/sawmill or specialised heavy-industry equipment
+    requiredEquipmentSkus:    [],
+  },
 } as const;
 
 /** Fallback used when an enterprise type has no explicit entry. */

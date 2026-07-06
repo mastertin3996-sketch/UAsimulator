@@ -378,3 +378,86 @@ describe('ProductionService TEXTILE_FACTORY bonuses (Wave 2)', () => {
     expect(withLoom / withFurnace).toBeCloseTo(1.20, 2);
   });
 });
+
+describe('ProductionService HEAVY_INDUSTRY bonuses', () => {
+  function stubGlobalLookups(eqSkus: Array<{ id: string; sku: string }> = []) {
+    prismaMock.product.findFirst.mockResolvedValue(null as never);
+    prismaMock.macroEvent.findMany.mockResolvedValue([] as never);
+    prismaMock.license.findMany.mockResolvedValue([] as never);
+    prismaMock.product.findMany.mockResolvedValue(eqSkus as never);
+  }
+  // HEAVY_INDUSTRY minStaff=3, minWorkshopAreaM2=120 → 3 employees, footprint 150.
+  function makeHeavy(outputSku: string, profession: string, count: number, eqProductId = 'eq-generic') {
+    const employees = Array.from({ length: count }, (_, i) => ({
+      isOnStrike: false, efficiency: 1.0, mood: 1.0, profession, workshopId: 'ws-1', id: `emp-${i}`,
+    }));
+    return {
+      id: 'ent-1', type: 'HEAVY_INDUSTRY', employees,
+      landPlot: null, extraFieldAreaM2: 0, localWeatherMod: 1.0,
+      inventory: [{ id: 'inv-input', productId: 'input-1', quantity: 100000, avgQuality: 6 }],
+      farmMachinery: [], livestockHerds: [],
+      workshops: [{
+        id: 'ws-1', footprintM2: 150, maxCapacity: 20, currentVolume: 0, plantedSeasonTick: null,
+        equipment: [{ status: 'NEW', wearAndTear: 0, isBroken: false, catalogProductId: eqProductId }],
+        productionOrders: [{
+          id: 'order-1', targetQuantity: 100000, completedQuantity: 0, ticksRemaining: 10,
+          recipe: { id: 'recipe-1', powerKwhPerUnit: 1,
+            inputs: [{ productId: 'input-1', quantityPerUnit: 1 }],
+            outputs: [{ quantityPerUnit: 1, product: { sku: outputSku, nameUa: 'X' } }] },
+        }],
+      }],
+    };
+  }
+  async function runUnits(ent: ReturnType<typeof makeHeavy>, eqSkus: Array<{ id: string; sku: string }> = []) {
+    stubGlobalLookups(eqSkus);
+    prismaMock.enterprise.findMany.mockResolvedValueOnce([ent] as never).mockResolvedValueOnce([] as never);
+    prismaMock.enterpriseInventory.update.mockResolvedValue({} as never);
+    prismaMock.enterpriseInventory.create.mockResolvedValue({} as never);
+    prismaMock.productionOrder.update.mockResolvedValue({} as never);
+    const svc = new ProductionService(prismaMock);
+    const { results } = await svc.processProduction('player-1');
+    return results[0]?.unitsProduced ?? 0;
+  }
+
+  it('a bare workshop (no STEELWORKER/CARPENTER, no specialised equipment) produces exactly like maxCapacity — no regression', async () => {
+    const withOperators = await runUnits(makeHeavy('SF-STEEL', 'OPERATOR', 3));
+    expect(withOperators).toBeGreaterThan(0);
+  });
+
+  it('STEELWORKER boosts a steel SKU (×1.15 at 3+) vs same-headcount operators', async () => {
+    const withSteelworkers = await runUnits(makeHeavy('SF-STEEL', 'STEELWORKER', 3));
+    const withOperators    = await runUnits(makeHeavy('SF-STEEL', 'OPERATOR', 3));
+    expect(withOperators).toBeGreaterThan(0);
+    expect(withSteelworkers / withOperators).toBeCloseTo(1.15, 2);
+  });
+
+  it('STEELWORKER does NOT boost a wood SKU (cross-family isolation)', async () => {
+    const steelworkerWood = await runUnits(makeHeavy('FG-FURN', 'STEELWORKER', 3));
+    const operatorWood    = await runUnits(makeHeavy('FG-FURN', 'OPERATOR', 3));
+    expect(operatorWood).toBeGreaterThan(0);
+    expect(steelworkerWood / operatorWood).toBeCloseTo(1.0, 2);
+  });
+
+  it('CARPENTER boosts a wood SKU (×1.15 at 3+) vs same-headcount operators', async () => {
+    const withCarpenters = await runUnits(makeHeavy('SF-PLANKS', 'CARPENTER', 3));
+    const withOperators  = await runUnits(makeHeavy('SF-PLANKS', 'OPERATOR', 3));
+    expect(withOperators).toBeGreaterThan(0);
+    expect(withCarpenters / withOperators).toBeCloseTo(1.15, 2);
+  });
+
+  it('EQ-BLASTFURNACE multiplies a steel SKU by 1.20 vs equal-health non-blastfurnace equipment', async () => {
+    const eqMap = [{ id: 'eq-blast', sku: 'EQ-BLASTFURNACE' }, { id: 'eq-furnace', sku: 'EQ-FURNACE' }];
+    const withBlast   = await runUnits(makeHeavy('SF-STEEL', 'OPERATOR', 3, 'eq-blast'), eqMap);
+    const withFurnace = await runUnits(makeHeavy('SF-STEEL', 'OPERATOR', 3, 'eq-furnace'), eqMap);
+    expect(withFurnace).toBeGreaterThan(0);
+    expect(withBlast / withFurnace).toBeCloseTo(1.20, 2);
+  });
+
+  it('EQ-WOODPLANER multiplies a wood SKU by 1.20 vs equal-health non-woodplaner equipment', async () => {
+    const eqMap = [{ id: 'eq-planer', sku: 'EQ-WOODPLANER' }, { id: 'eq-sawmill', sku: 'EQ-SAWMILL' }];
+    const withPlaner  = await runUnits(makeHeavy('SF-PLANKS', 'OPERATOR', 3, 'eq-planer'), eqMap);
+    const withSawmill = await runUnits(makeHeavy('SF-PLANKS', 'OPERATOR', 3, 'eq-sawmill'), eqMap);
+    expect(withSawmill).toBeGreaterThan(0);
+    expect(withPlaner / withSawmill).toBeCloseTo(1.20, 2);
+  });
+});

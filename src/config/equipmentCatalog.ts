@@ -262,6 +262,32 @@ const TEXTILE_SPECS: Record<string, EquipmentSpec> = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// HEAVY_INDUSTRY EQUIPMENT — металургія та деревообробка (доповнює базові EQ-FURNACE/EQ-SAWMILL)
+// ─────────────────────────────────────────────────────────────────────────────
+//   EQ-BLASTFURNACE 80 kW — доменна піч для виплавки сталі
+//   EQ-WOODPLANER   14 kW — стругальний верстат для деревообробки
+// ─────────────────────────────────────────────────────────────────────────────
+
+const HEAVY_INDUSTRY_SPECS: Record<string, EquipmentSpec> = {
+  'EQ-BLASTFURNACE': {
+    nameUa:              'Доменна піч',
+    energyConsumptionKw: 80,
+    wearRatePerTick:     0.010, // extreme thermal cycling
+    baseQualityModifier: 0.92,
+    footprintM2:         70,
+    basePriceUah:        520_000,
+  },
+  'EQ-WOODPLANER': {
+    nameUa:              'Стругальний верстат',
+    energyConsumptionKw: 14,
+    wearRatePerTick:     0.007,
+    baseQualityModifier: 0.94,
+    footprintM2:         30,
+    basePriceUah:        210_000,
+  },
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // WAREHOUSE EQUIPMENT (Wave 3 — ємність, обробка, холодовий ланцюг, WMS)
 // ─────────────────────────────────────────────────────────────────────────────
 //   EQ-RACKING    0.05 kW — стелажні системи (пасивні, LED-підсвітка)
@@ -602,6 +628,7 @@ export const EQUIPMENT_CATALOG: Readonly<Record<string, EquipmentSpec>> = {
   ...LAB_SPECS,
   ...RETAIL_SPECS,
   ...OFFICE_SPECS,
+  ...HEAVY_INDUSTRY_SPECS,
 } as const;
 
 /** Fallback spec when a SKU is not found in the catalog. */

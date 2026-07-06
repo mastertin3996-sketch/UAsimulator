@@ -67,6 +67,9 @@ enum Profession {
   DISPATCHER         // диспетчер — координація замовлень
   MECHANIC           // механік — обслуговування флоту
   LOGISTICIAN        // логіст — оптимізація тарифів/маршрутів
+  // HEAVY_INDUSTRY — профільні професії
+  STEELWORKER        // сталевар — +5%/особу (макс 3) до виплавки/фабрикації сталі (SF-STEEL, FG-STEEL-P)
+  CARPENTER          // тесля — +5%/особу (макс 3) до лісопилення/меблів (SF-PLANKS, FG-FURN)
 }
 
 enum EnterpriseType {
@@ -78,6 +81,7 @@ enum EnterpriseType {
   WAREHOUSE        // склад
   LOGISTICS_HUB    // логістичний термінал
   RD_LABORATORY    // науково-дослідна лабораторія — генерує очки досліджень (RP)
+  HEAVY_INDUSTRY   // важка промисловість — металургія, лісопиляння, меблі
 }
 
 enum LandStatus {

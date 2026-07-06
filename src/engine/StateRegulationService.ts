@@ -48,6 +48,7 @@ const LICENSE_REQUIRED: Partial<Record<string, LicenseType>> = {
   FOOD_PROCESSING:  'AGRO_PERMIT',
   TEXTILE_FACTORY:  'MANUFACTURING_LICENSE',
   RETAIL_STORE:     'RETAIL_PERMIT',
+  HEAVY_INDUSTRY:   'MANUFACTURING_LICENSE',
 };
 
 // Agricultural enterprise types eligible for GRAIN_MARKET_BOOM bonus

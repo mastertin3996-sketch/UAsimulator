@@ -49,6 +49,8 @@ export async function GET(_req: NextRequest, { params }: Params) {
   const LOGISTICS_SKUS = ['EQ-TRUCK-SMALL','EQ-TRUCK-HEAVY','EQ-REEFER','EQ-CRANE','EQ-FORKLIFT'];
   // RD_LABORATORY: лаб-техніка (Wave 6)
   const LAB_SKUS = ['EQ-LABBENCH','EQ-MICROSCOPE','EQ-SPECTROMETER','EQ-3DPRINTER','EQ-SERVERCLUSTER'];
+  // HEAVY_INDUSTRY: базові (FURNACE/SAWMILL) + профільні (доменна піч, стругальний верстат)
+  const HEAVY_SKUS = ['EQ-FURNACE','EQ-SAWMILL','EQ-BLASTFURNACE','EQ-WOODPLANER'];
   // entType is Prisma EnterpriseType string; triple-equals comparison
   const allowedSkus = entType === 'RETAIL_STORE'    ? RETAIL_SKUS
                     : entType === 'OFFICE'           ? OFFICE_SKUS
@@ -58,6 +60,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
                     : entType === 'WAREHOUSE'        ? WAREHOUSE_SKUS
                     : entType === 'LOGISTICS_HUB'    ? LOGISTICS_SKUS
                     : entType === 'RD_LABORATORY'    ? LAB_SKUS
+                    : entType === 'HEAVY_INDUSTRY'   ? HEAVY_SKUS
                     : FACTORY_SKUS;
 
   const catalogItems = await prisma.product.findMany({

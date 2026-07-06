@@ -50,6 +50,8 @@ export const CONSTRUCTION_COST_PER_M2: Record<string, number> = {
   RETAIL_STORE:     15_000,
   WAREHOUSE:         9_000,
   LOGISTICS_HUB:    11_000,
+  RD_LABORATORY:    16_000,
+  HEAVY_INDUSTRY:   14_000,
 };
 
 // Кількість тиків на кожні 100 м² будівництва
@@ -61,6 +63,8 @@ export const CONSTRUCTION_TICKS_PER_100M2: Record<string, number> = {
   RETAIL_STORE:      7,
   WAREHOUSE:         6,
   LOGISTICS_HUB:     7,
+  RD_LABORATORY:     9,
+  HEAVY_INDUSTRY:    9,
 };
 
 // ─── Equipment wear thresholds (0.0–1.0 шкала, відповідає wearAndTear у схемі) ──

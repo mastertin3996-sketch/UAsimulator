@@ -42,6 +42,7 @@ const ENT_TYPES = [
   { type: "WAREHOUSE",        label: "Склад",               icon: "📦", cost: 150_000, desc: "Зберігання та логістика" },
   { type: "LOGISTICS_HUB",    label: "Логістичний хаб",     icon: "🚛", cost: 200_000, desc: "Міжміські перевезення" },
   { type: "RD_LABORATORY",    label: "НД-Лабораторія",      icon: "🔬", cost: 400_000, desc: "Дослідження та технологічний розвиток" },
+  { type: "HEAVY_INDUSTRY",   label: "Важка промисловість", icon: "⚙️", cost: 350_000, desc: "Металургія, лісопиляння, меблі" },
 ] as const;
 
 type EntType = typeof ENT_TYPES[number]["type"];
@@ -49,7 +50,7 @@ type EntType = typeof ENT_TYPES[number]["type"];
 const DEFAULT_FOOTPRINT: Record<string, number> = {
   OFFICE: 100, AGRO_FARM: 5000, FOOD_PROCESSING: 1500,
   TEXTILE_FACTORY: 2000, RETAIL_STORE: 200, WAREHOUSE: 3000,
-  LOGISTICS_HUB: 4000, RD_LABORATORY: 500,
+  LOGISTICS_HUB: 4000, RD_LABORATORY: 500, HEAVY_INDUSTRY: 2500,
 };
 
 // ─── Step indicator ───────────────────────────────────────────────────────────

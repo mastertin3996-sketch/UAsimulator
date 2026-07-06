@@ -32,18 +32,20 @@ const PROF_UA: Record<Profession, string> = {
   WAREHOUSE_MANAGER: "Завідувач складу", FORKLIFT_OPERATOR: "Оператор навантажувача",
   INVENTORY_CLERK: "Комірник",
   DISPATCHER: "Диспетчер", MECHANIC: "Механік", LOGISTICIAN: "Логіст",
+  STEELWORKER: "Сталевар", CARPENTER: "Тесля",
 };
 
 const TYPE_NAME: Record<EnterpriseType, string> = {
   OFFICE: "Офіс", AGRO_FARM: "Агроферма", TEXTILE_FACTORY: "Текстильна фабрика",
   FOOD_PROCESSING: "Харчова переробка", RETAIL_STORE: "Роздрібна торгівля",
   WAREHOUSE: "Склад", LOGISTICS_HUB: "Логістичний хаб", RD_LABORATORY: "НДЛабораторія",
+  HEAVY_INDUSTRY: "Важка промисловість",
 };
 
 const TYPE_CAT: Record<EnterpriseType, string> = {
   OFFICE: "PRODUCTION", AGRO_FARM: "EXTRACTION", TEXTILE_FACTORY: "PRODUCTION",
   FOOD_PROCESSING: "PRODUCTION", RETAIL_STORE: "TRADE", WAREHOUSE: "LOGISTICS",
-  LOGISTICS_HUB: "LOGISTICS", RD_LABORATORY: "PRODUCTION",
+  LOGISTICS_HUB: "LOGISTICS", RD_LABORATORY: "PRODUCTION", HEAVY_INDUSTRY: "PRODUCTION",
 };
 
 function moodStatus(mood: number, onStrike: boolean) {

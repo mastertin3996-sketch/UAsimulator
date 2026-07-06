@@ -31,6 +31,7 @@ const ENT_TYPE_LABELS: Record<string, string> = {
   OFFICE: "Офіс", AGRO_FARM: "Агроферма", TEXTILE_FACTORY: "Текстиль",
   FOOD_PROCESSING: "Харчова", RETAIL_STORE: "Магазин",
   WAREHOUSE: "Склад", LOGISTICS_HUB: "Логістика", RD_LABORATORY: "R&D Лаб",
+  HEAVY_INDUSTRY: "Важка пром.",
 };
 
 // ─── Create Listing Modal ────────────────────────────────────────────────────
