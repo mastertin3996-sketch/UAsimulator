@@ -236,6 +236,12 @@ async function main() {
     { sku: 'EQ-TRUCK-HEAVY',  name:'Heavy Truck',        nameUa:'Фура (тягач)',                category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
     { sku: 'EQ-REEFER',       name:'Reefer Truck',       nameUa:'Рефрижератор',                category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
     { sku: 'EQ-CRANE',        name:'Cargo Crane',        nameUa:'Вантажний кран',              category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
+    // Equipment items — RD laboratory (Wave 6)
+    { sku: 'EQ-LABBENCH',      name:'Lab Bench',         nameUa:'Лабораторний стіл',           category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
+    { sku: 'EQ-MICROSCOPE',    name:'Digital Microscope',nameUa:'Цифровий мікроскоп',          category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
+    { sku: 'EQ-SPECTROMETER',  name:'Spectrometer',      nameUa:'Спектрометр',                 category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
+    { sku: 'EQ-3DPRINTER',     name:'3D Printer',        nameUa:'3D-принтер',                  category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
+    { sku: 'EQ-SERVERCLUSTER', name:'Compute Cluster',   nameUa:'Обчислювальний кластер',      category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
     // Equipment items — retail
     { sku: 'EQ-CASHREGISTER',name:'Cash Register',           nameUa:'Касовий апарат',             category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
     { sku: 'EQ-POSTERMINAL', name:'POS Terminal',            nameUa:'POS-термінал',               category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },

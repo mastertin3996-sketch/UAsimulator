@@ -359,6 +359,39 @@ const LOGISTICS_SPECS: Record<string, EquipmentSpec> = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// RD_LABORATORY EQUIPMENT (Wave 6 — лаб-техніка бустить генерацію RP)
+// ─────────────────────────────────────────────────────────────────────────────
+//   EQ-LABBENCH       1.5 kW — лабораторний стіл з витяжкою/приладами
+//   EQ-MICROSCOPE     0.3 kW — цифровий мікроскоп + освітлення
+//   EQ-SPECTROMETER   2.0 kW — спектрометр (аналітика матеріалів)
+//   EQ-3DPRINTER      1.2 kW — 3D-принтер (прототипування)
+//   EQ-SERVERCLUSTER  6.0 kW — обчислювальний кластер (моделювання/ML)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const LAB_SPECS: Record<string, EquipmentSpec> = {
+  'EQ-LABBENCH': {
+    nameUa: 'Лабораторний стіл', energyConsumptionKw: 1.5, wearRatePerTick: 0.004,
+    baseQualityModifier: 1.0, footprintM2: 12, basePriceUah: 140_000,
+  },
+  'EQ-MICROSCOPE': {
+    nameUa: 'Цифровий мікроскоп', energyConsumptionKw: 0.3, wearRatePerTick: 0.003,
+    baseQualityModifier: 1.0, footprintM2: 4, basePriceUah: 120_000,
+  },
+  'EQ-SPECTROMETER': {
+    nameUa: 'Спектрометр', energyConsumptionKw: 2.0, wearRatePerTick: 0.004,
+    baseQualityModifier: 1.0, footprintM2: 8, basePriceUah: 320_000,
+  },
+  'EQ-3DPRINTER': {
+    nameUa: '3D-принтер', energyConsumptionKw: 1.2, wearRatePerTick: 0.006,
+    baseQualityModifier: 1.0, footprintM2: 6, basePriceUah: 180_000,
+  },
+  'EQ-SERVERCLUSTER': {
+    nameUa: 'Обчислювальний кластер', energyConsumptionKw: 6.0, wearRatePerTick: 0.005,
+    baseQualityModifier: 1.0, footprintM2: 15, basePriceUah: 420_000,
+  },
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // RETAIL EQUIPMENT
 // ─────────────────────────────────────────────────────────────────────────────
 //
@@ -566,6 +599,7 @@ export const EQUIPMENT_CATALOG: Readonly<Record<string, EquipmentSpec>> = {
   ...TEXTILE_SPECS,
   ...WAREHOUSE_SPECS,
   ...LOGISTICS_SPECS,
+  ...LAB_SPECS,
   ...RETAIL_SPECS,
   ...OFFICE_SPECS,
 } as const;

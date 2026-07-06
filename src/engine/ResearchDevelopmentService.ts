@@ -158,19 +158,41 @@ export class ResearchDevelopmentService {
 
     const labs = await this.db.enterprise.findMany({
       where:   { playerId, type: 'RD_LABORATORY', isOperational: true },
-      include: { employees: { select: { profession: true, mood: true } } },
+      include: {
+        employees: { select: { profession: true, mood: true } },
+        // Wave 6: лаб-техніка множить генерацію RP лабораторії
+        workshops: { select: { equipment: { select: { isBroken: true, wearAndTear: true, catalogProduct: { select: { sku: true } } } } } },
+      },
     });
 
     let totalRP = 0;
     for (const lab of labs) {
+      let labRP = 0;
       for (const emp of lab.employees) {
         const base = BASE_RP_PER_TICK[emp.profession as string] ?? 0;
         if (base === 0) continue;
-        totalRP += base * emp.mood * (1 + officeTechMod);
+        labRP += base * emp.mood * (1 + officeTechMod);
       }
+      totalRP += labRP * ResearchDevelopmentService.labEquipmentMultiplier(lab.workshops);
     }
 
     return totalRP;
+  }
+
+  /** Множник генерації RP від робочої лаб-техніки (opt-in ≥1.0, стеля ×1.5). */
+  static readonly LAB_RP_BONUS: Record<string, number> = {
+    'EQ-SERVERCLUSTER': 0.15, 'EQ-SPECTROMETER': 0.12, 'EQ-MICROSCOPE': 0.06,
+    'EQ-3DPRINTER': 0.05, 'EQ-LABBENCH': 0.05,
+  };
+  static labEquipmentMultiplier(
+    workshops: Array<{ equipment: Array<{ isBroken: boolean; wearAndTear: number; catalogProduct: { sku: string } }> }>,
+  ): number {
+    let bonus = 0;
+    for (const w of workshops)
+      for (const eq of w.equipment)
+        if (!eq.isBroken && eq.wearAndTear < 1.0)
+          bonus += ResearchDevelopmentService.LAB_RP_BONUS[eq.catalogProduct.sku] ?? 0;
+    return Math.min(1 + bonus, 1.5);
   }
 
   /**

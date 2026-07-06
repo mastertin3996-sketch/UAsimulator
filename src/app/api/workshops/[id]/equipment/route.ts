@@ -47,6 +47,8 @@ export async function GET(_req: NextRequest, { params }: Params) {
   const WAREHOUSE_SKUS = ['EQ-RACKING','EQ-FORKLIFT','EQ-CLIMATE','EQ-COLDROOM','EQ-WMS'];
   // LOGISTICS_HUB: флот + вантажообробка (Wave 4)
   const LOGISTICS_SKUS = ['EQ-TRUCK-SMALL','EQ-TRUCK-HEAVY','EQ-REEFER','EQ-CRANE','EQ-FORKLIFT'];
+  // RD_LABORATORY: лаб-техніка (Wave 6)
+  const LAB_SKUS = ['EQ-LABBENCH','EQ-MICROSCOPE','EQ-SPECTROMETER','EQ-3DPRINTER','EQ-SERVERCLUSTER'];
   // entType is Prisma EnterpriseType string; triple-equals comparison
   const allowedSkus = entType === 'RETAIL_STORE'    ? RETAIL_SKUS
                     : entType === 'OFFICE'           ? OFFICE_SKUS
@@ -55,6 +57,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
                     : entType === 'TEXTILE_FACTORY'  ? TEXTILE_SKUS
                     : entType === 'WAREHOUSE'        ? WAREHOUSE_SKUS
                     : entType === 'LOGISTICS_HUB'    ? LOGISTICS_SKUS
+                    : entType === 'RD_LABORATORY'    ? LAB_SKUS
                     : FACTORY_SKUS;
 
   const catalogItems = await prisma.product.findMany({
