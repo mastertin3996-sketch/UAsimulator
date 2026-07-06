@@ -231,6 +231,11 @@ async function main() {
     { sku: 'EQ-CLIMATE',      name:'Climate Control',    nameUa:'Клімат-контроль',             category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
     { sku: 'EQ-COLDROOM',     name:'Cold Room',          nameUa:'Холодильна камера',           category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
     { sku: 'EQ-WMS',          name:'WMS System',         nameUa:'Система WMS',                  category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
+    // Equipment items — logistics (Wave 4)
+    { sku: 'EQ-TRUCK-SMALL',  name:'Light Truck',        nameUa:'Легка вантажівка',            category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
+    { sku: 'EQ-TRUCK-HEAVY',  name:'Heavy Truck',        nameUa:'Фура (тягач)',                category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
+    { sku: 'EQ-REEFER',       name:'Reefer Truck',       nameUa:'Рефрижератор',                category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
+    { sku: 'EQ-CRANE',        name:'Cargo Crane',        nameUa:'Вантажний кран',              category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
     // Equipment items — retail
     { sku: 'EQ-CASHREGISTER',name:'Cash Register',           nameUa:'Касовий апарат',             category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },
     { sku: 'EQ-POSTERMINAL', name:'POS Terminal',            nameUa:'POS-термінал',               category:'EQUIPMENT_ITEM', unit:'unit', isEquipmentItem: true },

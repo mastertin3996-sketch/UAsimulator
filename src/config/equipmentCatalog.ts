@@ -315,6 +315,50 @@ const WAREHOUSE_SPECS: Record<string, EquipmentSpec> = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// LOGISTICS_HUB EQUIPMENT (Wave 4 — флот + вантажообробка)
+// ─────────────────────────────────────────────────────────────────────────────
+//   EQ-TRUCK-SMALL  5 kW  — легка вантажівка (заряд/паливо усереднено як кВт-екв)
+//   EQ-TRUCK-HEAVY  9 kW  — фура/тягач (важкі/будівельні вантажі)
+//   EQ-REEFER       12 kW — рефрижератор (холодовий ланцюг для псувних вантажів)
+//   EQ-CRANE        7 kW  — вантажний кран (перевалка важких/негабаритних)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const LOGISTICS_SPECS: Record<string, EquipmentSpec> = {
+  'EQ-TRUCK-SMALL': {
+    nameUa:              'Легка вантажівка',
+    energyConsumptionKw: 5,
+    wearRatePerTick:     0.010, // транспорт зношується швидше
+    baseQualityModifier: 1.0,
+    footprintM2:         25,
+    basePriceUah:        450_000,
+  },
+  'EQ-TRUCK-HEAVY': {
+    nameUa:              'Фура (тягач)',
+    energyConsumptionKw: 9,
+    wearRatePerTick:     0.011,
+    baseQualityModifier: 1.0,
+    footprintM2:         40,
+    basePriceUah:        1_200_000,
+  },
+  'EQ-REEFER': {
+    nameUa:              'Рефрижератор',
+    energyConsumptionKw: 12,
+    wearRatePerTick:     0.010,
+    baseQualityModifier: 1.0,
+    footprintM2:         35,
+    basePriceUah:        900_000,
+  },
+  'EQ-CRANE': {
+    nameUa:              'Вантажний кран',
+    energyConsumptionKw: 7,
+    wearRatePerTick:     0.007,
+    baseQualityModifier: 1.0,
+    footprintM2:         30,
+    basePriceUah:        650_000,
+  },
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // RETAIL EQUIPMENT
 // ─────────────────────────────────────────────────────────────────────────────
 //
@@ -521,6 +565,7 @@ export const EQUIPMENT_CATALOG: Readonly<Record<string, EquipmentSpec>> = {
   ...FOOD_SPECS,
   ...TEXTILE_SPECS,
   ...WAREHOUSE_SPECS,
+  ...LOGISTICS_SPECS,
   ...RETAIL_SPECS,
   ...OFFICE_SPECS,
 } as const;
