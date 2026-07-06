@@ -33,10 +33,14 @@ export class FoodProcessingService {
   static readonly DECAY_PER_TICK = 0.04;
   /** Нижня межа якості — псування ніколи не опускає нижче. */
   static readonly QUALITY_FLOOR = 3.0;
+  /** Поріг попередження — сповіщення надсилається один раз при перетині зверху вниз. */
+  static readonly WARN_QUALITY_THRESHOLD = 6.0;
 
   /**
    * Знижує avgQuality псувних запасів на підприємствах FOOD_PROCESSING та WAREHOUSE
-   * без робочого холодового ланцюга. Один батч-запит на оновлення.
+   * без робочого холодового ланцюга. Один батч-запит на оновлення. Разово сповіщає
+   * гравця, коли якість вперше перетинає WARN_QUALITY_THRESHOLD (аналог EQUIPMENT_BROKEN
+   * у TickEngine — сповіщення на перехід стану, а не на кожен тік).
    */
   async processPerishability(): Promise<void> {
     const enterprises = await this.prisma.enterprise.findMany({
@@ -45,13 +49,14 @@ export class FoodProcessingService {
         isOperational: true, isSeized: false,
       },
       select: {
-        id: true,
+        id: true, name: true, playerId: true,
         workshops: { select: { equipment: { select: { isBroken: true, wearAndTear: true, catalogProduct: { select: { sku: true } } } } } },
         inventory: { select: { id: true, avgQuality: true, product: { select: { sku: true } } } },
       },
     });
 
     const updates: { id: string; avgQuality: number }[] = [];
+    const warnedByPlayer = new Map<string, Set<string>>(); // playerId → set of enterprise names newly crossing the threshold
 
     for (const ent of enterprises) {
       // Холодовий ланцюг: хоч одна робоча одиниця з COLD_CHAIN_SKUS (за catalogProduct.sku — надійно).
@@ -71,14 +76,33 @@ export class FoodProcessingService {
           inv.avgQuality - FoodProcessingService.DECAY_PER_TICK,
         );
         updates.push({ id: inv.id, avgQuality: newQuality });
+
+        if (inv.avgQuality > FoodProcessingService.WARN_QUALITY_THRESHOLD &&
+            newQuality <= FoodProcessingService.WARN_QUALITY_THRESHOLD) {
+          if (!warnedByPlayer.has(ent.playerId)) warnedByPlayer.set(ent.playerId, new Set());
+          warnedByPlayer.get(ent.playerId)!.add(ent.name);
+        }
       }
     }
 
-    if (updates.length === 0) return;
-    await this.prisma.$transaction(
-      updates.map(u => this.prisma.enterpriseInventory.update({
-        where: { id: u.id }, data: { avgQuality: u.avgQuality },
-      })),
-    );
+    if (updates.length > 0) {
+      await this.prisma.$transaction(
+        updates.map(u => this.prisma.enterpriseInventory.update({
+          where: { id: u.id }, data: { avgQuality: u.avgQuality },
+        })),
+      );
+    }
+
+    if (warnedByPlayer.size > 0) {
+      await this.prisma.notification.createMany({
+        data: Array.from(warnedByPlayer.entries()).map(([playerId, names]) => ({
+          playerId,
+          type:  'PERISHABLE_QUALITY_WARN',
+          title: 'Товар псується без охолодження',
+          body:  `${Array.from(names).join(', ')}: якість псувних товарів опустилась нижче ${FoodProcessingService.WARN_QUALITY_THRESHOLD}/10. Встановіть холодильне обладнання (EQ-REFRIGERATOR-IND / EQ-CLIMATE / EQ-COLDROOM), щоб зупинити псування.`,
+          entityId: null,
+        })),
+      }).catch(() => {});
+    }
   }
 }

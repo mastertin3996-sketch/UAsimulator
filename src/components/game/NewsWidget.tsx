@@ -129,7 +129,7 @@ export default function NewsWidget() {
         setEvents(data.events ?? []);
         setTick(data.currentTick ?? 0);
       })
-      .catch(() => {})
+      .catch(err => console.error("NewsWidget: events fetch failed", err))
       .finally(() => setLoading(false));
   }, []);
 

@@ -16,6 +16,7 @@ function CreateFieldPlot({ enterpriseId, enterpriseType, freeLandM2, onCreated }
   const [areaM2, setAreaM2]     = useState("500");
   const [loading, setLoading]   = useState(false);
   const [msg, setMsg]           = useState<string | null>(null);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     fetch(`/api/recipes?type=${enterpriseType}`)
@@ -24,7 +25,7 @@ function CreateFieldPlot({ enterpriseId, enterpriseType, freeLandM2, onCreated }
         const list = d?.recipes ?? [];
         setRecipes(list);
         if (list.length > 0) setRecipeId(list[0].id);
-      }).catch(() => {});
+      }).catch(err => { console.error("CreateFieldPlot: recipes fetch failed", err); setLoadError(true); });
   }, [enterpriseType]);
 
   const cost  = Math.round(parseFloat(areaM2 || "0") * 2500);
@@ -57,7 +58,7 @@ function CreateFieldPlot({ enterpriseId, enterpriseType, freeLandM2, onCreated }
       </div>
 
       {recipes.length === 0 ? (
-        <p className="text-xs text-gray-600">Завантаження рецептів...</p>
+        <p className="text-xs text-gray-600">{loadError ? "⚠ Не вдалося завантажити рецепти." : "Завантаження рецептів..."}</p>
       ) : (
         <div className="space-y-2">
           <div className="grid grid-cols-2 gap-2">
@@ -188,6 +189,7 @@ export default function FieldsTab({ enterprise, agroInfo, onRefresh }: { enterpr
     deliveryTick: number; createdAtTick: number; status: string;
   }[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   const CROP_BASE_PRICE: Record<string, number> = {
     'RM-WHEAT': 8.5, 'RM-CORN': 7.0, 'RM-SUNFL': 14.0, 'RM-SUGBEET': 2.5,
@@ -206,15 +208,17 @@ export default function FieldsTab({ enterprise, agroInfo, onRefresh }: { enterpr
       .then(r => r.ok ? r.json() : [])
       .then((all: { enterpriseName?: string; id: string; productSku: string; productNameUa: string; productUnit: string; quantityUnits: number; pricePerUnit: number; totalValue: number; deliveryTick: number; createdAtTick: number; status: string }[]) =>
         setContracts(all.filter((c) => c.status === "ACTIVE"))
-      ).catch(() => {});
+      ).catch(err => { console.error("FieldsTab: contracts fetch failed", err); setLoadError(true); });
   };
 
   useEffect(() => {
     fetch(`/api/agro/expand-field?enterpriseId=${enterprise.id}`)
-      .then(r => r.ok ? r.json() : null).then(setFieldInfo).catch(() => {});
+      .then(r => r.ok ? r.json() : null).then(setFieldInfo)
+      .catch(err => { console.error("FieldsTab: field-info fetch failed", err); setLoadError(true); });
     refreshContracts();
     fetch(`/api/agro/fair?enterpriseId=${enterprise.id}`)
-      .then(r => r.ok ? r.json() : null).then(setFairInfo).catch(() => {});
+      .then(r => r.ok ? r.json() : null).then(setFairInfo)
+      .catch(err => { console.error("FieldsTab: fair-info fetch failed", err); setLoadError(true); });
   }, [enterprise.id]);
 
   useEffect(() => {
@@ -224,7 +228,7 @@ export default function FieldsTab({ enterprise, agroInfo, onRefresh }: { enterpr
       .then((all: { enterpriseName?: string; id: string; productSku: string; productNameUa: string; productUnit: string; quantityUnits: number; pricePerUnit: number; totalValue: number; deliveryTick: number; createdAtTick: number; status: string }[]) => {
         const fulfilled = all.filter((c) => c.status === "FULFILLED" || c.status === "CANCELLED");
         setHistoryContracts(fulfilled.slice(0, 5));
-      }).catch(() => {});
+      }).catch(err => console.error("FieldsTab: history fetch failed", err));
   }, [showHistory, enterprise.id]);
 
   const handleExpand = async () => {
@@ -242,7 +246,8 @@ export default function FieldsTab({ enterprise, agroInfo, onRefresh }: { enterpr
         setExpandMsg(`✓ ${data.message}`);
         setExpandArea("");
         fetch(`/api/agro/expand-field?enterpriseId=${enterprise.id}`)
-          .then(r => r.ok ? r.json() : null).then(setFieldInfo).catch(() => {});
+          .then(r => r.ok ? r.json() : null).then(setFieldInfo)
+          .catch(err => console.error("FieldsTab: field-info refresh failed", err));
       } else setExpandMsg(`✗ ${data.error}`);
     } finally { setExpanding(false); }
   };
@@ -293,7 +298,8 @@ export default function FieldsTab({ enterprise, agroInfo, onRefresh }: { enterpr
         setFairMsg(`✓ ${data.message}`);
         setFairQty("");
         fetch(`/api/agro/fair?enterpriseId=${enterprise.id}`)
-          .then(res => res.ok ? res.json() : null).then(setFairInfo).catch(() => {});
+          .then(res => res.ok ? res.json() : null).then(setFairInfo)
+          .catch(err => console.error("FieldsTab: fair-info refresh failed", err));
       } else setFairMsg(`✗ ${data.error}`);
     } finally { setSellingFair(false); }
   };
@@ -322,6 +328,12 @@ export default function FieldsTab({ enterprise, agroInfo, onRefresh }: { enterpr
 
   return (
     <div className="space-y-4 p-1">
+      {loadError && (
+        <div className="rounded-lg border border-red-800/40 bg-red-950/10 px-3 py-2 text-xs text-red-400 flex items-center justify-between gap-2">
+          <span>⚠ Частина даних поля не завантажилась — можуть бути застарілими.</span>
+          <button onClick={() => { setLoadError(false); refreshContracts(); }} className="underline hover:text-red-300 shrink-0">Повторити</button>
+        </div>
+      )}
       {agroInfo && (
         <div className="text-xs text-gray-500">
           Якість ґрунту <span className="font-mono text-white">{agroInfo.soilQuality.toFixed(1)}/10</span>

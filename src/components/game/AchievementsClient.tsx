@@ -31,11 +31,11 @@ export default function AchievementsClient() {
     fetch("/api/achievements")
       .then(r => r.ok ? r.json() : null)
       .then(d => { if (d) { setAchievements(d.achievements); setUnlockedCount(d.unlockedCount); } })
-      .catch(() => {});
+      .catch(err => console.error("AchievementsClient: achievements fetch failed", err));
     fetch("/api/player/daily-claim")
       .then(r => r.ok ? r.json() : null)
       .then(d => { if (d) setDaily(d); })
-      .catch(() => {});
+      .catch(err => console.error("AchievementsClient: daily-claim fetch failed", err));
   };
 
   useEffect(() => { refresh(); }, []);

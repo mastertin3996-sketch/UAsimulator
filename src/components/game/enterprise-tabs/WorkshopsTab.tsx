@@ -252,11 +252,11 @@ export default function WorkshopsTab({
     fetch(`/api/enterprises/${enterprise.id}/machinery`)
       .then(r => r.json())
       .then(d => setMachinery(d.machinery ?? []))
-      .catch(() => {});
+      .catch(err => console.error("WorkshopsTab: machinery fetch failed", err));
     fetch(`/api/enterprises/${enterprise.id}/livestock`)
       .then(r => r.json())
       .then(d => setLivestock(d.herds ?? []))
-      .catch(() => {});
+      .catch(err => console.error("WorkshopsTab: livestock fetch failed", err));
   }, [enterprise.id, enterprise.type]);
 
   async function repairMachinery(machId: string) {

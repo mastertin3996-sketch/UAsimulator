@@ -13,14 +13,18 @@ export default function B2bTab({ enterpriseId }: { enterpriseId: string }) {
   const [form, setForm] = useState({ targetId: "", productSku: "", qty: "" });
   const [msg, setMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   const reload = () => {
-    fetch("/api/b2b-transfer").then(r => r.ok ? r.json() : null).then(d => setAgreements(d?.agreements ?? [])).catch(() => {});
+    fetch("/api/b2b-transfer").then(r => r.ok ? r.json() : null).then(d => setAgreements(d?.agreements ?? []))
+      .catch(err => { console.error("B2bTab: agreements fetch failed", err); setLoadError(true); });
   };
   useEffect(() => {
     reload();
-    fetch("/api/enterprises").then(r => r.ok ? r.json() : null).then(d => setAllEnterprises(d?.enterprises ?? [])).catch(() => {});
-    fetch("/api/products?take=100").then(r => r.ok ? r.json() : null).then(d => setInvProducts(d?.products ?? [])).catch(() => {});
+    fetch("/api/enterprises").then(r => r.ok ? r.json() : null).then(d => setAllEnterprises(d?.enterprises ?? []))
+      .catch(err => { console.error("B2bTab: enterprises fetch failed", err); setLoadError(true); });
+    fetch("/api/products?take=100").then(r => r.ok ? r.json() : null).then(d => setInvProducts(d?.products ?? []))
+      .catch(err => { console.error("B2bTab: products fetch failed", err); setLoadError(true); });
   }, []);
 
   const create = async () => {
@@ -47,6 +51,12 @@ export default function B2bTab({ enterpriseId }: { enterpriseId: string }) {
 
   return (
     <div className="space-y-4 p-1">
+      {loadError && (
+        <div className="rounded-lg border border-red-800/40 bg-red-950/10 px-3 py-2 text-xs text-red-400 flex items-center justify-between gap-2">
+          <span>⚠ Частина даних не завантажилась — список може бути неповним.</span>
+          <button onClick={() => { setLoadError(false); reload(); }} className="underline hover:text-red-300 shrink-0">Повторити</button>
+        </div>
+      )}
       <div className="rounded-lg border border-purple-900/40 bg-purple-950/10 p-3 space-y-2">
         <p className="text-xs font-semibold text-purple-400">Новий автотрансфер B2B</p>
         <div className="grid grid-cols-2 gap-2">

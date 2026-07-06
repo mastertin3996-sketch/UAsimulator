@@ -11,11 +11,15 @@ export default function FreightTab({ enterpriseId }: { enterpriseId: string }) {
   } | null>(null);
   const [accepting, setAccepting] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState(false);
 
-  useEffect(() => {
+  const loadInfo = () => {
+    setLoadError(false);
     fetch("/api/logistics/freight")
-      .then(r => r.ok ? r.json() : null).then(setInfo).catch(() => {});
-  }, []);
+      .then(r => r.ok ? r.json() : null).then(setInfo)
+      .catch(err => { console.error("FreightTab: fetch failed", err); setLoadError(true); });
+  };
+  useEffect(() => { loadInfo(); }, []);
 
   const accept = async (orderId: string) => {
     setAccepting(orderId); setMsg(null);
@@ -26,9 +30,17 @@ export default function FreightTab({ enterpriseId }: { enterpriseId: string }) {
     const d = await r.json();
     setMsg(r.ok ? `✓ ${d.message}` : `✗ ${d.error}`);
     setAccepting(null);
-    if (r.ok) fetch("/api/logistics/freight").then(res => res.ok ? res.json() : null).then(setInfo).catch(() => {});
+    if (r.ok) loadInfo();
   };
 
+  if (loadError && !info) {
+    return (
+      <div className="rounded-lg border border-red-800/40 bg-red-950/10 px-3 py-2 text-xs text-red-400 flex items-center justify-between gap-2 m-1">
+        <span>⚠ Не вдалося завантажити дані логістики.</span>
+        <button onClick={loadInfo} className="underline hover:text-red-300 shrink-0">Повторити</button>
+      </div>
+    );
+  }
   if (!info) return <p className="text-xs text-gray-500 p-2">Завантаження...</p>;
   return (
     <div className="space-y-4 p-1">

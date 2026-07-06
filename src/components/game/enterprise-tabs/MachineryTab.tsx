@@ -7,11 +7,15 @@ export default function MachineryTab({ enterpriseId }: { enterpriseId: string })
   const [acting,  setActing]  = useState<string | null>(null);
   const [msg,     setMsg]     = useState("");
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   const load = () => {
     setLoading(true);
+    setLoadError(false);
     fetch(`/api/enterprises/${enterpriseId}/machinery`)
-      .then(r => r.json()).then(setData).catch(() => {}).finally(() => setLoading(false));
+      .then(r => r.json()).then(setData)
+      .catch(err => { console.error("MachineryTab: fetch failed", err); setLoadError(true); })
+      .finally(() => setLoading(false));
   };
   useEffect(() => { load(); }, [enterpriseId]);
 
@@ -43,6 +47,12 @@ export default function MachineryTab({ enterpriseId }: { enterpriseId: string })
 
   return (
     <div className="space-y-4">
+      {loadError && (
+        <div className="rounded-lg border border-red-800/40 bg-red-950/10 px-3 py-2 text-xs text-red-400 flex items-center justify-between gap-2">
+          <span>⚠ Не вдалося завантажити дані про техніку.</span>
+          <button onClick={load} className="underline hover:text-red-300 shrink-0">Повторити</button>
+        </div>
+      )}
       {msg && <p className={`text-xs ${msg.startsWith("✓") ? "text-emerald-400" : "text-red-400"}`}>{msg}</p>}
 
       {/* Production impact summary */}

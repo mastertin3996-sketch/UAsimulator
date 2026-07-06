@@ -74,4 +74,37 @@ describe('FoodProcessingService.processPerishability', () => {
     // Already at floor → nothing to update
     expect(prismaMock.enterpriseInventory.update).not.toHaveBeenCalled();
   });
+
+  it('notifies the player once when quality newly crosses the warn threshold', async () => {
+    const ent = makeEnt({
+      name: 'Молокозавод №1', playerId: 'player-1',
+      inventory: [{ id: 'inv-milk', avgQuality: FoodProcessingService.WARN_QUALITY_THRESHOLD + 0.02, product: { sku: 'FG-MILK' } }],
+    });
+    prismaMock.enterprise.findMany.mockResolvedValueOnce([ent] as never);
+    prismaMock.$transaction.mockImplementation((arr: unknown) => Promise.all(arr as Promise<unknown>[]) as never);
+    prismaMock.enterpriseInventory.update.mockResolvedValue({} as never);
+    prismaMock.notification.createMany.mockResolvedValue({ count: 1 } as never);
+
+    const svc = new FoodProcessingService(prismaMock);
+    await svc.processPerishability();
+
+    expect(prismaMock.notification.createMany).toHaveBeenCalledWith({
+      data: [expect.objectContaining({ playerId: 'player-1', type: 'PERISHABLE_QUALITY_WARN', body: expect.stringContaining('Молокозавод №1') })],
+    });
+  });
+
+  it('does not notify again once already below the warn threshold (no re-crossing)', async () => {
+    const ent = makeEnt({
+      name: 'Молокозавод №1', playerId: 'player-1',
+      inventory: [{ id: 'inv-milk', avgQuality: FoodProcessingService.WARN_QUALITY_THRESHOLD - 0.5, product: { sku: 'FG-MILK' } }],
+    });
+    prismaMock.enterprise.findMany.mockResolvedValueOnce([ent] as never);
+    prismaMock.$transaction.mockImplementation((arr: unknown) => Promise.all(arr as Promise<unknown>[]) as never);
+    prismaMock.enterpriseInventory.update.mockResolvedValue({} as never);
+
+    const svc = new FoodProcessingService(prismaMock);
+    await svc.processPerishability();
+
+    expect(prismaMock.notification.createMany).not.toHaveBeenCalled();
+  });
 });

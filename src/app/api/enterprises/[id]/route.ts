@@ -60,7 +60,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
               id: true, name: true, status: true, wearAndTear: true,
               energyConsumptionKw: true, marketValueUah: true, maintenanceCostUah: true,
               purchasedAt: true, isBroken: true,
-              catalogProduct: { select: { nameUa: true } },
+              catalogProduct: { select: { nameUa: true, sku: true } },
             },
           },
           productionOrders: {
@@ -215,6 +215,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
         equipment: w.equipment.map((eq) => ({
           ...eq,
           nameUa: eq.catalogProduct?.nameUa ?? null,
+          sku: eq.catalogProduct?.sku ?? null,
           marketValueUah: Number(eq.marketValueUah),
           maintenanceCostUah: Number(eq.maintenanceCostUah),
         })),

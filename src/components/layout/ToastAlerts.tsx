@@ -19,6 +19,7 @@ const TYPE_STYLE: Record<string, { icon: React.ReactNode; border: string; bg: st
   EQUIPMENT_WORN:   { icon: <AlertTriangle size={14} className="text-amber-400 shrink-0" />,  border: "border-amber-700/60", bg: "bg-amber-950/80" },
   CONSTRUCTION_COMPLETE: { icon: <CheckCircle2 size={14} className="text-emerald-400 shrink-0" />, border: "border-emerald-700/60", bg: "bg-emerald-950/80" },
   LICENSE_EXPIRY:   { icon: <AlertTriangle size={14} className="text-yellow-400 shrink-0" />, border: "border-yellow-700/60", bg: "bg-yellow-950/80" },
+  PERISHABLE_QUALITY_WARN: { icon: <AlertTriangle size={14} className="text-amber-400 shrink-0" />, border: "border-amber-700/60", bg: "bg-amber-950/80" },
 };
 const DEFAULT_STYLE = { icon: <Info size={14} className="text-blue-400 shrink-0" />, border: "border-blue-700/60", bg: "bg-blue-950/80" };
 

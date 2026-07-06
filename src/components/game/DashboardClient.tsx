@@ -160,6 +160,7 @@ const TYPE_LABELS: Record<string, string> = {
   OFFICE: "Офіс", AGRO_FARM: "Агроферма", TEXTILE_FACTORY: "Текстиль",
   FOOD_PROCESSING: "Харчова переробка", RETAIL_STORE: "Магазин",
   WAREHOUSE: "Склад", LOGISTICS_HUB: "Логістика", RD_LABORATORY: "R&D",
+  HEAVY_INDUSTRY: "Важка промисловість",
 };
 const TXN_LABELS: Record<string, { label: string; color: string }> = {
   MARKET_SALE:      { label: "Продаж",        color: "text-emerald-400" },
@@ -195,7 +196,7 @@ export default function DashboardClient() {
     fetch("/api/competitors")
       .then((r) => r.ok ? r.json() : [])
       .then(setCompetitors)
-      .catch(() => {});
+      .catch(err => console.error("DashboardClient: competitors fetch failed", err));
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);

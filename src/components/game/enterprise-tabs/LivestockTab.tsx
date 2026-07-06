@@ -11,11 +11,15 @@ export default function LivestockTab({ enterpriseId, employees }: { enterpriseId
   const [acting,        setActing]        = useState<string | null>(null);
   const [msgs,          setMsgs]          = useState<Record<string, string>>({});
   const [loading,       setLoading]       = useState(true);
+  const [loadError,     setLoadError]     = useState(false);
 
   const load = () => {
     setLoading(true);
+    setLoadError(false);
     fetch(`/api/enterprises/${enterpriseId}/livestock`)
-      .then(r => r.json()).then(setData).catch(() => {}).finally(() => setLoading(false));
+      .then(r => r.json()).then(setData)
+      .catch(err => { console.error("LivestockTab: fetch failed", err); setLoadError(true); })
+      .finally(() => setLoading(false));
   };
   useEffect(() => { load(); }, [enterpriseId]);
 
@@ -65,6 +69,12 @@ export default function LivestockTab({ enterpriseId, employees }: { enterpriseId
 
   return (
     <div className="space-y-4">
+      {loadError && (
+        <div className="rounded-lg border border-red-800/40 bg-red-950/10 px-3 py-2 text-xs text-red-400 flex items-center justify-between gap-2">
+          <span>⚠ Не вдалося завантажити дані про поголів&apos;я.</span>
+          <button onClick={load} className="underline hover:text-red-300 shrink-0">Повторити</button>
+        </div>
+      )}
       {/* Active herds */}
       {data?.herds && data.herds.length > 0 && (
         <div className="space-y-2">

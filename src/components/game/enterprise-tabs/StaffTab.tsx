@@ -11,19 +11,21 @@ export default function StaffTab({ enterpriseId }: { enterpriseId: string }) {
   }[]>([]);
   const [workshops, setWorkshops] = useState<{ id: string; name: string }[]>([]);
   const [loading,  setLoading]  = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [training, setTraining] = useState<string | null>(null);
   const [msgs,     setMsgs]     = useState<Record<string, string>>({});
 
   const load = () => {
+    setLoadError(false);
     fetch(`/api/enterprises/${enterpriseId}/employees`)
       .then(r => r.json())
       .then(d => setEmployees(d.employees ?? []))
-      .catch(() => {})
+      .catch(err => { console.error("StaffTab: employees fetch failed", err); setLoadError(true); })
       .finally(() => setLoading(false));
     fetch(`/api/enterprises/${enterpriseId}`)
       .then(r => r.json())
       .then(d => setWorkshops((d.enterprise?.workshops ?? []).map((w: { id: string; name: string }) => ({ id: w.id, name: w.name }))))
-      .catch(() => {});
+      .catch(err => { console.error("StaffTab: enterprise fetch failed", err); setLoadError(true); });
   };
   useEffect(() => { load(); }, [enterpriseId]);
 
@@ -51,12 +53,26 @@ export default function StaffTab({ enterpriseId }: { enterpriseId: string }) {
   const moodColor = (m: number) => m < 0.3 ? "text-red-400" : m < 0.6 ? "text-amber-400" : "text-emerald-400";
 
   if (loading) return <p className="text-gray-500 text-sm">Завантаження...</p>;
+  if (loadError && employees.length === 0) {
+    return (
+      <div className="rounded-lg border border-red-800/40 bg-red-950/10 px-3 py-2 text-xs text-red-400 flex items-center justify-between gap-2">
+        <span>⚠ Не вдалося завантажити дані про персонал.</span>
+        <button onClick={load} className="underline hover:text-red-300 shrink-0">Повторити</button>
+      </div>
+    );
+  }
   if (employees.length === 0) return <p className="text-gray-500 text-sm">Немає найнятих працівників.</p>;
 
   const unassignedCount = employees.filter(e => !e.workshopId).length;
 
   return (
     <div className="space-y-3">
+      {loadError && (
+        <div className="rounded-lg border border-red-800/40 bg-red-950/10 px-3 py-2 text-xs text-red-400 flex items-center justify-between gap-2">
+          <span>⚠ Останнє оновлення не вдалося — дані можуть бути застарілими.</span>
+          <button onClick={load} className="underline hover:text-red-300 shrink-0">Повторити</button>
+        </div>
+      )}
       {unassignedCount > 0 && (
         <div className="rounded-lg border border-amber-800/40 bg-amber-950/10 px-3 py-2 text-xs text-amber-400">
           Неприкріплені ({unassignedCount}) — не впливають на виробництво жодного цеху
