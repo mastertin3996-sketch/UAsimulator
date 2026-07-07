@@ -110,6 +110,46 @@ export class MarketService {
     const allTrades: TradeResult[] = [];
     const filledNotifs: { playerId: string; orderType: string; productId: string; qty: number; price: number; unit?: string; name?: string }[] = [];
 
+    // ── Batch-prefetch everything the per-trade loop used to re-query ────────
+    // (was: 1 player + 1 aggregate + 1 inventory round-trip PER matched trade —
+    // with hundreds/thousands of NPC-driven matches per tick this dominated
+    // matchOrders(); now it's a fixed handful of queries regardless of match count.)
+    const derzhpromId = await this.getDerzhpromId();
+
+    const involvedPlayerIds = new Set<string>();
+    for (const s of allSells) involvedPlayerIds.add(s.playerId);
+    for (const b of allBuysRaw) involvedPlayerIds.add(b.playerId);
+
+    const playerRows = await this.prisma.player.findMany({
+      where:  { id: { in: [...involvedPlayerIds] } },
+      select: { id: true, cashBalance: true, isAccreditedSupplier: true, reputationScore: true },
+    });
+    const balanceMap     = new Map(playerRows.map(p => [p.id, new Decimal(p.cashBalance.toString())]));
+    const accreditedMap  = new Map(playerRows.map(p => [p.id, p.isAccreditedSupplier]));
+
+    const sellerInvKeys = [...new Set(allSells.map(s => `${s.playerId}:${s.productId}`))];
+    const sellerInventories = sellerInvKeys.length > 0
+      ? await this.prisma.playerInventory.findMany({
+          where: { OR: allSells.map(s => ({ playerId: s.playerId, productId: s.productId })) },
+          select: { playerId: true, productId: true, quantity: true },
+        })
+      : [];
+    const invMap = new Map(sellerInventories.map(i => [`${i.playerId}:${i.productId}`, i.quantity]));
+
+    // Ліміт купівлі у ДержПром за 24г — один запит замість aggregate на кожен матч
+    const dpSpentMap = new Map<string, number>();
+    if (derzhpromId) {
+      const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const dpTrades = await this.prisma.marketTrade.findMany({
+        where:  { sellOrder: { playerId: derzhpromId }, executedAt: { gte: since } },
+        select: { quantity: true, pricePerUnit: true, buyOrder: { select: { playerId: true } } },
+      });
+      for (const t of dpTrades) {
+        const val = t.quantity * Number(t.pricePerUnit);
+        dpSpentMap.set(t.buyOrder.playerId, (dpSpentMap.get(t.buyOrder.playerId) ?? 0) + val);
+      }
+    }
+
     for (const productId of productIds) {
       const sells = sellsByProduct.get(productId)!;
       const buys  = buysByProduct.get(productId)!;
@@ -141,32 +181,22 @@ export class MarketService {
         // Сума угоди — Decimal: велике qty × ціна не втрачає копійки
         const tradeValue = sellPrice.times(tradeQty);
 
-        // Перевірка ліквідності покупця
-        const buyer        = await this.prisma.player.findUniqueOrThrow({ where: { id: buy.playerId }, select: { id: true, cashBalance: true, isAccreditedSupplier: true } });
-        const buyerBalance = new Decimal(buyer.cashBalance.toString());
+        // Перевірка ліквідності покупця (з попередньо завантаженої мапи балансів)
+        const buyerBalance = balanceMap.get(buy.playerId) ?? new Decimal(0);
         if (buyerBalance.lessThan(tradeValue)) { bi++; continue; }
+        const buyer = { isAccreditedSupplier: accreditedMap.get(buy.playerId) ?? false };
 
         // ── Ліміт купівлі у ДержПром: ₴50,000/добу ──
-        const isDerzhpromSell = sell.playerId === (await this.getDerzhpromId());
+        const isDerzhpromSell = sell.playerId === derzhpromId;
         if (isDerzhpromSell && !buy.isStateOrder) {
-          const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
-          const spent = await this.prisma.marketTrade.aggregate({
-            _sum: { quantity: true },
-            where: {
-              sellOrder: { playerId: sell.playerId },
-              buyOrder:  { playerId: buy.playerId },
-              executedAt: { gte: since },
-            },
-          });
-          const spentValue = (spent._sum.quantity ?? 0) * Number(sell.pricePerUnit);
+          const spentValue = dpSpentMap.get(buy.playerId) ?? 0;
           if (spentValue + tradeValue.toNumber() > 50_000) { bi++; continue; }
         }
 
-        // Перевірка інвентаря продавця
-        const sellerInv = await this.prisma.playerInventory.findUnique({
-          where: { playerId_productId: { playerId: sell.playerId, productId } },
-        });
-        if ((sellerInv?.quantity ?? 0) < tradeQty - 0.001) { si++; continue; }
+        // Перевірка інвентаря продавця (з попередньо завантаженої мапи)
+        const sellerInvKey = `${sell.playerId}:${productId}`;
+        const sellerInvQty = invMap.get(sellerInvKey) ?? 0;
+        if (sellerInvQty < tradeQty - 0.001) { si++; continue; }
 
         // Атомарне виконання угоди
         await this.prisma.$transaction(async (tx) => {
@@ -299,8 +329,20 @@ export class MarketService {
                 entityId: sell.id,
               },
             });
+            // Тримаємо мапу акредитації в синхронізації — якщо цей гравець далі
+            // виступить покупцем у цьому ж тіку, кешбек-перевірка побачить актуальний статус.
+            accreditedMap.set(sell.playerId, true);
           }
         });
+
+        // Синхронізуємо префетчені мапи з щойно застосованою угодою — наступні
+        // ітерації цього ж тіку бачать актуальний баланс/інвентар без повторного запиту.
+        balanceMap.set(sell.playerId, (balanceMap.get(sell.playerId) ?? new Decimal(0)).plus(tradeValue));
+        balanceMap.set(buy.playerId,  (balanceMap.get(buy.playerId)  ?? new Decimal(0)).minus(tradeValue));
+        invMap.set(sellerInvKey, sellerInvQty - tradeQty);
+        if (isDerzhpromSell && !buy.isStateOrder) {
+          dpSpentMap.set(buy.playerId, (dpSpentMap.get(buy.playerId) ?? 0) + tradeValue.toNumber());
+        }
 
         sells[si] = { ...sell, quantityFilled: sell.quantityFilled + tradeQty };
         buys[bi]  = { ...buy,  quantityFilled: buy.quantityFilled  + tradeQty };

@@ -62,6 +62,9 @@ describe('MarketService.matchOrders', () => {
     prismaMock.marketOrder.findMany
       .mockResolvedValueOnce([sell] as never)
       .mockResolvedValueOnce([buy] as never);
+    prismaMock.player.findFirst.mockResolvedValue(null as never);
+    prismaMock.player.findMany.mockResolvedValue([] as never);
+    prismaMock.playerInventory.findMany.mockResolvedValue([] as never);
     const svc = new MarketService(prismaMock);
     const trades = await svc.matchOrders();
     expect(trades).toEqual([]);
@@ -73,6 +76,9 @@ describe('MarketService.matchOrders', () => {
     prismaMock.marketOrder.findMany
       .mockResolvedValueOnce([sell] as never)
       .mockResolvedValueOnce([buy] as never);
+    prismaMock.player.findFirst.mockResolvedValue(null as never);
+    prismaMock.player.findMany.mockResolvedValue([makePlayer({ id: 'same-player' })] as never);
+    prismaMock.playerInventory.findMany.mockResolvedValue([] as never);
     const svc = new MarketService(prismaMock);
     const trades = await svc.matchOrders();
     expect(trades).toEqual([]);
@@ -84,6 +90,9 @@ describe('MarketService.matchOrders', () => {
     prismaMock.marketOrder.findMany
       .mockResolvedValueOnce([sell] as never)
       .mockResolvedValueOnce([buy] as never);
+    prismaMock.player.findFirst.mockResolvedValue(null as never);
+    prismaMock.player.findMany.mockResolvedValue([makePlayer({ id: 'seller' }), makePlayer({ id: 'buyer' })] as never);
+    prismaMock.playerInventory.findMany.mockResolvedValue([] as never);
     const svc = new MarketService(prismaMock);
     const trades = await svc.matchOrders();
     expect(trades).toEqual([]);
@@ -96,7 +105,11 @@ describe('MarketService.matchOrders', () => {
       .mockResolvedValueOnce([sell] as never)
       .mockResolvedValueOnce([buy] as never);
     prismaMock.player.findFirst.mockResolvedValue(null as never); // no derzhprom player
-    prismaMock.player.findUniqueOrThrow.mockResolvedValue(makePlayer({ id: 'buyer', cashBalance: new Decimal(1) }) as never);
+    prismaMock.player.findMany.mockResolvedValue([
+      makePlayer({ id: 'seller' }),
+      makePlayer({ id: 'buyer', cashBalance: new Decimal(1) }),
+    ] as never);
+    prismaMock.playerInventory.findMany.mockResolvedValue([] as never);
 
     const svc = new MarketService(prismaMock);
     const trades = await svc.matchOrders();
@@ -111,11 +124,18 @@ describe('MarketService.matchOrders', () => {
       .mockResolvedValueOnce([sell] as never)   // sells
       .mockResolvedValueOnce([buy] as never);   // buys
     prismaMock.player.findFirst.mockResolvedValue(null as never); // no derzhprom player configured
-    prismaMock.player.findUniqueOrThrow.mockResolvedValue(makePlayer({ id: 'buyer', cashBalance: new Decimal(1_000_000) }) as never);
-    prismaMock.playerInventory.findUnique.mockResolvedValue({ playerId: 'seller', productId: 'product-1', quantity: 10, avgQuality: 7 } as never);
+    prismaMock.player.findMany.mockResolvedValue([
+      makePlayer({ id: 'seller' }),
+      makePlayer({ id: 'buyer', cashBalance: new Decimal(1_000_000) }),
+    ] as never);
+    prismaMock.playerInventory.findMany.mockResolvedValue([
+      { playerId: 'seller', productId: 'product-1', quantity: 10, avgQuality: 7 },
+    ] as never);
 
     // $transaction receives our callback and should run it against the same mock client
     prismaMock.$transaction.mockImplementation((fn: unknown) => (fn as (tx: unknown) => unknown)(prismaMock) as never);
+    // Fresh in-transaction read of the seller's balance (for the ledger's balanceBefore/After)
+    prismaMock.player.findUniqueOrThrow.mockResolvedValue(makePlayer({ id: 'seller', cashBalance: new Decimal(500_000) }) as never);
 
     prismaMock.marketOrder.update.mockResolvedValue({} as never);
     prismaMock.marketTrade.create.mockResolvedValue({} as never);
@@ -148,6 +168,52 @@ describe('MarketService.matchOrders', () => {
       expect.objectContaining({ where: { id: 'buy-1' }, data: expect.objectContaining({ status: 'FILLED' }) }),
     );
     expect(prismaMock.marketTrade.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('batches balance/inventory lookups across many matches instead of querying per-trade (perf regression guard)', async () => {
+    // 5 independent products, each with one matching sell/buy pair between different players.
+    const N = 5;
+    const sells = Array.from({ length: N }, (_, i) => makeOrder({
+      id: `sell-${i}`, playerId: `seller-${i}`, productId: `product-${i}`,
+      type: 'SELL', pricePerUnit: new Decimal(100), quantityTotal: 10, quality: 7,
+    }));
+    const buys = Array.from({ length: N }, (_, i) => makeOrder({
+      id: `buy-${i}`, playerId: `buyer-${i}`, productId: `product-${i}`,
+      type: 'BUY', pricePerUnit: new Decimal(100), quantityTotal: 10,
+    }));
+
+    prismaMock.marketOrder.findMany
+      .mockResolvedValueOnce(sells as never)
+      .mockResolvedValueOnce(buys as never);
+    prismaMock.player.findFirst.mockResolvedValue(null as never); // no derzhprom configured
+    prismaMock.player.findMany.mockResolvedValue([
+      ...Array.from({ length: N }, (_, i) => makePlayer({ id: `seller-${i}` })),
+      ...Array.from({ length: N }, (_, i) => makePlayer({ id: `buyer-${i}`, cashBalance: new Decimal(1_000_000) })),
+    ] as never);
+    prismaMock.playerInventory.findMany.mockResolvedValue(
+      Array.from({ length: N }, (_, i) => ({ playerId: `seller-${i}`, productId: `product-${i}`, quantity: 10, avgQuality: 7 })) as never,
+    );
+
+    prismaMock.$transaction.mockImplementation((fn: unknown) => (fn as (tx: unknown) => unknown)(prismaMock) as never);
+    prismaMock.player.findUniqueOrThrow.mockResolvedValue(makePlayer({ id: 'seller-0', cashBalance: new Decimal(500_000) }) as never);
+    prismaMock.marketOrder.update.mockResolvedValue({} as never);
+    prismaMock.marketTrade.create.mockResolvedValue({} as never);
+    prismaMock.player.update.mockResolvedValue({} as never);
+    prismaMock.playerInventory.update.mockResolvedValue({} as never);
+    prismaMock.playerInventory.create.mockResolvedValue({} as never);
+    prismaMock.financialTransaction.create.mockResolvedValue({} as never);
+    prismaMock.product.findMany.mockResolvedValue([] as never);
+    prismaMock.notification.create.mockResolvedValue({} as never);
+
+    const svc = new MarketService(prismaMock);
+    const trades = await svc.matchOrders();
+
+    expect(trades).toHaveLength(N);
+    // The whole point of the optimization: one batched balance query and one batched
+    // inventory query for the ENTIRE matchOrders() call, regardless of match count —
+    // not one `findUniqueOrThrow`/`findUnique` round-trip per trade as before.
+    expect(prismaMock.player.findMany).toHaveBeenCalledTimes(1);
+    expect(prismaMock.playerInventory.findMany).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -400,6 +400,7 @@ export class TickEngine {
     // ── 3a3. Dynamic NPC price update — реагує на supply/demand поточного тіку ──
     await this.market.updateNpcMarketPrices(tickNumber)
       .catch(e => console.error(`[Tick ${tickNumber}] NPC price update failed:`, e));
+    T('updateNpcMarketPrices');
 
     // ── 3b–3i. Independent global services in parallel ───────────────────
     const [, , regulationSummary, , , ] =
@@ -417,6 +418,7 @@ export class TickEngine {
         this.foreign.processTradeTick(tickNumber)
           .catch(e => { console.error(`[Tick ${tickNumber}] ForeignTrade tick failed:`, e); return null; }),
       ]);
+    T('logistics+finance+regulation+energyMarket+corpSecurity+foreignTrade');
 
     if (regulationSummary) {
       // Write regulation notifications
@@ -490,6 +492,7 @@ export class TickEngine {
       this.banking.processBankingTick(tickNumber).catch(e => { console.error(`[Tick ${tickNumber}] Banking tick failed:`, e); return null; }),
       this.stockExchange.processStockMarketTick(tickNumber).catch(e => { console.error(`[Tick ${tickNumber}] StockExchange tick failed:`, e); return null; }),
     ]);
+    T('valuation+banking+stockExchange');
 
     // ── 4. Collect overdue taxes — parallel per player ────────────────────
     await Promise.all(players.map(({ id: playerId }) =>
@@ -497,6 +500,7 @@ export class TickEngine {
         console.error(`[Tick ${tickNumber}] Tax collection failed for ${playerId}:`, e),
       ),
     ));
+    T('taxCollection');
 
     // ── 5. Complete tick record ───────────────────────────────────────────
     const durationMs = Date.now() - startMs;
@@ -504,6 +508,10 @@ export class TickEngine {
       where: { id: tickRecord.id },
       data:  { completedAt: new Date(), durationMs },
     });
+
+    // Per-phase breakdown (each value is cumulative ms from tick start) — shows up in
+    // Vercel function logs so slow phases can be spotted without a DB schema change.
+    console.log(`[Tick ${tickNumber}] durationMs=${durationMs} timings=${JSON.stringify(timings)}`);
 
     return {
       tickNumber,
