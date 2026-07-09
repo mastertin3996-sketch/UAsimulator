@@ -460,4 +460,76 @@ describe('ProductionService HEAVY_INDUSTRY bonuses', () => {
     expect(withSawmill).toBeGreaterThan(0);
     expect(withPlaner / withSawmill).toBeCloseTo(1.20, 2);
   });
+
+  // ── Signature mechanic: raw-material quality (RM-IRONORE/RM-COAL/RM-LUMBER) → outputQuality ──
+  describe('raw-material input-quality bonus (heavyInputBonus)', () => {
+    // equipQuality=5 (wear 0.5) and moodFactor=5 (mood 0.5) deliberately leave headroom below the
+    // 0-10 clamp ceiling so the bonus is observable instead of being swallowed by saturation.
+    function makeHeavyRawInput(rawSku: string, rawQuality: number, outputSku = 'SF-STEEL') {
+      const employees = Array.from({ length: 3 }, (_, i) => ({
+        isOnStrike: false, efficiency: 1.0, mood: 0.5, profession: 'OPERATOR', workshopId: 'ws-1', id: `emp-${i}`,
+      }));
+      return {
+        id: 'ent-1', type: 'HEAVY_INDUSTRY', employees,
+        landPlot: null, extraFieldAreaM2: 0, localWeatherMod: 1.0,
+        inventory: [{ id: 'inv-raw', productId: 'raw-1', quantity: 100000, avgQuality: rawQuality }],
+        farmMachinery: [], livestockHerds: [],
+        workshops: [{
+          id: 'ws-1', footprintM2: 150, maxCapacity: 20, currentVolume: 0, plantedSeasonTick: null,
+          equipment: [{ status: 'NEW', wearAndTear: 0.5, isBroken: false, catalogProductId: 'eq-generic' }],
+          productionOrders: [{
+            id: 'order-1', targetQuantity: 100000, completedQuantity: 0, ticksRemaining: 10,
+            recipe: { id: 'recipe-1', powerKwhPerUnit: 1,
+              inputs: [{ productId: 'raw-1', quantityPerUnit: 1, product: { sku: rawSku } }],
+              outputs: [{ quantityPerUnit: 1, product: { sku: outputSku, nameUa: 'X' } }] },
+          }],
+        }],
+      };
+    }
+    async function runOutputQuality(ent: ReturnType<typeof makeHeavyRawInput>) {
+      stubGlobalLookups();
+      prismaMock.enterprise.findMany.mockResolvedValueOnce([ent] as never).mockResolvedValueOnce([] as never);
+      prismaMock.enterpriseInventory.update.mockResolvedValue({} as never);
+      prismaMock.enterpriseInventory.create.mockResolvedValue({} as never);
+      prismaMock.productionOrder.update.mockResolvedValue({} as never);
+      const svc = new ProductionService(prismaMock);
+      const { results } = await svc.processProduction('player-1');
+      return results[0]?.outputQuality ?? -1;
+    }
+
+    it('default/typical raw-material quality (≤ market baseline of 7) adds zero bonus — no regression', async () => {
+      const atBaseline = await runOutputQuality(makeHeavyRawInput('RM-IRONORE', 7, 'SF-STEEL'));
+      const belowBaseline = await runOutputQuality(makeHeavyRawInput('RM-IRONORE', 6, 'SF-STEEL'));
+      // outputQuality = 0.40*equipQuality(5) + 0.30*moodFactor(5) + 0.30*inputQualityFactor(=rawQuality, only input)
+      expect(atBaseline).toBeCloseTo(0.40 * 5 + 0.30 * 5 + 0.30 * 7, 5);   // 5.6, heavyInputBonus = 0
+      expect(belowBaseline).toBeCloseTo(0.40 * 5 + 0.30 * 5 + 0.30 * 6, 5); // 5.3, heavyInputBonus = 0
+    });
+
+    it('missing/absent raw-material inventory row (avgQuality falls back to 5) also adds zero bonus', async () => {
+      const ent = makeHeavyRawInput('RM-COAL', 5, 'SF-STEEL');
+      ent.inventory[0].avgQuality = 5;
+      const quality = await runOutputQuality(ent);
+      expect(quality).toBeCloseTo(0.40 * 5 + 0.30 * 5 + 0.30 * 5, 5); // 5.0, heavyInputBonus = 0
+    });
+
+    it('high-quality RM-IRONORE/RM-COAL (above the 7.0 baseline) measurably raises outputQuality', async () => {
+      const atBaseline  = await runOutputQuality(makeHeavyRawInput('RM-IRONORE', 7, 'SF-STEEL'));
+      const highQuality = await runOutputQuality(makeHeavyRawInput('RM-IRONORE', 10, 'SF-STEEL'));
+      expect(highQuality).toBeGreaterThan(atBaseline);
+      // inputQualityFactor rises 7→10 (+0.3*3=0.9) plus heavyInputBonus (10-7)*0.3=0.9 → total +1.8
+      expect(highQuality - atBaseline).toBeCloseTo(1.8, 5);
+    });
+
+    it('high-quality RM-LUMBER also feeds the bonus for wood-family outputs', async () => {
+      const atBaseline  = await runOutputQuality(makeHeavyRawInput('RM-LUMBER', 7, 'SF-PLANKS'));
+      const highQuality = await runOutputQuality(makeHeavyRawInput('RM-LUMBER', 10, 'SF-PLANKS'));
+      expect(highQuality).toBeGreaterThan(atBaseline);
+      expect(highQuality - atBaseline).toBeCloseTo(1.8, 5);
+    });
+
+    it('a non-tracked SKU never triggers the bonus, even at maximum quality (opt-in scoping)', async () => {
+      const untracked = await runOutputQuality(makeHeavyRawInput('RM-SOMETHINGELSE', 10, 'SF-STEEL'));
+      expect(untracked).toBeCloseTo(0.40 * 5 + 0.30 * 5 + 0.30 * 10, 5); // 6.5, heavyInputBonus = 0
+    });
+  });
 });

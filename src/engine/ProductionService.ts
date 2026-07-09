@@ -59,6 +59,9 @@ export class ProductionService {
   // HEAVY_INDUSTRY — родини SKU для профільних професій/техніки
   private static readonly HEAVY_STEEL_SKUS = new Set(['SF-STEEL', 'FG-STEEL-P']);
   private static readonly HEAVY_WOOD_SKUS  = new Set(['SF-PLANKS', 'FG-FURN']);
+  // HEAVY_INDUSTRY — сировина, чия якість в інвентарі підживлює якість виходу (сигнатурна механіка)
+  private static readonly HEAVY_RAW_STEEL_SKUS = new Set(['RM-IRONORE', 'RM-COAL']);
+  private static readonly HEAVY_RAW_WOOD_SKUS  = new Set(['RM-LUMBER']);
 
   async processProduction(playerId: string, tickNumber?: bigint): Promise<{
     results: ProductionResult[];
@@ -500,6 +503,12 @@ export class ProductionService {
           let   inputQualityWt   = 0;
           let   canProduce       = true;
 
+          // HEAVY_INDUSTRY signature mechanic: сировина (RM-IRONORE/RM-COAL/RM-LUMBER), що
+          // споживається цим рецептом, відстежується окремо — її середньозважена якість в
+          // інвентарі підживлює heavyInputBonus нижче (opt-in, ≥0; див. clamp формулу outputQuality).
+          let heavyRawQualitySum = 0;
+          let heavyRawQualityWt  = 0;
+
           for (const input of recipe.inputs) {
             const needed  = input.quantityPerUnit * unitsThisTick;
             const invRow  = ent.inventory.find(i => i.productId === input.productId);
@@ -513,6 +522,14 @@ export class ProductionService {
             inputsConsumed.push({ productId: input.productId, quantity: needed });
             inputQualitySum += (invRow?.avgQuality ?? 5) * needed;
             inputQualityWt  += needed;
+
+            if (ent.type === 'HEAVY_INDUSTRY') {
+              const inputSku = (input as { product?: { sku?: string } }).product?.sku;
+              if (inputSku && (ProductionService.HEAVY_RAW_STEEL_SKUS.has(inputSku) || ProductionService.HEAVY_RAW_WOOD_SKUS.has(inputSku))) {
+                heavyRawQualitySum += (invRow?.avgQuality ?? 5) * needed;
+                heavyRawQualityWt  += needed;
+              }
+            }
           }
 
           if (!canProduce) continue;
@@ -545,11 +562,23 @@ export class ProductionService {
             dyerBonus = Math.min(dyers, 3) * 0.4 + (hasVat ? 0.6 : 0); // до +1.8 на шкалі 0–10
           }
 
+          // HEAVY_INDUSTRY: якість сировини (RM-IRONORE/RM-COAL/RM-LUMBER) → якість виходу.
+          // Opt-in, невід'ємний: базова/типова якість сировини на ринку (avgQuality ≈ 7,
+          // див. MarketService/market-buy fallback `order.quality ?? 7.0`) бонусу НЕ дає —
+          // heavyInputBonus = 0 при avgQuality ≤ 7, тож без спеціально придбаної преміум-сировини
+          // поведінка підприємства ідентична сьогоднішній (0 регресій). Лише помітно вища за
+          // ринкову якість сировина (>7) дає невеликий приріст якості сталі/пиломатеріалів.
+          let heavyInputBonus = 0;
+          if (ent.type === 'HEAVY_INDUSTRY' && heavyRawQualityWt > 0) {
+            const heavyRawQuality = heavyRawQualitySum / heavyRawQualityWt; // 0–10
+            heavyInputBonus = Math.max(0, heavyRawQuality - 7) * 0.3; // 0 до avgQuality=7; +0.9 на avgQuality=10
+          }
+
           const outputQuality = clamp(
             QUALITY_WEIGHTS.EQUIPMENT * equipQuality +
             QUALITY_WEIGHTS.MOOD      * moodFactor   +
             QUALITY_WEIGHTS.INPUT     * inputQualityFactor +
-            rdBonus + beeBonus + dyerBonus,
+            rdBonus + beeBonus + dyerBonus + heavyInputBonus,
             0, 10,
           );
 
