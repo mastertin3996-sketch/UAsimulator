@@ -102,7 +102,7 @@ export class FoodProcessingService {
           body:  `${Array.from(names).join(', ')}: якість псувних товарів опустилась нижче ${FoodProcessingService.WARN_QUALITY_THRESHOLD}/10. Встановіть холодильне обладнання (EQ-REFRIGERATOR-IND / EQ-CLIMATE / EQ-COLDROOM), щоб зупинити псування.`,
           entityId: null,
         })),
-      }).catch(() => {});
+      }).catch(e => console.error('[FoodProcessingService] notification failed:', e));
     }
   }
 }

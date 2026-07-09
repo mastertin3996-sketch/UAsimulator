@@ -299,7 +299,7 @@ export class TickEngine {
           playerId: w.enterprise.playerId, type: 'CONSTRUCTION_COMPLETE',
           title: 'Розширення завершено', body: `Новий цех "${w.name}" у "${w.enterprise.name}" введено в експлуатацію.`,
         })),
-      }).catch(() => {});
+      }).catch(e => console.error('[TickEngine] notification failed:', e));
     }
 
     // ── Умовні операції (кожні N тіків) — паралельно ─────────────────────
@@ -574,7 +574,7 @@ export class TickEngine {
     }
 
     if (notifRows.length > 0) {
-      await this.db.notification.createMany({ data: notifRows }).catch(() => {});
+      await this.db.notification.createMany({ data: notifRows }).catch(e => console.error('[TickEngine] notification failed:', e));
     }
 
     // ── Snapshot + Monthly (conditional) ─────────────────────────────────
@@ -652,7 +652,10 @@ export class TickEngine {
         await this.db.$transaction([
           this.db.player.update({
             where: { id: playerId },
-            data:  { cashBalance: after },      // absolute value — safe because we track locally
+            // Атомарний decrement, не абсолютне значення — локальний runningBalance
+            // безпечний лише проти інших ітерацій ЦЬОГО циклу, не проти паралельного
+            // HTTP-запиту від самого гравця (напр. розміщення ринкового ордера).
+            data:  { cashBalance: { decrement: dailyCost } },
           }),
           this.db.constructionProject.update({
             where: { id: proj.id },
@@ -705,13 +708,19 @@ export class TickEngine {
       where:   { playerId, status: 'LEASED' },
       include: { city: true },
     });
+    if (leasedPlots.length === 0) return;
+
+    // Баланс читаємо один раз і трекаємо локально для полів ledger — сам запис
+    // балансу вже й був атомарним (decrement), це лише прибирає зайві N перечитувань.
+    const player0 = await this.db.player.findUniqueOrThrow({ where: { id: playerId } });
+    let runningBalance = new Decimal(player0.cashBalance.toString());
 
     for (const plot of leasedPlots) {
       // monthlyLeaseCostUah — фіксована місячна орендна плата (Decimal)
       const monthlyLease = new Decimal(plot.monthlyLeaseCostUah.toString());
-      const player       = await this.db.player.findUniqueOrThrow({ where: { id: playerId } });
-      const before       = new Decimal(player.cashBalance.toString());
-      const after        = before.minus(monthlyLease);
+      const before        = runningBalance;
+      const after          = before.minus(monthlyLease);
+      runningBalance       = after;
 
       await this.db.$transaction([
         this.db.player.update({
@@ -784,7 +793,7 @@ export class TickEngine {
           title:    'Навчання завершено',
           body:     `${emp.firstName} ${emp.lastName} підвищив кваліфікацію до рівня ${s.targetLevel}. Ефективність +${(bonus * 100).toFixed(0)}%.`,
           entityId: s.employeeId,
-        }}).catch(() => {});
+        }}).catch(e => console.error('[TickEngine] notification failed:', e));
       }
     }
   }
@@ -1283,7 +1292,7 @@ export class TickEngine {
             playerId: herd.enterprise.playerId, type: 'MACRO_EVENT',
             title:    '⚠ Тварини голодують',
             body:     `Стадо (${herd.species}) 3 тіки без корму. Здоров'я: ${Math.round(newHealth * 100)}%. Поповніть RM-CORN.`,
-          } }).catch(() => {});
+          } }).catch(e => console.error('[TickEngine] notification failed:', e));
         }
       }
     }
@@ -1375,7 +1384,7 @@ export class TickEngine {
           playerId: farm.playerId, type: 'WARNING',
           title: `🦠 Хвороба прогресує`,
           body:  `${lp.cropDiseaseType === 'FUNGAL' ? 'Грибок' : 'Вірус'} на полі посилюється: −${Math.round(newSeverity * 50)}% врожаю. Застосуйте лікування.`,
-        } }).catch(() => {});
+        } }).catch(e => console.error('[TickEngine] notification failed:', e));
         continue;
       }
 
@@ -1388,7 +1397,7 @@ export class TickEngine {
           playerId: farm.playerId, type: 'WARNING',
           title: `🦠 ${type === 'FUNGAL' ? 'Грибкова хвороба' : 'Вірусна хвороба'} на полі`,
           body:  `Поле вражене ${type === 'FUNGAL' ? 'грибком (фунгіцид лікує)' : 'вірусом (потрібен час + пестицид)'}. Втрата врожаю −${Math.round(severity * 50)}%.`,
-        } }).catch(() => {});
+        } }).catch(e => console.error('[TickEngine] notification failed:', e));
       }
     }
   }
@@ -1399,17 +1408,27 @@ export class TickEngine {
       where:   { type: 'AGRO_FARM', isOperational: true, agroTourismEnabled: true },
       select:  { id: true, playerId: true, name: true, agroTourismRevenuePerTick: true },
     });
+    const earning = farms.filter(f => Number(f.agroTourismRevenuePerTick) > 0);
+    if (earning.length === 0) return;
 
-    for (const farm of farms) {
+    // Батч-завантаження балансів усіх залучених гравців одним запитом — раніше
+    // перечитувалось по одному findUnique НА КОЖНУ ферму (навіть повторно для
+    // одного й того ж гравця, якщо в нього кілька агротуристичних ферм).
+    const playerIds = [...new Set(earning.map(f => f.playerId))];
+    const players = await this.db.player.findMany({ where: { id: { in: playerIds } }, select: { id: true, cashBalance: true } });
+    const balanceMap = new Map(players.map(p => [p.id, Number(p.cashBalance)]));
+
+    for (const farm of earning) {
       const revenue = Number(farm.agroTourismRevenuePerTick);
-      if (revenue <= 0) continue;
-      const bal = await this.db.player.findUnique({ where: { id: farm.playerId }, select: { cashBalance: true } });
-      const before = Number(bal?.cashBalance ?? 0);
+      const before = balanceMap.get(farm.playerId) ?? 0;
+      const after  = before + revenue;
+      balanceMap.set(farm.playerId, after);
+
       await this.db.$transaction([
         this.db.player.update({ where: { id: farm.playerId }, data: { cashBalance: { increment: revenue } } }),
         this.db.financialTransaction.create({ data: {
           playerId: farm.playerId, type: 'STATE_SUBSIDY',
-          amountUah: revenue, balanceBefore: before, balanceAfter: before + revenue,
+          amountUah: revenue, balanceBefore: before, balanceAfter: after,
           description: `Агротуризм: ${farm.name} (+₴${revenue}/тік)`,
         } }),
       ]);
@@ -1440,7 +1459,7 @@ export class TickEngine {
           playerId: farm.playerId, type: 'WARNING',
           title: `🌽 Корм закінчується`,
           body:  `«${farm.name}»: RM-CORN вистачить на ~${Math.floor(ticksLeft)} тік${ticksLeft < 2 ? '' : 'и'}. Закупіть ${Math.ceil(feedPerTick * 20).toLocaleString('uk-UA')} кг.`,
-        } }).catch(() => {});
+        } }).catch(e => console.error('[TickEngine] notification failed:', e));
       }
     }
   }
@@ -1466,7 +1485,7 @@ export class TickEngine {
           playerId: m.playerId, type: 'MACRO_EVENT',
           title:    `🔧 ${m.name} зламалась`,
           body:     `${m.name} повністю зношена і потребує ремонту. Без неї врожайність знижена.`,
-        } }).catch(() => {});
+        } }).catch(e => console.error('[TickEngine] notification failed:', e));
       }
     }
   }

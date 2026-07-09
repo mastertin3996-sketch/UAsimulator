@@ -38,7 +38,7 @@ export class WarehouseRentalService {
             title:    'Оренду складу скасовано',
             body:     `Недостатньо коштів для оплати оренди (₴${rent.toFixed(0)}/тік). Передплату анульовано.`,
           },
-        }).catch(() => {});
+        }).catch(e => console.error('[WarehouseRentalService] notification failed:', e));
         continue;
       }
 

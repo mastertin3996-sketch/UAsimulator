@@ -52,6 +52,14 @@ export class AgroService {
       },
     });
 
+    // Батч-завантаження балансів усіх залучених гравців одним запитом замість
+    // findUnique НА КОЖНУ ферму (кілька ферм одного гравця раніше перечитувались повторно).
+    const involvedPlayerIds = [...new Set(farms.map(f => f.playerId))];
+    const involvedPlayers = await this.prisma.player.findMany({
+      where: { id: { in: involvedPlayerIds } }, select: { id: true, cashBalance: true },
+    });
+    const balanceMap = new Map(involvedPlayers.map(p => [p.id, new Decimal(p.cashBalance.toString())]));
+
     let paid = 0;
     for (const farm of farms) {
       const totalArea = (farm.landPlot?.totalAreaM2 ?? 0) + farm.extraFieldAreaM2;
@@ -62,9 +70,9 @@ export class AgroService {
       const amount       = Math.round(totalArea * subsRate);
       if (amount <= 0) continue;
 
-      const balBefore = await this.prisma.player.findUnique({ where: { id: farm.playerId }, select: { cashBalance: true } });
-      const balanceBefore = new Decimal(balBefore?.cashBalance?.toString() ?? '0');
+      const balanceBefore = balanceMap.get(farm.playerId) ?? new Decimal(0);
       const balanceAfter  = balanceBefore.plus(amount);
+      balanceMap.set(farm.playerId, balanceAfter);
       const organicTag    = hasOrganic ? ' [+15% органік]' : '';
 
       await this.prisma.$transaction([
@@ -144,19 +152,31 @@ export class AgroService {
       },
     });
 
+    if (due.length === 0) return;
+
+    // Батч-завантаження інвентарю та балансів для всіх контрактів одразу.
+    const invRows = await this.prisma.enterpriseInventory.findMany({
+      where: { OR: due.map(c => ({ enterpriseId: c.enterpriseId, productId: c.productId })) },
+      select: { enterpriseId: true, productId: true, quantity: true },
+    });
+    const invMap = new Map(invRows.map(i => [`${i.enterpriseId}:${i.productId}`, Number(i.quantity)]));
+
+    const duePlayerIds = [...new Set(due.map(c => c.playerId))];
+    const duePlayers = await this.prisma.player.findMany({
+      where: { id: { in: duePlayerIds } }, select: { id: true, cashBalance: true },
+    });
+    const balanceMap = new Map(duePlayers.map(p => [p.id, new Decimal(p.cashBalance.toString())]));
+
     for (const contract of due) {
-      const inv = await this.prisma.enterpriseInventory.findUnique({
-        where:  { enterpriseId_productId: { enterpriseId: contract.enterpriseId, productId: contract.productId } },
-        select: { quantity: true },
-      });
-      const available = inv ? Number(inv.quantity) : 0;
+      const available = invMap.get(`${contract.enterpriseId}:${contract.productId}`) ?? 0;
       const totalValue = contract.quantityUnits * Number(contract.pricePerUnit);
 
-      const playerBal = await this.prisma.player.findUnique({ where: { id: contract.playerId }, select: { cashBalance: true } });
-      const balanceBefore = new Decimal(playerBal?.cashBalance?.toString() ?? '0');
+      const balanceBefore = balanceMap.get(contract.playerId) ?? new Decimal(0);
 
       if (available >= contract.quantityUnits) {
         const balanceAfter = balanceBefore.plus(totalValue);
+        balanceMap.set(contract.playerId, balanceAfter);
+        invMap.set(`${contract.enterpriseId}:${contract.productId}`, available - contract.quantityUnits);
         await this.prisma.$transaction([
           this.prisma.enterpriseInventory.updateMany({
             where: { enterpriseId: contract.enterpriseId, productId: contract.productId },
@@ -185,6 +205,7 @@ export class AgroService {
         const penalty = Math.round(totalValue * FORWARD_DEFAULT_PENALTY_RATE);
         const actualPenalty = Math.min(penalty, balanceBefore.toNumber());
         const balanceAfter  = balanceBefore.minus(actualPenalty);
+        balanceMap.set(contract.playerId, balanceAfter);
 
         await this.prisma.$transaction([
           this.prisma.player.update({
@@ -228,13 +249,19 @@ export class AgroService {
       select: { id: true, playerId: true, name: true, extraFieldAreaM2: true, extraFieldRentUah: true },
     });
 
+    const rentPlayerIds = [...new Set(farms.filter(f => Number(f.extraFieldRentUah) > 0).map(f => f.playerId))];
+    const rentPlayers = await this.prisma.player.findMany({
+      where: { id: { in: rentPlayerIds } }, select: { id: true, cashBalance: true },
+    });
+    const rentBalanceMap = new Map(rentPlayers.map(p => [p.id, new Decimal(p.cashBalance.toString())]));
+
     for (const farm of farms) {
       const rent = Number(farm.extraFieldRentUah);
       if (rent <= 0) continue;
 
-      const farmBal = await this.prisma.player.findUnique({ where: { id: farm.playerId }, select: { cashBalance: true } });
-      const rentBefore = new Decimal(farmBal?.cashBalance?.toString() ?? '0');
+      const rentBefore = rentBalanceMap.get(farm.playerId) ?? new Decimal(0);
       const rentAfter  = rentBefore.minus(rent);
+      rentBalanceMap.set(farm.playerId, rentAfter);
 
       await this.prisma.$transaction([
         this.prisma.player.update({
@@ -485,7 +512,7 @@ export class AgroService {
             title:    `Новий сезон на фермі «${farm.name}»`,
             body:     'Оранка/культивація/посів скинуто на новий сезон — повторіть польові роботи у вкладці Поля, щоб зберегти бонуси врожайності.',
           },
-        }).catch(() => {});
+        }).catch(e => console.error('[AgroService] notification failed:', e));
       }
       if (pestSpawns && farm.playerId) {
         await this.prisma.notification.create({
@@ -495,7 +522,7 @@ export class AgroService {
             title:    `Шкідники на фермі «${farm.name}»`,
             body:     'Нашестя попелиці! Врожайність −40%. Застосуйте пестицид у вкладці Поля.',
           },
-        }).catch(() => {});
+        }).catch(e => console.error('[AgroService] notification failed:', e));
       }
 
       // 4. Harvest rot — clear accumulated field crops
@@ -513,7 +540,7 @@ export class AgroService {
                 title:    `Врожай згнив у «${farm.name}»`,
                 body:     `${ws.harvestAccumulated.toFixed(0)} кг врожаю не зібрано до кінця сезону і згнило. Збирайте вчасно!`,
               },
-            }).catch(() => {});
+            }).catch(e => console.error('[AgroService] notification failed:', e));
           }
         }
       }
@@ -562,6 +589,12 @@ export class AgroService {
       },
     });
 
+    const insurancePlayerIds = [...new Set(licenses.map(l => l.playerId))];
+    const insurancePlayers = await this.prisma.player.findMany({
+      where: { id: { in: insurancePlayerIds } }, select: { id: true, cashBalance: true },
+    });
+    const insuranceBalanceMap = new Map(insurancePlayers.map(p => [p.id, new Decimal(p.cashBalance.toString())]));
+
     for (const lic of licenses) {
       const ent = lic.enterprise;
       if (!ent) continue;
@@ -586,12 +619,9 @@ export class AgroService {
       if (payoutAmount <= 0) continue;
 
       // 4. Виплачуємо гравцю
-      const playerBal = await this.prisma.player.findUnique({
-        where:  { id: lic.playerId },
-        select: { cashBalance: true },
-      });
-      const balanceBefore = new Decimal(playerBal?.cashBalance?.toString() ?? '0');
+      const balanceBefore = insuranceBalanceMap.get(lic.playerId) ?? new Decimal(0);
       const balanceAfter  = balanceBefore.plus(payoutAmount);
+      insuranceBalanceMap.set(lic.playerId, balanceAfter);
       const reasons = [
         weatherDamage ? `погода (×${ent.localWeatherMod?.toFixed(2)})` : null,
         diseaseDamage ? `хвороба (${((ent.landPlot?.cropDiseaseSeverity ?? 0) * 100).toFixed(0)}%)` : null,

@@ -53,20 +53,18 @@ export class NpcCompetitorService {
 
   /** Ensure NPC competitor Player accounts exist in DB. Called from seed or first tick. */
   async ensureBotsExist(): Promise<void> {
-    for (const bot of NPC_BOTS) {
-      await this.prisma.player.upsert({
-        where:  { username: bot.username },
-        create: {
-          email:        `${bot.username}@npc.game`,
-          username:     bot.username,
-          passwordHash: 'npc-no-login',
-          companyName:  bot.company,
-          isNpcSeller:  true,
-          cashBalance:  10_000_000,
-        },
-        update: {},
-      });
-    }
+    await Promise.all(NPC_BOTS.map(bot => this.prisma.player.upsert({
+      where:  { username: bot.username },
+      create: {
+        email:        `${bot.username}@npc.game`,
+        username:     bot.username,
+        passwordHash: 'npc-no-login',
+        companyName:  bot.company,
+        isNpcSeller:  true,
+        cashBalance:  10_000_000,
+      },
+      update: {},
+    })));
   }
 
   /**
@@ -94,43 +92,57 @@ export class NpcCompetitorService {
 
     const expiresAt = new Date(Date.now() + ORDER_LIFETIME_DAYS * 24 * 60 * 60 * 1000);
 
-    for (const sku of bot.skus) {
-      const product = await this.prisma.product.findFirst({
-        where:  { sku },
-        select: { id: true },
-      });
-      if (!product) continue;
+    // Батч-завантаження для всіх SKU бота одразу — раніше 4 запити НА КОЖЕН SKU
+    // послідовно (product, demand, найкраща ціна гравця, власний ордер).
+    const products = await this.prisma.product.findMany({
+      where:  { sku: { in: bot.skus } },
+      select: { id: true, sku: true },
+    });
+    if (products.length === 0) return;
+    const productIds = products.map(p => p.id);
 
-      // Reference price from NpcDemand
-      const demand = await this.prisma.npcDemand.findFirst({
-        where:  { productId: product.id },
-        select: { referencePrice: true },
-      });
-      const refPrice = demand?.referencePrice ? Number(demand.referencePrice) : null;
-      if (!refPrice) continue;
-
-      // Lowest active player price for this product (not our own, not other NPCs)
-      const playerOrder = await this.prisma.marketOrder.findFirst({
+    const [demands, playerOrders, ownOrders] = await Promise.all([
+      this.prisma.npcDemand.findMany({
+        where:  { productId: { in: productIds } },
+        select: { productId: true, referencePrice: true },
+      }),
+      this.prisma.marketOrder.findMany({
         where: {
-          productId: product.id,
+          productId: { in: productIds },
           type:      'SELL',
           status:    { in: ['OPEN', 'PARTIALLY_FILLED'] },
           player:    { isNpcSeller: false },
         },
         orderBy: { pricePerUnit: 'asc' },
-        select:  { pricePerUnit: true },
-      });
-
-      // Check our own active order
-      const ownOrder = await this.prisma.marketOrder.findFirst({
+        select:  { productId: true, pricePerUnit: true },
+      }),
+      this.prisma.marketOrder.findMany({
         where: {
           playerId:  player.id,
-          productId: product.id,
+          productId: { in: productIds },
           type:      'SELL',
           status:    { in: ['OPEN', 'PARTIALLY_FILLED'] },
         },
-        select: { id: true, pricePerUnit: true, quantityTotal: true, quantityFilled: true },
-      });
+        select: { id: true, productId: true, pricePerUnit: true, quantityTotal: true, quantityFilled: true },
+      }),
+    ]);
+
+    // Найдешевший ордер РЕАЛЬНОГО гравця на кожен продукт (перший у сортованому масиві — найдешевший)
+    const cheapestPlayerBySku = new Map<string, number>();
+    for (const o of playerOrders) {
+      if (!cheapestPlayerBySku.has(o.productId)) cheapestPlayerBySku.set(o.productId, Number(o.pricePerUnit));
+    }
+    const demandByProduct = new Map(demands.map(d => [d.productId, d.referencePrice]));
+    const ownOrderByProduct = new Map(ownOrders.map(o => [o.productId, o]));
+
+    for (const product of products) {
+      const sku = product.sku;
+      const refPriceRaw = demandByProduct.get(product.id);
+      const refPrice = refPriceRaw ? Number(refPriceRaw) : null;
+      if (!refPrice) continue;
+
+      const playerOrder = cheapestPlayerBySku.has(product.id) ? { pricePerUnit: cheapestPlayerBySku.get(product.id)! } : null;
+      const ownOrder = ownOrderByProduct.get(product.id);
 
       // Determine target price
       let targetPrice = refPrice * bot.priceMult;

@@ -165,7 +165,7 @@ export class StateRegulationService {
         body:      `Ліцензія типу ${l.type} закінчилась. Поновіть для відновлення роботи.`,
         entityId:  l.enterpriseId,
       }));
-      await this.db.notification.createMany({ data: licenseNotifs }).catch(() => {});
+      await this.db.notification.createMany({ data: licenseNotifs }).catch(e => console.error('[StateRegulationService] notification/side-effect failed:', e));
     }
     summary.licenseExpiries = expiringLicenses.length;
 
@@ -189,7 +189,9 @@ export class StateRegulationService {
       select: { id: true },
     });
 
-    for (const { id: playerId } of players) {
+    // Паралельно по гравцях — раніше послідовний for...of, безумовно щотіку,
+    // ~3-4 запити на гравця (тепер менше завдяки батчингу ліцензій вище).
+    await Promise.all(players.map(async ({ id: playerId }) => {
       const { score: newScore, lastAuditTick } = await this.updateComplianceScore(playerId, currentTick);
       summary.complianceUpdates++;
 
@@ -215,7 +217,7 @@ export class StateRegulationService {
             title:   'Штраф від ДПС',
             body:    `Аудит виявив порушення. Штраф ₴${Number(auditResult.fineAmountUah).toFixed(0)}. Заморожено підприємств: ${auditResult.frozenEnterpriseIds.length}.`,
             entityId: null,
-          }}).catch(() => {});
+          }}).catch(e => console.error('[StateRegulationService] notification/side-effect failed:', e));
         } else {
           await this.db.notification.create({ data: {
             playerId,
@@ -223,10 +225,10 @@ export class StateRegulationService {
             title:   'Аудит пройдено успішно',
             body:    'ДПС провела перевірку. Порушень не виявлено.',
             entityId: null,
-          }}).catch(() => {});
+          }}).catch(e => console.error('[StateRegulationService] notification/side-effect failed:', e));
         }
       }
-    }
+    }));
 
     // ── f. Macro event roll (2% chance) ───────────────────────────────────
     summary.macroEvent = await this.triggerMacroeconomicEventTick(currentTick);
@@ -635,7 +637,7 @@ export class StateRegulationService {
         playerId: insEnt.playerId, type: 'MACRO_EVENT',
         title: 'Страхова виплата',
         body: `AGRO_INSURANCE: отримано ₴${payout.toLocaleString('uk-UA')} за посуху у ${cityName} (₴4/м² × ${totalM2.toFixed(0)} м²)`,
-      } }).catch(() => {});
+      } }).catch(e => console.error('[StateRegulationService] notification/side-effect failed:', e));
     }
 
     return { fired: true, eventId: event.id, type: 'DROUGHT', description };
@@ -697,14 +699,14 @@ export class StateRegulationService {
           playerId: ent.playerId, type: 'MACRO_EVENT',
           title: 'Страхова виплата',
           body: `AGRO_INSURANCE: отримано ₴${payout.toLocaleString('uk-UA')} за знищений врожай (50% від ${totalDestroyed.toFixed(0)} кг × ₴15/кг)`,
-        } }).catch(() => {});
+        } }).catch(e => console.error('[StateRegulationService] notification/side-effect failed:', e));
       }
     }
 
     // Notify affected player
     await this.db.notification.create({
       data: { playerId: ent.playerId, type: 'MACRO_EVENT', title: pesticideInv ? 'Шкідників відбито' : 'Нашестя шкідників', body: description },
-    }).catch(() => {});
+    }).catch(e => console.error('[StateRegulationService] notification/side-effect failed:', e));
 
     const event = await this.db.macroEvent.create({
       data: { type: 'PEST_ATTACK', affectedCityId: ent.landPlot.cityId, startTick: currentTick, endTick: currentTick + 1n, description },
@@ -741,7 +743,7 @@ export class StateRegulationService {
 
     await this.db.notification.create({
       data: { playerId: farm.playerId, type: 'MACRO_EVENT', title: '❄ Пізні заморозки', body: description },
-    }).catch(() => {});
+    }).catch(e => console.error('[StateRegulationService] notification/side-effect failed:', e));
 
     // AGRO_INSURANCE pays 60% of estimated loss (base ₴30k per farm)
     const insurancePayout = await this.tryPayInsurance(farm.playerId, farm.landPlot.cityId, Math.round(30_000 * lossPct), currentTick, 'пізні заморозки');
@@ -772,12 +774,12 @@ export class StateRegulationService {
       await this.db.enterpriseInventory.updateMany({
         where: { enterpriseId: farm.id, productId: p.id },
         data:  { quantity: { multiply: 1 - lossPct } as any },
-      }).catch(() => {});
+      }).catch(e => console.error('[StateRegulationService] notification/side-effect failed:', e));
     }
 
     await this.db.notification.create({
       data: { playerId: farm.playerId, type: 'MACRO_EVENT', title: '⛈ Град', body: description },
-    }).catch(() => {});
+    }).catch(e => console.error('[StateRegulationService] notification/side-effect failed:', e));
 
     const insurancePayout = await this.tryPayInsurance(farm.playerId, farm.landPlot.cityId, Math.round(25_000 * lossPct), currentTick, 'град');
 
@@ -805,7 +807,7 @@ export class StateRegulationService {
 
     await this.db.notification.create({
       data: { playerId: farm.playerId, type: 'MACRO_EVENT', title: '🌊 Повінь', body: description },
-    }).catch(() => {});
+    }).catch(e => console.error('[StateRegulationService] notification/side-effect failed:', e));
 
     const insurancePayout = await this.tryPayInsurance(farm.playerId, farm.landPlot.cityId, Math.round(40_000 * soilDamage), currentTick, 'повінь');
 
@@ -831,7 +833,7 @@ export class StateRegulationService {
         description: `Страхова виплата AGRO_INSURANCE (${reason}): ₴${payout.toLocaleString('uk-UA')}`,
         tickNumber: tick,
       },
-    }).catch(() => {});
+    }).catch(e => console.error('[StateRegulationService] notification/side-effect failed:', e));
     return payout;
   }
 
@@ -1022,18 +1024,22 @@ export class StateRegulationService {
       hasViolations = true;
     }
 
-    // Deduction: operating without required license
-    for (const ent of enterprises) {
-      const required = LICENSE_REQUIRED[ent.type];
-      if (!required) continue;
-
-      const hasLicense = await this.db.license.findFirst({
-        where: { enterpriseId: ent.id, type: required, status: 'ACTIVE' },
+    // Deduction: operating without required license — one batched query for all of this
+    // player's enterprises instead of a sequential license.findFirst() per enterprise.
+    const licensableEnts = enterprises.filter(ent => LICENSE_REQUIRED[ent.type]);
+    if (licensableEnts.length > 0) {
+      const activeLicenses = await this.db.license.findMany({
+        where:  { enterpriseId: { in: licensableEnts.map(e => e.id) }, status: 'ACTIVE' },
+        select: { enterpriseId: true, type: true },
       });
-      if (!hasLicense) {
-        score      -= PENALTY_NO_LICENSE;
-        hasViolations = true;
-        // Sell order cancellation happens only during audit/freeze, not every score update
+      const licenseSet = new Set(activeLicenses.map(l => `${l.enterpriseId}:${l.type}`));
+      for (const ent of licensableEnts) {
+        const required = LICENSE_REQUIRED[ent.type]!;
+        if (!licenseSet.has(`${ent.id}:${required}`)) {
+          score      -= PENALTY_NO_LICENSE;
+          hasViolations = true;
+          // Sell order cancellation happens only during audit/freeze, not every score update
+        }
       }
     }
 

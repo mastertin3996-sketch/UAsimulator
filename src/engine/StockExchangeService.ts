@@ -814,7 +814,10 @@ export class StockExchangeService {
       include: { player: { select: { companyValuationUah: true } } },
     });
 
-    for (const ticker of tickers) {
+    // Паралельно по тікерах — кожен матчиться у власній ізольованій транзакції
+    // (matchStockOrders), тож перехресних конфліктів між тікерами немає. Раніше —
+    // послідовний цикл, ~4 round-trips на тікер навіть при порожній книзі ордерів.
+    await Promise.all(tickers.map(async (ticker) => {
       summary.tickersProcessed++;
 
       const fundamentalVal = new Decimal(ticker.player.companyValuationUah.toString());
@@ -846,7 +849,7 @@ export class StockExchangeService {
         summary.totalTradesExecuted += matchResult.tradesExecuted;
         summary.totalVolumeUah       = summary.totalVolumeUah.plus(matchResult.volumeUah);
       }
-    }
+    }));
 
     return summary;
   }

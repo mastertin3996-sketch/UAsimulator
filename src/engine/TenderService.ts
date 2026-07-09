@@ -129,7 +129,7 @@ export class TenderService {
         title: 'Тендер виконано',
         body:  `"${tender.title}": отримано ₴${revenue.toFixed(0)} за ${tender.quantityRequired} од. ${tender.product.nameUa}. Статус постачальника підвищено.`,
       },
-    }).catch(() => {});
+    }).catch(e => console.error('[TenderService] notification failed:', e));
 
     return { ok: true, message: 'Тендер виконано успішно', revenueUah: revenue.toNumber() };
   }

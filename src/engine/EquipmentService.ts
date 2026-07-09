@@ -40,6 +40,7 @@ export class EquipmentService {
 
     const results: DegradationResult[] = [];
     const now = Date.now();
+    const updates: ReturnType<typeof this.prisma.equipment.update>[] = [];
 
     for (const ws of workshops) {
       const utilisation = utilisationByWorkshop.get(ws.id) ?? 0;
@@ -62,10 +63,10 @@ export class EquipmentService {
 
         const isBroken = newStatus === 'BROKEN';
 
-        await this.prisma.equipment.update({
+        updates.push(this.prisma.equipment.update({
           where: { id: eq.id },
           data:  { wearAndTear: newWear, status: newStatus, isBroken },
-        });
+        }));
 
         results.push({
           equipmentId:    eq.id,
@@ -77,6 +78,9 @@ export class EquipmentService {
         });
       }
     }
+
+    // Один $transaction замість по одному await на одиницю обладнання.
+    if (updates.length > 0) await this.prisma.$transaction(updates);
 
     return results;
   }

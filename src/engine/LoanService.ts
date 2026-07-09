@@ -301,7 +301,7 @@ export class LoanService {
             title:   'Кредит прострочено',
             body:    `Черговий платіж по кредиту ₴${Number(loan.monthlyPaymentUah).toFixed(0)} прострочено. Кредитний рейтинг знижено.`,
             entityId: loan.id,
-          }}).catch(() => {});
+          }}).catch(e => console.error('[LoanService] notification/side-effect failed:', e));
         }
       }
     }
@@ -468,7 +468,7 @@ export class LoanService {
       }),
     ]);
     // Credit score: +5 for on-time payment
-    if (wasOnTime) await this.creditSvc.onLoanPayment(loan.playerId).catch(() => {});
+    if (wasOnTime) await this.creditSvc.onLoanPayment(loan.playerId).catch(e => console.error('[LoanService] notification/side-effect failed:', e));
   }
 
   private async triggerDefault(loanId: string, playerId: string): Promise<void> {
@@ -482,7 +482,7 @@ export class LoanService {
       data:  { status: 'DEFAULTED' },
     });
     await this.adjustCreditRating(playerId, RATING_DELTA.DEFAULT);
-    await this.creditSvc.onLoanDefault(playerId).catch(() => {});
+    await this.creditSvc.onLoanDefault(playerId).catch(e => console.error('[LoanService] notification/side-effect failed:', e));
 
     // Застава: ф'ючерсний контракт вилучається на користь банку, а його вартість
     // списується з залишку боргу (не виплачується гравцю при настанні deliveryTick).
@@ -510,7 +510,7 @@ export class LoanService {
           title:   'Заставу вилучено',
           body:    `Банк вилучив заставний ф'ючерс (${contract.product.nameUa} × ${contract.quantityUnits}) на ₴${seizedValue.toFixed(0)} для погашення боргу.`,
           entityId: loanId,
-        }}).catch(() => {});
+        }}).catch(e => console.error('[LoanService] notification/side-effect failed:', e));
       }
     }
 
@@ -520,16 +520,18 @@ export class LoanService {
       title:   'Дефолт по кредиту',
       body:    'Кредит переведено у статус ДЕФОЛТ. Кредитний рейтинг суттєво знижено. Зверніться до реструктуризації.',
       entityId: loanId,
-    }}).catch(() => {});
+    }}).catch(e => console.error('[LoanService] notification/side-effect failed:', e));
     console.error(`[LoanService] ДЕФОЛТ: гравець ${playerId}, кредит ${loanId}`);
   }
 
   private async adjustCreditRating(playerId: string, delta: number): Promise<void> {
-    const player = await this.prisma.player.findUniqueOrThrow({ where: { id: playerId } });
-    await this.prisma.player.update({
-      where: { id: playerId },
-      data:  { creditRating: clamp(player.creditRating + delta, 0, 10) },
-    });
+    // Атомарний clamp на рівні БД (LEAST/GREATEST) — читання-обчислення-запис
+    // абсолютного значення в JS-коді втрачало б delta при паралельних викликах
+    // (напр. два майже одночасні платежі по різних кредитах того ж гравця).
+    await this.prisma.$executeRaw`
+      UPDATE "Player" SET "creditRating" = LEAST(10, GREATEST(0, "creditRating" + ${delta}))
+      WHERE id = ${playerId}
+    `;
   }
 
   private calcAnnualRate(creditRating: number): number {

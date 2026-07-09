@@ -67,6 +67,7 @@ export class HRService {
     }));
 
     const results: HRTickResult[] = [];
+    const updates: Prisma.PrismaPromise<unknown>[] = [];
 
     for (const emp of employees) {
       // Поденне нарахування (брутто / 30) — Decimal всередині, number для результату
@@ -142,7 +143,7 @@ export class HRService {
         }
       }
 
-      await this.prisma.employee.update({
+      updates.push(this.prisma.employee.update({
         where: { id: emp.id },
         data: {
           mood:             newMood,
@@ -151,7 +152,7 @@ export class HRService {
           strikeStartedTick,
           accruedSalaryUah: { increment: dailySalary },  // Decimal ✓
         },
-      });
+      }));
 
       results.push({
         employeeId:         emp.id,
@@ -163,6 +164,10 @@ export class HRService {
         dailySalaryAccrued: dailySalary.toNumber(),
       });
     }
+
+    // Один $transaction замість N послідовних await — той самий патерн, що вже
+    // використовує disburseSalaries() нижче в цьому файлі.
+    if (updates.length > 0) await this.prisma.$transaction(updates);
 
     return results;
   }

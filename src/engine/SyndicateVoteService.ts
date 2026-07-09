@@ -56,7 +56,7 @@ export class SyndicateVoteService {
       title:    'Нове голосування в синдикаті',
       body:     `"${syn.name}": ${vote.description}. Голосуйте протягом 5 тіків.`,
     }));
-    await this.db.notification.createMany({ data: notifs }).catch(() => {});
+    await this.db.notification.createMany({ data: notifs }).catch(e => console.error('[SyndicateVoteService] notification failed:', e));
 
     return { ok: true, message: 'Голосування відкрито', voteId: vote.id };
   }
@@ -113,7 +113,7 @@ export class SyndicateVoteService {
           title:    'Голосування не пройшло',
           body:     `Синдикат "${vote.syndicate.name}": "${vote.description}" — відхилено (${vote.yesVotes} ЗА / ${vote.noVotes} ПРОТИ).`,
         }));
-        await this.db.notification.createMany({ data: notifs }).catch(() => {});
+        await this.db.notification.createMany({ data: notifs }).catch(e => console.error('[SyndicateVoteService] notification failed:', e));
       }
     }
   }
@@ -156,6 +156,6 @@ export class SyndicateVoteService {
         ? `Рекламна кампанія активована на 10 тіків — +20% NPC попит для всіх членів синдикату!`
         : `Страховий резерв ₴${Number(vote.amount).toFixed(0)} сформовано у скарбниці синдикату.`,
     }));
-    await this.db.notification.createMany({ data: notifs }).catch(() => {});
+    await this.db.notification.createMany({ data: notifs }).catch(e => console.error('[SyndicateVoteService] notification failed:', e));
   }
 }
