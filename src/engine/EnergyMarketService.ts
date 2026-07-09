@@ -78,6 +78,7 @@ export interface EnterpriseEnergyResult {
   consumptionKwh: number;
   generationKwh:  number;   // > 0 лише для SOLAR
   batteryDeltaKwh: number;  // > 0 = заряд, < 0 = розряд
+  feedInSurplusKwh: number; // генерація понад споживання І понад вільне місце в акумуляторі — продається в мережу
   gridSupplementKwh: number;
   costUah:        Decimal;
   transactionType: string;
@@ -151,6 +152,7 @@ export class EnergyMarketService {
       consumptionKwh,
       generationKwh:     0,
       batteryDeltaKwh:   0,
+      feedInSurplusKwh:  0,
       gridSupplementKwh: 0,
       gridActive:        isCityGridActive,
     };
@@ -204,10 +206,14 @@ export class EnergyMarketService {
         let gridSupplementKwh = 0;
         let costUah           = new Decimal(0);
 
+        let feedInSurplusKwh = 0;
         if (generationKwh >= consumptionKwh) {
-          // Надлишок → заряджаємо батарею (до ємності)
+          // Надлишок → заряджаємо батарею (до ємності); те, що не влізло в акумулятор,
+          // йде на продаж у мережу (раніше рахувалось як різниця двох рівних величин
+          // і завжди виходило 0 — feed-in дохід ніколи не спрацьовував).
           const excess = generationKwh - consumptionKwh;
-          batteryDeltaKwh = Math.min(excess, batteryCapKwh - currentBatKwh);
+          batteryDeltaKwh  = Math.min(excess, batteryCapKwh - currentBatKwh);
+          feedInSurplusKwh = Math.max(0, excess - batteryDeltaKwh);
           // Вартість = 0 (власна генерація покриває споживання)
         } else {
           // Нестача → спочатку батарея, потім мережа
@@ -229,6 +235,7 @@ export class EnergyMarketService {
           ...baseResult,
           generationKwh,
           batteryDeltaKwh,
+          feedInSurplusKwh,
           gridSupplementKwh,
           costUah,
           transactionType: gridSupplementKwh > 0 ? 'ENERGY_BILL' : 'ENERGY_BILL',
@@ -456,7 +463,7 @@ export class EnergyMarketService {
 
         const batCap    = new Decimal(ent.batteryCapacityKwh.toString());
         const batBefore = new Decimal(ent.currentBatteryKwh.toString());
-        let   newBatKwh = batBefore
+        const newBatKwh = batBefore
           .plus(result.batteryDeltaKwh)
           .clampedTo(new Decimal(0), batCap);
 
@@ -465,10 +472,10 @@ export class EnergyMarketService {
         const savedKwh   = Math.max(0, result.generationKwh - result.gridSupplementKwh);
         summary.totalSolarSavingsUah = summary.totalSolarSavingsUah.plus(cityTariff.times(savedKwh));
 
-        // ── Енергетична біржа: продаємо надлишок коли батарея повна ────────
+        // ── Енергетична біржа: продаємо надлишок понад повний акумулятор ────
         const FEED_IN_RATE = 0.6; // 60% від міського тарифу — feed-in rate
-        if (result.batteryDeltaKwh > 0 && newBatKwh.gte(batCap)) {
-          const surplusKwh = result.batteryDeltaKwh - batCap.minus(batBefore).toNumber();
+        {
+          const surplusKwh = result.feedInSurplusKwh;
           if (surplusKwh > 0.01 && isCityGridOn) {
             const feedInRevenue = cityTariff.times(FEED_IN_RATE).times(surplusKwh);
             const playerBal = await this.db.player.findUnique({

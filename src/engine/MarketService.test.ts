@@ -170,6 +170,52 @@ describe('MarketService.matchOrders', () => {
     expect(prismaMock.marketTrade.create).toHaveBeenCalledTimes(1);
   });
 
+  it('records accredited-supplier cashback as its own financialTransaction (not just a notification)', async () => {
+    const sell = makeOrder({ id: 'sell-1', playerId: 'derzhprom-id', type: 'SELL', pricePerUnit: new Decimal(100), quantityTotal: 10, quality: 7 });
+    const buy  = makeOrder({ id: 'buy-1', playerId: 'buyer', type: 'BUY', pricePerUnit: new Decimal(100), quantityTotal: 10 });
+
+    prismaMock.marketOrder.findMany
+      .mockResolvedValueOnce([sell] as never)
+      .mockResolvedValueOnce([buy] as never);
+    prismaMock.player.findFirst.mockResolvedValue({ id: 'derzhprom-id' } as never); // getDerzhpromId()
+    prismaMock.player.findMany.mockResolvedValue([
+      makePlayer({ id: 'derzhprom-id' }),
+      makePlayer({ id: 'buyer', cashBalance: new Decimal(1_000_000), isAccreditedSupplier: true }),
+    ] as never);
+    prismaMock.playerInventory.findMany.mockResolvedValue([
+      { playerId: 'derzhprom-id', productId: 'product-1', quantity: 10, avgQuality: 7 },
+    ] as never);
+    prismaMock.marketTrade.findMany.mockResolvedValue([] as never); // no prior ДержПром trades today
+
+    prismaMock.$transaction.mockImplementation((fn: unknown) => (fn as (tx: unknown) => unknown)(prismaMock) as never);
+    prismaMock.player.findUniqueOrThrow.mockResolvedValue(makePlayer({ cashBalance: new Decimal(500_000) }) as never);
+
+    prismaMock.marketOrder.update.mockResolvedValue({} as never);
+    prismaMock.marketTrade.create.mockResolvedValue({} as never);
+    prismaMock.player.update.mockResolvedValue({} as never);
+    prismaMock.playerInventory.update.mockResolvedValue({} as never);
+    prismaMock.playerInventory.create.mockResolvedValue({} as never);
+    prismaMock.financialTransaction.create.mockResolvedValue({} as never);
+    prismaMock.product.findMany.mockResolvedValue([] as never);
+    prismaMock.notification.create.mockResolvedValue({} as never);
+
+    const svc = new MarketService(prismaMock);
+    await svc.matchOrders();
+
+    // 7% of tradeValue (100 × 10 = 1000) = 70 — must show up as a real ledger entry,
+    // not just a UI toast, or cashBalance silently drifts ahead of transaction history.
+    expect(prismaMock.financialTransaction.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ playerId: 'buyer', type: 'STATE_SUBSIDY', amountUah: expect.objectContaining({ d: expect.anything() }) }),
+      }),
+    );
+    const cashbackCall = (prismaMock.financialTransaction.create as unknown as Mock).mock.calls
+      .find((args: unknown[]) => (args[0] as { data: { type: string } }).data.type === 'STATE_SUBSIDY');
+    expect(cashbackCall).toBeDefined();
+    const cashbackData = (cashbackCall as unknown[])[0] as { data: { amountUah: Decimal } };
+    expect(cashbackData.data.amountUah.toNumber()).toBeCloseTo(70, 5);
+  });
+
   it('batches balance/inventory lookups across many matches instead of querying per-trade (perf regression guard)', async () => {
     // 5 independent products, each with one matching sell/buy pair between different players.
     const N = 5;

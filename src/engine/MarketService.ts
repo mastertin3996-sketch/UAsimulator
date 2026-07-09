@@ -234,9 +234,13 @@ export class MarketService {
             },
           });
 
-          // Баланс продавця — перечитуємо всередині транзакції (race-condition safety)
+          // Баланси обох сторін — перечитуємо всередині транзакції (race-condition safety,
+          // symmetric for seller and buyer so the ledger's balanceBefore/After can't diverge
+          // between the two legs of the same trade under concurrent external balance changes).
           const sellerFresh   = await tx.player.findUniqueOrThrow({ where: { id: sell.playerId } });
           const sellerBalance = new Decimal(sellerFresh.cashBalance.toString());
+          const buyerFresh    = await tx.player.findUniqueOrThrow({ where: { id: buy.playerId } });
+          const buyerBalanceFresh = new Decimal(buyerFresh.cashBalance.toString());
 
           // Товар: продавець → покупець
           await tx.playerInventory.update({
@@ -289,8 +293,8 @@ export class MarketService {
               playerId:      buy.playerId,
               type:          'MARKET_PURCHASE',
               amountUah:     tradeValue.negated(),              // Decimal ✓
-              balanceBefore: buyerBalance,                      // Decimal ✓
-              balanceAfter:  buyerBalance.minus(tradeValue),   // Decimal ✓
+              balanceBefore: buyerBalanceFresh,                 // Decimal ✓
+              balanceAfter:  buyerBalanceFresh.minus(tradeValue),   // Decimal ✓
               description:   `B2B купівля: ${tradeQty} × ${productId} @ ₴${sellPrice.toFixed(2)}`,
               referenceId:   buy.id,
             },
@@ -301,6 +305,18 @@ export class MarketService {
           if (sell.playerId === dpId && buyer.isAccreditedSupplier) {
             const cashback = tradeValue.times(0.07);
             await tx.player.update({ where: { id: buy.playerId }, data: { cashBalance: { increment: cashback } } });
+            const buyerBalanceAfterPurchase = buyerBalanceFresh.minus(tradeValue);
+            await tx.financialTransaction.create({
+              data: {
+                playerId:      buy.playerId,
+                type:          'STATE_SUBSIDY',
+                amountUah:     cashback,
+                balanceBefore: buyerBalanceAfterPurchase,
+                balanceAfter:  buyerBalanceAfterPurchase.plus(cashback),
+                description:   `Кешбек акредитованого постачальника 7%: ${tradeQty} × ${productId}`,
+                referenceId:   buy.id,
+              },
+            });
             await tx.notification.create({
               data: {
                 playerId: buy.playerId,
@@ -386,7 +402,7 @@ export class MarketService {
           title:    'Ордер виконано',
           body:     `${n.orderType}-ордер ${p?.nameUa ?? n.productId}: ${n.qty} ${p?.unit ?? ''} @ ₴${n.price.toFixed(0)}/од.`,
           entityId: null,
-        }}).catch(() => {});
+        }}).catch(e => console.error('[MarketService] notification failed:', e));
       }));
     }
 
@@ -652,11 +668,21 @@ export class MarketService {
             referenceId: shop.id, tickNumber,
           });
 
-          // Excise tax
+          // Excise tax — also recorded as its own ledger entry so financialTransaction
+          // stays net-of-excise and matches the real cashBalance (was previously only
+          // in financialLog, leaving the ledger showing gross revenue forever).
           const excisePerUnit = EXCISE_RATE[sku];
           if (excisePerUnit && exciseShopIds.has(shop.id)) {
             const excise = new Decimal(excisePerUnit).times(actualSold);
             playerRevenue.set(shop.playerId, (playerRevenue.get(shop.playerId) ?? new Decimal(0)).minus(excise));
+            const balanceAfterExcise = balanceAfter.minus(excise);
+            playerMap.set(shop.playerId, balanceAfterExcise);
+            finTxns.push({
+              playerId: shop.playerId, type: 'TAX_PAYMENT', amountUah: excise.negated(),
+              balanceBefore: balanceAfter, balanceAfter: balanceAfterExcise,
+              description: `Акциз ${sku}: ${actualSold.toFixed(1)} × ₴${excisePerUnit}`,
+              referenceId: demand.id,
+            });
             finLogs.push({
               playerId: shop.playerId, category: 'EXPENSE_TAX', amountUah: excise.negated(),
               description: `Акциз ${sku}: ${actualSold.toFixed(1)} × ₴${excisePerUnit}`, tickNumber,
@@ -828,31 +854,36 @@ export class MarketService {
         if (remaining <= 0.001) break;
 
         const sellPrice = new Decimal(sell.pricePerUnit.toString());
-        if (sellPrice.gt(fetchCeiling)) continue;
+
+        // Quality-payout multipliers computed BEFORE the ceiling checks below — the
+        // ceiling must bound what NPC actually PAYS (effectivePrice), not just the
+        // listed sellPrice, otherwise a Class-1 grain/premium-textile seller can list
+        // right at the ceiling and still get paid up to 30-35% above it via payoutMult.
+        const grainQualityMult = isGrain
+          ? (GRAIN_QUALITY_MULT[grainQualityMap.get(sell.playerId) ?? 2] ?? 1.0)
+          : 1.0;
+        // Wave 2: преміум за високоякісний текстиль (avgQuality≥8). Низ = ×1.0 → без регресій.
+        const textileQualityMult = (TEXTILE_FG_SKUS.has(sku) && (sell.quality ?? 5) >= 8) ? 1.15 : 1.0;
+        const payoutMult      = grainQualityMult * textileQualityMult;
+        const effectivePrice  = payoutMult !== 1.0 ? sellPrice.times(payoutMult) : sellPrice;
+
+        if (effectivePrice.gt(fetchCeiling)) continue;
 
         const hasOrganicCert   = organicCertIds.has(sell.playerId);
         const effectiveCeiling = hasOrganicCert ? maxPrice.times(1.35) : maxPrice;
-        if (sellPrice.gt(effectiveCeiling)) continue;
+        if (effectivePrice.gt(effectiveCeiling)) continue;
 
         if (isGrain) {
           const q = sell.quality ?? 5.0;
           const qualityMax     = hasOrganicCert ? refPrice.times(1.35) : refPrice.times(1.3);
           const qualityCeiling = q >= 8.0 ? qualityMax : q < 5.0 ? refPrice.times(0.8) : refPrice;
-          if (sellPrice.gt(qualityCeiling)) continue;
+          if (effectivePrice.gt(qualityCeiling)) continue;
         }
 
         const available  = sell.quantityTotal - sell.quantityFilled;
         const tradeQty   = Math.min(available, remaining);
         if (tradeQty <= 0.001) continue;
 
-        // Apply grain quality class multiplier to effective payout
-        const grainQualityMult = isGrain
-          ? (GRAIN_QUALITY_MULT[grainQualityMap.get(sell.playerId) ?? 2] ?? 1.0)
-          : 1.0;
-        // Wave 2: преміум за високоякісний текстиль (avgQuality≥8). Низ = ×1.0 → без регресій.
-        const textileQualityMult = (TEXTILE_FG_SKUS.has(sku) && (sell.quality ?? 5) >= 8) ? 1.15 : 1.0;
-        const payoutMult   = grainQualityMult * textileQualityMult;
-        const effectivePrice = payoutMult !== 1.0 ? sellPrice.times(payoutMult) : sellPrice;
         const tradeValue = effectivePrice.times(tradeQty);
         const newFilled  = sell.quantityFilled + tradeQty;
         const isFilled   = newFilled >= sell.quantityTotal - 0.001;
@@ -1259,7 +1290,7 @@ export class MarketService {
           title:    `Цінове сповіщення: ${info.nameUa}`,
           body:     `Ціна ${dir}`,
         },
-      }).catch(() => {});
+      }).catch(e => console.error('[MarketService] notification failed:', e));
 
       await this.prisma.priceAlert.update({
         where: { id: alert.id },

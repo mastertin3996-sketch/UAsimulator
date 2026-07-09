@@ -335,9 +335,12 @@ export class ProductionService {
             const MACHINERY_YIELD_BONUS: Record<string, number> = {
               TRACTOR: 0.20, COMBINE_HARVESTER: 0.30, SEEDER: 0.10, SPRAYER: 0.05,
             };
-            const machineryMult = 1 + (ent.farmMachinery ?? [])
+            // Стеля на сумарний бонус техніки — без неї необмежена кількість одиниць
+            // (немає ліміту купівлі) давала б необмежений множник, на відміну від
+            // усіх інших бонусів у цьому файлі, які мають Math.min(count, 2|3).
+            const machineryMult = 1 + Math.min(1.0, (ent.farmMachinery ?? [])
               .filter(m => m.durability > 0)
-              .reduce((sum, m) => sum + (MACHINERY_YIELD_BONUS[m.machineryType] ?? 0), 0);
+              .reduce((sum, m) => sum + (MACHINERY_YIELD_BONUS[m.machineryType] ?? 0), 0));
 
             // Польові операції: бонуси за виконані підрядні/власні роботи
             const fieldMask     = ent.landPlot?.fieldOpsMask ?? 0;
@@ -362,7 +365,7 @@ export class ProductionService {
               if (m < 20) return 0.5;
               if (m < 35) return 0.7 + (m - 20) / 100;
               if (m <= 75) return 0.95 + (m - 35) / 400; // плавний пік на 60%
-              return Math.max(0.85, 1.1 - (m - 75) / 100); // перезволоження
+              return Math.max(0.85, 1.05 - (m - 75) / 100); // перезволоження — продовжує спад від 1.05 на m=75, без стрибка вгору
             })() : 1.0;
 
             // Стадія росту культури
