@@ -30,6 +30,18 @@ const FreightTab = dynamic(() => import("@/components/game/enterprise-tabs/Freig
 const WarehouseRentalTab = dynamic(() => import("@/components/game/enterprise-tabs/WarehouseTab"), {
   loading: () => <p className="text-xs text-gray-500 p-2">Завантаження...</p>,
 });
+const HeavyIndustryTab = dynamic(() => import("@/components/game/enterprise-tabs/HeavyIndustryTab"), {
+  loading: () => <p className="text-xs text-gray-500 p-2">Завантаження...</p>,
+});
+const FoodProcessingTab = dynamic(() => import("@/components/game/enterprise-tabs/FoodProcessingTab"), {
+  loading: () => <p className="text-xs text-gray-500 p-2">Завантаження...</p>,
+});
+const TextileTab = dynamic(() => import("@/components/game/enterprise-tabs/TextileTab"), {
+  loading: () => <p className="text-xs text-gray-500 p-2">Завантаження...</p>,
+});
+const PatentSecurityTab = dynamic(() => import("@/components/game/enterprise-tabs/PatentSecurityTab"), {
+  loading: () => <p className="text-xs text-gray-500 p-2">Завантаження...</p>,
+});
 const B2bTab = dynamic(() => import("@/components/game/enterprise-tabs/B2bTab"), {
   loading: () => <p className="text-gray-500 text-sm">Завантаження...</p>,
 });
@@ -1690,10 +1702,10 @@ function InfoColumn({
             );
           })}
           {enterprise.type === "AGRO_FARM" && !enterprise.licenses.some(l => l.type === "ORGANIC_CERT" && l.status === "ACTIVE") && (
-            <a href="/enterprises/licenses" className="block text-xs text-gray-600 hover:text-emerald-400 transition-colors">+ Отримати Organic Cert (₴40K)</a>
+            <a href="/licenses" className="block text-xs text-gray-600 hover:text-emerald-400 transition-colors">+ Отримати Organic Cert (₴40K)</a>
           )}
           {enterprise.type === "AGRO_FARM" && !enterprise.licenses.some(l => l.type === "AGRO_INSURANCE" && l.status === "ACTIVE") && (
-            <a href="/enterprises/licenses" className="block text-xs text-gray-600 hover:text-blue-400 transition-colors">+ Оформити страхування (₴5K)</a>
+            <a href="/licenses" className="block text-xs text-gray-600 hover:text-blue-400 transition-colors">+ Оформити страхування (₴5K)</a>
           )}
         </div>
       )}
@@ -1701,7 +1713,7 @@ function InfoColumn({
         <div className="mx-2 mt-2 rounded-lg border border-gray-800 bg-gray-900/50 p-3">
           <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Ліцензії</p>
           <p className="text-xs text-gray-600">Немає активних ліцензій</p>
-          <a href="/enterprises/licenses" className="text-xs text-emerald-500 hover:text-emerald-400 transition-colors">+ Organic Cert / Страхування</a>
+          <a href="/licenses" className="text-xs text-emerald-500 hover:text-emerald-400 transition-colors">+ Organic Cert / Страхування</a>
         </div>
       )}
 
@@ -1844,6 +1856,10 @@ export default function EnterpriseDetailClient({ enterpriseId, initialTab }: Pro
     ] : []),
     ...(enterprise.type === "LOGISTICS_HUB"  ? [{ key: "freight",   label: "Вантаж",          emoji: "🚛" }] : []),
     ...(enterprise.type === "WAREHOUSE"      ? [{ key: "warehouse-rental", label: "Оренда та 3PL", emoji: "📦" }] : []),
+    ...(enterprise.type === "HEAVY_INDUSTRY" ? [{ key: "heavy-industry", label: "Сировина та якість", emoji: "⚙️" }] : []),
+    ...(enterprise.type === "FOOD_PROCESSING" ? [{ key: "food-processing", label: "Псування та холод", emoji: "🧊" }] : []),
+    ...(enterprise.type === "TEXTILE_FACTORY" ? [{ key: "textile", label: "Текстиль", emoji: "🧵" }] : []),
+    { key: "patents-security", label: "Патенти й безпека", emoji: "🛡️" },
     { key: "b2b",       label: "B2B",              emoji: "🔗" },
     { key: "staff",     label: "Кваліфікація",     emoji: "📚" },
     { key: "expand",    label: "Розширення",        emoji: "🔧" },
@@ -1955,6 +1971,10 @@ export default function EnterpriseDetailClient({ enterpriseId, initialTab }: Pro
       {secSection === "livestock" && <LivestockTab enterpriseId={enterpriseId} employees={enterprise.employees} />}
       {secSection === "freight"   && <FreightTab enterpriseId={enterpriseId} />}
       {secSection === "warehouse-rental" && <WarehouseRentalTab enterprise={enterprise} />}
+      {secSection === "heavy-industry"   && <HeavyIndustryTab enterprise={enterprise} />}
+      {secSection === "food-processing"  && <FoodProcessingTab enterprise={enterprise} />}
+      {secSection === "textile"          && <TextileTab enterprise={enterprise} />}
+      {secSection === "patents-security" && <PatentSecurityTab enterprise={enterprise} />}
       {secSection === "b2b"       && <B2bTab enterpriseId={enterpriseId} />}
       {secSection === "staff"     && <StaffTab enterpriseId={enterpriseId} />}
       {secSection === "expand"    && <ExpandTab enterpriseId={enterpriseId} enterpriseType={enterprise.type} />}
