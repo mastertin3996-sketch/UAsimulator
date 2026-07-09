@@ -169,28 +169,40 @@ export default function ResearchPage() {
 
   async function setActive(code: string) {
     setAction(code || "clear"); setError("");
-    const res = await fetch("/api/research", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ techCode: code || null }),
-    });
-    const d = await res.json();
-    if (!res.ok) { setError(d.error ?? "Помилка"); setAction(null); return; }
-    setAction(null);
-    load();
+    try {
+      const res = await fetch("/api/research", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ techCode: code || null }),
+      });
+      const d = await res.json();
+      if (!res.ok) { setError(d.error ?? "Помилка"); return; }
+      load();
+    } catch (e) {
+      console.error(e);
+      setError("Мережева помилка. Спробуйте ще раз.");
+    } finally {
+      setAction(null);
+    }
   }
 
   async function unlock(code: string) {
     setAction(`unlock-${code}`); setError("");
-    const res = await fetch("/api/research/unlock", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ techCode: code }),
-    });
-    const d = await res.json();
-    if (!res.ok) { setError(d.error ?? "Помилка"); setAction(null); return; }
-    setAction(null);
-    load();
+    try {
+      const res = await fetch("/api/research/unlock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ techCode: code }),
+      });
+      const d = await res.json();
+      if (!res.ok) { setError(d.error ?? "Помилка"); return; }
+      load();
+    } catch (e) {
+      console.error(e);
+      setError("Мережева помилка. Спробуйте ще раз.");
+    } finally {
+      setAction(null);
+    }
   }
 
   if (loading) {

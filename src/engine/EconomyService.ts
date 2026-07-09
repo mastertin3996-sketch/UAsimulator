@@ -2,10 +2,9 @@
  * EconomyService — комерційний рівень UAeconomy.
  *
  * B2B: гравець → гравець через MarketOrder (SELL)
- * B2C: NPC-покупці → роздрібні магазини гравців за моделлю привабливості
+ * (B2C NPC-роздріб обробляється в MarketService.processAllNpcSales)
  *
  * Українські нормативи 2026:
- *   ПДВ 20%, вбудований у роздрібну ціну (ціна = нетто × 1.20)
  *   Міжбанківська комісія B2B 1%
  */
 import { PrismaClient, MarketOrderStatus } from '@prisma/client';
@@ -13,28 +12,9 @@ import { Decimal } from '@prisma/client/runtime/library';
 
 // ── Фінансові константи ───────────────────────────────────────────────────────
 const BANK_FEE_RATE = new Decimal('0.01');   // 1 % B2B комісія (утримується з продавця)
-const VAT_RATE      = new Decimal('0.20');   // ПДВ 20 %
-
-// Частка ПДВ у ціні "з ПДВ": ПДВ = ціна × (0.20 / 1.20) = ціна × 1/6
-const VAT_INCLUSIVE_FRACTION = VAT_RATE.dividedBy(new Decimal('1').plus(VAT_RATE));
-
-// Якщо гравець не виставив ордер — ціна роздробу: referencePrice × (1 + MARKUP)
-const DEFAULT_RETAIL_MARKUP = 0.20;
 
 // Термін дії B2B ордеру: 30 реальних днів
 const ORDER_EXPIRY_MS = 30 * 24 * 3600 * 1000;
-
-// ── Допоміжні типи ────────────────────────────────────────────────────────────
-interface RetailCandidate {
-  storeId:      string;
-  playerId:     string;
-  invRowId:     string;
-  stockQty:     number;
-  avgQuality:   number;
-  retailPrice:  Decimal;
-  staffEff:     number;  // 0.0–1.15 (середня ефективність активного персоналу)
-  score:        number;  // бал привабливості
-}
 
 export interface B2BSaleReceipt {
   orderId:         string;
@@ -43,20 +23,6 @@ export interface B2BSaleReceipt {
   bankFeeUah:      Decimal;
   sellerNetUah:    Decimal;
   orderStatus:     MarketOrderStatus;
-}
-
-export interface B2CTickSummary {
-  cityId:              string;
-  totalProductsSold:   number;       // кількість різних SKU
-  totalRevenueUah:     Decimal;      // сукупний виторг гравців (до ПДВ)
-  totalVatCollected:   Decimal;      // ПДВ у сукупному виторзі
-  storeResults: Array<{
-    storeId:     string;
-    playerId:    string;
-    unitsSold:   number;
-    revenueUah:  Decimal;
-    vatUah:      Decimal;
-  }>;
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -412,243 +378,6 @@ export class EconomyService {
         orderStatus:     newStatus,
       };
     }, { timeout: 30_000 });
-  }
-
-  // ══════════════════════════════════════════════════════════════════════════
-  // B2C: РОЗДРІБНИЙ ТІК
-  // ══════════════════════════════════════════════════════════════════════════
-
-  /**
-   * Моделює щоденний B2C роздрібний ринок у місті.
-   *
-   * Алгоритм для кожного NPC-товару:
-   *
-   *  1. Збираємо всі роздрібні магазини (RETAIL_STORE) у місті з цим товаром.
-   *
-   *  2. Бал привабливості магазину (Score):
-   *     Score = Quality^1.5 / RetailPrice × StaffEfficiency
-   *     де:  Quality      = avgQuality інвентарю (0–10)
-   *          RetailPrice  = ціна з відкритого SELL-ордеру гравця АБО
-   *                         referencePrice × 1.20 (якщо ордеру немає)
-   *          StaffEfficiency = середня efficiency активного (не страйкуючого) персоналу
-   *
-   *  3. Зважена середня ринкова ціна по всіх магазинах (за Score):
-   *     WeightedAvgPrice = Σ(price_i × score_i) / totalScore
-   *
-   *  4. Скоригований попит (price elasticity + city demand coefficient):
-   *     adjustedDemand = baseUnitsPerDay
-   *                    × (referencePrice / WeightedAvgPrice)^|priceElasticity|
-   *                    × city.demandCoefficient
-   *
-   *  5. Розподіл попиту по магазинах (пропорційно Score):
-   *     for store_i:
-   *       marketShare_i = score_i / totalScore
-   *       qualityFactor_i = qualityWeight × (quality_i / 10) + (1 − qualityWeight)
-   *       unitsSold_i = min(stockQty_i, adjustedDemand × marketShare_i × qualityFactor_i)
-   *
-   *  6. Фінанси:
-   *     revenue_i = unitsSold_i × retailPrice_i   (ціна "з ПДВ")
-   *     vatInRevenue_i = revenue_i × (0.20 / 1.20) = revenue_i / 6
-   *     netRevenue_i   = revenue_i − vatInRevenue_i
-   *     → Гравець отримує повний revenue_i (ПДВ виставляється TaxService раз на місяць).
-   *     → Запис NPC_SALE: повна сума з розшифровкою ПДВ у description.
-   */
-  async simulateB2CRetailTick(cityId: string): Promise<B2CTickSummary> {
-    const city = await this.prisma.city.findUniqueOrThrow({ where: { id: cityId } });
-
-    // ── Усі активні роздрібні магазини в місті ────────────────────────────
-    const stores = await this.prisma.enterprise.findMany({
-      where: {
-        type:          'RETAIL_STORE',
-        isOperational: true,
-        landPlot:      { cityId },
-      },
-      include: {
-        employees: { select: { efficiency: true, isOnStrike: true } },
-        inventory: {
-          include: { product: { select: { id: true, sku: true, nameUa: true } } },
-        },
-      },
-    });
-
-    const summary: B2CTickSummary = {
-      cityId,
-      totalProductsSold: 0,
-      totalRevenueUah:   new Decimal(0),
-      totalVatCollected: new Decimal(0),
-      storeResults: [],
-    };
-
-    if (stores.length === 0) return summary;
-
-    // ── NPC-попит у місті ─────────────────────────────────────────────────
-    const demands = await this.prisma.npcDemand.findMany({
-      where:   { cityId },
-      include: { product: { select: { id: true, nameUa: true } } },
-    });
-    if (demands.length === 0) return summary;
-
-    // ── Роздрібні ціни з RetailListing (встановлені гравцем) ────────────
-    const sellerIds = [...new Set(stores.map(s => s.playerId))];
-    const storeIds  = stores.map(s => s.id);
-    const retailListings = await this.prisma.retailListing.findMany({
-      where: { enterpriseId: { in: storeIds }, isActive: true },
-    });
-
-    // Заздалегідь завантажуємо баланси всіх власників для пакетного оновлення
-    const players = await this.prisma.player.findMany({
-      where: { id: { in: sellerIds } },
-      select: { id: true, cashBalance: true },
-    });
-    // playerId → поточний Decimal-баланс (оновлюємо в пам'яті між ітераціями)
-    const balanceCache = new Map<string, Decimal>(
-      players.map(p => [p.id, new Decimal(p.cashBalance.toString())]),
-    );
-
-    // ── Обробка кожного товару з попиту ──────────────────────────────────
-    for (const demand of demands) {
-      const candidates: RetailCandidate[] = [];
-
-      for (const store of stores) {
-        const invRow = store.inventory.find(i => i.productId === demand.productId);
-        if (!invRow || invRow.quantity < 0.001) continue;
-
-        // Роздрібна ціна: RetailListing (гравець) або базова ціна + 20%
-        const listing = retailListings.find(
-          l => l.enterpriseId === store.id && l.productId === demand.productId,
-        );
-        const retailPrice: Decimal = listing
-          ? new Decimal(listing.pricePerUnit.toString())
-          : new Decimal(demand.referencePrice.toString()).times(1 + DEFAULT_RETAIL_MARKUP);
-
-        // Ефективність персоналу (тільки активні, без страйкуючих)
-        const activeStaff = store.employees.filter(e => !e.isOnStrike);
-        const staffEff = activeStaff.length > 0
-          ? activeStaff.reduce((s, e) => s + e.efficiency, 0) / activeStaff.length
-          : 0.50; // без персоналу: мінімальний сервіс 50%
-
-        const priceFloat = retailPrice.toNumber();
-        if (priceFloat <= 0) continue;
-
-        // Score = Quality^1.5 / RetailPrice × StaffEfficiency
-        const score = Math.pow(invRow.avgQuality, 1.5) / priceFloat * staffEff;
-
-        candidates.push({
-          storeId:     store.id,
-          playerId:    store.playerId,
-          invRowId:    invRow.id,
-          stockQty:    invRow.quantity,
-          avgQuality:  invRow.avgQuality,
-          retailPrice,
-          staffEff,
-          score,
-        });
-      }
-
-      if (candidates.length === 0) continue;
-
-      // ── Зважена середня ринкова ціна (для коригування попиту) ──────────
-      const totalScore = candidates.reduce((s, c) => s + c.score, 0);
-      const weightedAvgPrice = candidates.reduce(
-        (sum, c) => sum + c.retailPrice.toNumber() * (c.score / totalScore),
-        0,
-      );
-
-      // ── Скоригований попит через еластичність ──────────────────────────
-      // adjustedDemand = baseUnitsPerDay
-      //   × (referencePrice / weightedAvgPrice) ^ |priceElasticity|
-      //   × demandCoefficient
-      const refPrice      = demand.referencePrice.toNumber();
-      const priceRatio    = refPrice / Math.max(weightedAvgPrice, 0.01);
-      const elasticityAdj = Math.pow(priceRatio, Math.abs(demand.priceElasticity));
-      const adjustedDemand = demand.baseUnitsPerDay * elasticityAdj * city.demandCoefficient;
-
-      // ── Розподіл попиту між магазинами ─────────────────────────────────
-      for (const c of candidates) {
-        const marketShare   = c.score / totalScore;
-        // Фактор якості: spoживач з qualityWeight-ймовірністю обирає за якістю
-        const qualityFactor = demand.qualityWeight * (c.avgQuality / 10)
-                            + (1 - demand.qualityWeight);
-        const rawUnits    = adjustedDemand * marketShare * qualityFactor;
-        const actualUnits = Math.min(c.stockQty, rawUnits);
-        if (actualUnits < 0.001) continue;
-
-        const revenue     = c.retailPrice.times(actualUnits);
-        // ПДВ, вбудований у роздрібну ціну: revenue × (VAT / (1 + VAT))
-        const vatAmount   = revenue.times(VAT_INCLUSIVE_FRACTION);
-        const netRevenue  = revenue.minus(vatAmount);
-
-        // ── Оновлення інвентарю магазину ───────────────────────────────
-        const newQty = c.stockQty - actualUnits;
-        await this.prisma.enterpriseInventory.update({
-          where: { id: c.invRowId },
-          data:  { quantity: newQty < 0.0001 ? 0 : newQty },
-        });
-
-        // ── Зарахування виторгу гравцю ─────────────────────────────────
-        // Гравець отримує повний revenue (з ПДВ); TaxService щомісяця
-        // обчислює зобов'язання з NPC_SALE-транзакцій і виставляє рахунок.
-        const balanceBefore = balanceCache.get(c.playerId) ?? new Decimal(0);
-        const balanceAfter  = balanceBefore.plus(revenue);
-        balanceCache.set(c.playerId, balanceAfter);
-
-        await this.prisma.player.update({
-          where: { id: c.playerId },
-          data:  { cashBalance: balanceAfter },
-        });
-
-        // ── Транзакційний запис ─────────────────────────────────────────
-        await this.prisma.financialTransaction.create({
-          data: {
-            playerId:      c.playerId,
-            type:          'NPC_SALE',
-            amountUah:     revenue,
-            balanceBefore,
-            balanceAfter,
-            description:
-              `B2C роздріб [${city.nameUa}]: ${actualUnits.toFixed(2)} od. ` +
-              `"${demand.product.nameUa}" @ ₴${c.retailPrice.toFixed(2)} ` +
-              `| нетто ₴${netRevenue.toFixed(2)}, ПДВ ₴${vatAmount.toFixed(2)}`,
-            referenceId: cityId,
-          },
-        });
-
-        // ── Фінансовий лог (для графіка дохід/витрати) ──────────────────
-        await this.prisma.financialLog.create({
-          data: {
-            playerId:    c.playerId,
-            category:    'REVENUE_RETAIL',
-            amountUah:   revenue,
-            description: `Роздрібний продаж: "${demand.product.nameUa}" × ${actualUnits.toFixed(1)}`,
-            referenceId: c.storeId,
-            tickNumber:  BigInt(0),
-          },
-        });
-
-        // ── Зведення по тіку ───────────────────────────────────────────
-        summary.totalRevenueUah   = summary.totalRevenueUah.plus(revenue);
-        summary.totalVatCollected = summary.totalVatCollected.plus(vatAmount);
-
-        const existing = summary.storeResults.find(r => r.storeId === c.storeId);
-        if (existing) {
-          existing.unitsSold  += actualUnits;
-          existing.revenueUah  = existing.revenueUah.plus(revenue);
-          existing.vatUah      = existing.vatUah.plus(vatAmount);
-        } else {
-          summary.storeResults.push({
-            storeId:    c.storeId,
-            playerId:   c.playerId,
-            unitsSold:  actualUnits,
-            revenueUah: revenue,
-            vatUah:     vatAmount,
-          });
-        }
-      }
-
-      if (candidates.length > 0) summary.totalProductsSold++;
-    }
-
-    return summary;
   }
 
   // ══════════════════════════════════════════════════════════════════════════

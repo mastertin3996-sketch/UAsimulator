@@ -38,13 +38,23 @@ describe('LogisticsFreightService.generateNpcOrders — distance tariff (Wave 4)
 });
 
 describe('LogisticsFreightService.acceptOrder — fleet/driver bonus (Wave 4)', () => {
-  function stubAccept(hubEquipmentSkus: string[], drivers: number, hubCount = 1) {
+  function stubAccept(
+    hubEquipmentSkus: string[],
+    drivers: number,
+    hubCount = 1,
+    extraStaff: Record<string, number> = {},
+  ) {
     prismaMock.logisticsFreightOrder.findFirst.mockResolvedValue({
       id: 'ord-1', status: 'OPEN', productSku: 'CM-CEMENT', totalValueUah: new Decimal(1000),
     } as never);
+    const employees = [
+      ...Array.from({ length: drivers }, () => ({ profession: 'DRIVER', isOnStrike: false })),
+      ...Object.entries(extraStaff).flatMap(([profession, count]) =>
+        Array.from({ length: count }, () => ({ profession, isOnStrike: false }))),
+    ];
     prismaMock.enterprise.findFirst.mockResolvedValue({
       id: 'hub-1',
-      employees: Array.from({ length: drivers }, () => ({ profession: 'DRIVER', isOnStrike: false })),
+      employees,
       workshops: [{ equipment: hubEquipmentSkus.map(sku => ({ isBroken: false, wearAndTear: 0, catalogProduct: { sku } })) }],
     } as never);
     prismaMock.enterprise.count.mockResolvedValue(hubCount as never);
@@ -67,5 +77,36 @@ describe('LogisticsFreightService.acceptOrder — fleet/driver bonus (Wave 4)', 
     stubAccept([], 0, 2); // hubCount 2 → 1.20 floor, no fleet
     const res = await new LogisticsFreightService(prismaMock).acceptOrder('ord-1', 'p1', 10n);
     expect(res.revenueUah).toBeCloseTo(1200, 0);
+  });
+
+  it('MECHANIC headcount adds a small capped bonus (fewer fleet breakdowns)', async () => {
+    stubAccept([], 0, 1, { MECHANIC: 2 }); // 2 mechanics → +0.02*2 = +0.04 → 1.04
+    const res = await new LogisticsFreightService(prismaMock).acceptOrder('ord-1', 'p1', 10n);
+    expect(res.revenueUah).toBeCloseTo(1040, 0);
+  });
+
+  it('MECHANIC bonus is gated at 2 headcount (extra mechanics give no further bonus)', async () => {
+    stubAccept([], 0, 1, { MECHANIC: 5 }); // gated at 2 → same as 2 mechanics
+    const res = await new LogisticsFreightService(prismaMock).acceptOrder('ord-1', 'p1', 10n);
+    expect(res.revenueUah).toBeCloseTo(1040, 0);
+  });
+
+  it('LOGISTICIAN headcount adds a distinct route-efficiency bonus', async () => {
+    stubAccept([], 0, 1, { LOGISTICIAN: 3 }); // 3 logisticians → +0.025*3 = +0.075 → 1.075
+    const res = await new LogisticsFreightService(prismaMock).acceptOrder('ord-1', 'p1', 10n);
+    expect(res.revenueUah).toBeCloseTo(1075, 0);
+  });
+
+  it('LOGISTICIAN bonus is gated at 3 headcount', async () => {
+    stubAccept([], 0, 1, { LOGISTICIAN: 6 }); // gated at 3 → same as 3 logisticians
+    const res = await new LogisticsFreightService(prismaMock).acceptOrder('ord-1', 'p1', 10n);
+    expect(res.revenueUah).toBeCloseTo(1075, 0);
+  });
+
+  it('MECHANIC and LOGISTICIAN bonuses stack with DRIVER/DISPATCHER and fleet bonuses', async () => {
+    stubAccept(['EQ-TRUCK-HEAVY'], 2, 1, { MECHANIC: 2, LOGISTICIAN: 3 });
+    // hasTruck +0.10, heavy+HEAVY_TRUCK +0.15, 2 drivers +0.06, mechanics +0.04, logisticians +0.075 → 1.425
+    const res = await new LogisticsFreightService(prismaMock).acceptOrder('ord-1', 'p1', 10n);
+    expect(res.revenueUah).toBeCloseTo(1425, 0);
   });
 });

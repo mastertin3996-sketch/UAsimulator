@@ -74,6 +74,8 @@ export default function SecurityTab() {
         setTotal(d.alerts.length);
         setFlagged(d.totalFlagged);
       }
+    } catch (e) {
+      console.error(e);
     } finally { setLoad(false); }
   }, []);
 
@@ -91,18 +93,29 @@ export default function SecurityTab() {
         showToast("Транзакція затверджена, прапорці зняті", true);
         loadAlerts(filter);
       } else { const d = await r.json(); showToast(d.error, false); }
+    } catch (e) {
+      console.error(e);
+      showToast("Мережева помилка. Спробуйте ще раз.", false);
     } finally { setBusyId(null); }
   };
 
   const handleReviewing = async (alertId: string) => {
     setBusyId(alertId);
     try {
-      await fetch("/api/admin/security", {
+      const r = await fetch("/api/admin/security", {
         method : "PATCH",
         headers: { "Content-Type": "application/json" },
         body   : JSON.stringify({ alertId, status: "REVIEWING" }),
       });
-      loadAlerts(filter);
+      if (r.ok) {
+        loadAlerts(filter);
+      } else {
+        const d = await r.json();
+        showToast(d.error ?? "Помилка", false);
+      }
+    } catch (e) {
+      console.error(e);
+      showToast("Мережева помилка. Спробуйте ще раз.", false);
     } finally { setBusyId(null); }
   };
 
@@ -116,6 +129,9 @@ export default function SecurityTab() {
         showToast(`Конфісковано ${d.confiscatedGC.toLocaleString()} GC`, true);
         loadAlerts(filter);
       } else { showToast(d.error, false); }
+    } catch (e) {
+      console.error(e);
+      showToast("Мережева помилка. Спробуйте ще раз.", false);
     } finally { setBusyId(null); }
   };
 

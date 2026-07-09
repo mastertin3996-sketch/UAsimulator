@@ -56,6 +56,8 @@ export default function EcosystemTab() {
     try {
       const r = await fetch("/api/admin/ecosystem");
       if (r.ok) setStats(await r.json());
+    } catch (e) {
+      console.error(e);
     } finally { setLoad(false); }
   }, []);
 
@@ -69,6 +71,13 @@ export default function EcosystemTab() {
   const handleEmit = async () => {
     const n = parseFloat(amount);
     if (!n || n <= 0 || !reason.trim()) return;
+    if (!stats) return;
+    const totalImpact = fmt(n * stats.activeUsers);
+    const verb = emitOp === "EMIT" ? "Емісія" : "Спалення";
+    if (!confirm(
+      `${verb}: ${emitOp === "EMIT" ? "+" : "-"}${fmt(n)} ${currency} кожному з ${stats.activeUsers} активних гравців ` +
+      `(загалом ${totalImpact} ${currency}). Це негайно змінить баланс усіх гравців. Продовжити?`,
+    )) return;
     setBusy(true);
     try {
       const r = await fetch("/api/admin/economy/emit", {
@@ -82,6 +91,9 @@ export default function EcosystemTab() {
         setAmt(""); setReason("");
         loadStats();
       } else { showToast(data.error ?? "Помилка", false); }
+    } catch (e) {
+      console.error(e);
+      showToast("Мережева помилка. Спробуйте ще раз.", false);
     } finally { setBusy(false); }
   };
 

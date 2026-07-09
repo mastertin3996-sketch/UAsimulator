@@ -46,9 +46,14 @@ export default function SubsidiesPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const res = await fetch("/api/subsidies");
-    if (res.ok) setData(await res.json());
-    setLoading(false);
+    try {
+      const res = await fetch("/api/subsidies");
+      if (res.ok) setData(await res.json());
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -58,19 +63,25 @@ export default function SubsidiesPage() {
     if (!enterpriseId) return;
     setApplying(programType);
     setMsg(null);
-    const res = await fetch("/api/subsidies", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ enterpriseId, programType }),
-    });
-    const d = await res.json();
-    if (res.ok) {
-      setMsg({ ok: true, text: `Субсидія ₴${formatNumber(Math.round(d.subsidyAmountUah))} зарахована!` });
-      await load();
-    } else {
-      setMsg({ ok: false, text: d.error ?? "Помилка" });
+    try {
+      const res = await fetch("/api/subsidies", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enterpriseId, programType }),
+      });
+      const d = await res.json();
+      if (res.ok) {
+        setMsg({ ok: true, text: `Субсидія ₴${formatNumber(Math.round(d.subsidyAmountUah))} зарахована!` });
+        await load();
+      } else {
+        setMsg({ ok: false, text: d.error ?? "Помилка" });
+      }
+    } catch (e) {
+      console.error(e);
+      setMsg({ ok: false, text: "Мережева помилка. Спробуйте ще раз." });
+    } finally {
+      setApplying(null);
     }
-    setApplying(null);
   }
 
   if (loading) return (
@@ -79,7 +90,14 @@ export default function SubsidiesPage() {
     </div>
   );
 
-  if (!data) return <p className="text-red-400 p-8">Помилка завантаження</p>;
+  if (!data) return (
+    <div className="max-w-3xl mx-auto px-4 py-8">
+      <div className="rounded-lg border border-red-800/40 bg-red-950/10 px-3 py-2 text-xs text-red-400 flex items-center justify-between gap-2">
+        <span>⚠ Не вдалося завантажити дані.</span>
+        <button onClick={load} className="underline hover:text-red-300 shrink-0">Повторити</button>
+      </div>
+    </div>
+  );
 
   const { complianceScore, complianceOk, enterprises, programs, applications, appliedSet } = data;
 

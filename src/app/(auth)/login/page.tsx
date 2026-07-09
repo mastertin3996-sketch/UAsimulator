@@ -18,17 +18,23 @@ function LoginForm() {
     setLoading(true);
     setError("");
 
-    const res = await signIn("credentials", {
-      email: form.email,
-      password: form.password,
-      redirect: false,
-    });
+    try {
+      const res = await signIn("credentials", {
+        email: form.email,
+        password: form.password,
+        redirect: false,
+      });
 
-    setLoading(false);
-    if (res?.error) {
-      setError("Невірний email або пароль");
-    } else {
-      router.push("/dashboard");
+      if (res?.error) {
+        setError("Невірний email або пароль");
+      } else {
+        router.push("/dashboard");
+      }
+    } catch (err) {
+      console.error(err);
+      setError("Мережева помилка. Спробуйте ще раз.");
+    } finally {
+      setLoading(false);
     }
   }
 

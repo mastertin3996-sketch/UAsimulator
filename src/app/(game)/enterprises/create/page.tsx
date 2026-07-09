@@ -358,14 +358,20 @@ function StepConfirm({
 
   async function handleBuild() {
     setBuilding(true); setErr("");
-    const res = await fetch("/api/enterprises", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ landPlotId: plotId, type, name, footprintM2, totalFloorAreaM2: footprintM2 * 1.5 }),
-    });
-    const data = await res.json();
-    if (!res.ok) { setErr(data.error ?? "Помилка"); setBuilding(false); return; }
-    onDone(data.enterprise?.id ?? "");
+    try {
+      const res = await fetch("/api/enterprises", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ landPlotId: plotId, type, name, footprintM2, totalFloorAreaM2: footprintM2 * 1.5 }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setErr(data.error ?? "Помилка"); setBuilding(false); return; }
+      onDone(data.enterprise?.id ?? "");
+    } catch (e) {
+      console.error(e);
+      setErr("Мережева помилка. Спробуйте ще раз.");
+      setBuilding(false);
+    }
   }
 
   const costAfter = balance !== null ? balance - meta.cost : null;
@@ -485,7 +491,7 @@ export default function CreateEnterprisePage() {
         setCity({ id: plot.cityId, name: plot.cityName, nameUa: plot.cityNameUa ?? plot.cityName, region: plot.region ?? "", population: 0, wageBaselineUah: 0, energyTariffUah: 0, demandCoefficient: 1, availablePlots: 0 });
         setStep(3);
       })
-      .catch(() => {});
+      .catch((e) => console.error(e));
   }, []);
 
   const STEPS = [

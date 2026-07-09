@@ -20,26 +20,32 @@ export default function RegisterPage() {
     }
 
     setLoading(true);
-    const res = await fetch("/api/auth/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: form.email,
-        username: form.username,
-        companyName: form.companyName || `Компанія ${form.username}`,
-        password: form.password,
-      }),
-    });
+    try {
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: form.email,
+          username: form.username,
+          companyName: form.companyName || `Компанія ${form.username}`,
+          password: form.password,
+        }),
+      });
 
-    const data = await res.json();
-    setLoading(false);
+      const data = await res.json();
 
-    if (!res.ok) {
-      setError(data.error ?? "Помилка реєстрації");
-      return;
+      if (!res.ok) {
+        setError(data.error ?? "Помилка реєстрації");
+        return;
+      }
+
+      router.push("/login?registered=1");
+    } catch (err) {
+      console.error(err);
+      setError("Мережева помилка. Спробуйте ще раз.");
+    } finally {
+      setLoading(false);
     }
-
-    router.push("/login?registered=1");
   }
 
   return (

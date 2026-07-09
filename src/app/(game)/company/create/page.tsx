@@ -18,18 +18,24 @@ export default function CreateCompanyPage() {
     setError("");
     setLoading(true);
 
-    const res = await fetch("/api/company", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
+    try {
+      const res = await fetch("/api/company", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
 
-    const data = await res.json();
-    setLoading(false);
+      const data = await res.json();
 
-    if (!res.ok) { setError(data.error); return; }
-    router.push("/dashboard");
-    router.refresh();
+      if (!res.ok) { setError(data.error); return; }
+      router.push("/dashboard");
+      router.refresh();
+    } catch (err) {
+      console.error(err);
+      setError("Мережева помилка. Спробуйте ще раз.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (

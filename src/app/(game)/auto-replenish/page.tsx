@@ -130,8 +130,17 @@ function RuleRow({
   async function handleDelete() {
     if (!confirm(`Видалити правило для "${rule.productName}"?`)) return;
     setDeleting(true);
-    await fetch(`/api/auto-replenish/${rule.id}`, { method: "DELETE" });
-    onDeleted();
+    try {
+      const res = await fetch(`/api/auto-replenish/${rule.id}`, { method: "DELETE" });
+      if (res.ok) {
+        onDeleted();
+      } else {
+        setDeleting(false);
+      }
+    } catch (e) {
+      console.error(e);
+      setDeleting(false);
+    }
   }
 
   return (
@@ -487,9 +496,16 @@ function AutoContractsTab() {
   async function deleteContract(id: string) {
     if (!confirm("Видалити авто-контракт?")) return;
     setBusy(id);
-    await fetch(`/api/auto-contract?id=${id}`, { method: "DELETE" });
-    setAcData((prev) => prev ? { ...prev, contracts: prev.contracts.filter((c) => c.id !== id) } : prev);
-    setBusy(null);
+    try {
+      const res = await fetch(`/api/auto-contract?id=${id}`, { method: "DELETE" });
+      if (res.ok) {
+        setAcData((prev) => prev ? { ...prev, contracts: prev.contracts.filter((c) => c.id !== id) } : prev);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setBusy(null);
+    }
   }
 
   async function createContract() {

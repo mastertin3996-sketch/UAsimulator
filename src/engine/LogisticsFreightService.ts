@@ -165,13 +165,17 @@ export class LogisticsFreightService {
       for (const eq of w.equipment)
         if (!eq.isBroken && eq.wearAndTear < 1.0) opEq.add(eq.catalogProduct.sku);
     const staff = hub.employees.filter(e => !e.isOnStrike);
-    const drivers     = staff.filter(e => e.profession === 'DRIVER').length;
-    const dispatchers = staff.filter(e => e.profession === 'DISPATCHER').length;
+    const drivers      = staff.filter(e => e.profession === 'DRIVER').length;
+    const dispatchers  = staff.filter(e => e.profession === 'DISPATCHER').length;
+    const mechanics    = staff.filter(e => e.profession === 'MECHANIC').length;
+    const logisticians = staff.filter(e => e.profession === 'LOGISTICIAN').length;
     const hasTruck = opEq.has('EQ-TRUCK-SMALL') || opEq.has('EQ-TRUCK-HEAVY');
     if (hasTruck) bonusMult += 0.10;                                                   // наявність флоту
     if (HEAVY_FREIGHT.has(order.productSku) && opEq.has('EQ-TRUCK-HEAVY')) bonusMult += 0.15; // важкий вантаж
     if (PERISHABLE_FREIGHT.has(order.productSku) && opEq.has('EQ-REEFER')) bonusMult += 0.15; // псувний → рефрижератор
     bonusMult += Math.min(drivers, 3) * 0.03 + Math.min(dispatchers, 2) * 0.03;        // персонал
+    bonusMult += Math.min(mechanics, 2) * 0.02;                                        // механік: менше простоїв флоту через ТО
+    bonusMult += Math.min(logisticians, 3) * 0.025;                                    // логіст: оптимізація маршрутів
     bonusMult = Math.min(bonusMult, 1.80);                                             // стеля
 
     const revenue = new Decimal(order.totalValueUah.toString()).times(bonusMult);

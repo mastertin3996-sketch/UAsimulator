@@ -195,8 +195,13 @@ function ContractCard({
   async function handle(action: "pause" | "resume" | "cancel") {
     if (action === "cancel" && !confirm(`Скасувати контракт на "${contract.productName}"?`)) return;
     setBusy(action);
-    await onAction(contract.id, action);
-    setBusy(null);
+    try {
+      await onAction(contract.id, action);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setBusy(null);
+    }
   }
 
   return (
@@ -387,26 +392,32 @@ export default function ContractsPage() {
   useEffect(() => { load(); }, [load]);
 
   async function handleAction(id: string, action: "pause" | "resume" | "cancel") {
-    if (action === "cancel") {
-      await fetch(`/api/market/contract/${id}`, { method: "DELETE" });
-      const update = (prev: Contract[]) =>
-        prev.map((c) => c.id === id ? { ...c, status: "TERMINATED" as ContractStatus } : c);
-      setSellerContracts(update);
-      setBuyerContracts(update);
-    } else {
-      const res  = await fetch(`/api/market/contract/${id}`, {
-        method : "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body   : JSON.stringify({ action }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        const newStatus = data.status as ContractStatus;
-        const update = (prev: Contract[]) =>
-          prev.map((c) => c.id === id ? { ...c, status: newStatus } : c);
-        setSellerContracts(update);
-        setBuyerContracts(update);
+    try {
+      if (action === "cancel") {
+        const res = await fetch(`/api/market/contract/${id}`, { method: "DELETE" });
+        if (res.ok) {
+          const update = (prev: Contract[]) =>
+            prev.map((c) => c.id === id ? { ...c, status: "TERMINATED" as ContractStatus } : c);
+          setSellerContracts(update);
+          setBuyerContracts(update);
+        }
+      } else {
+        const res  = await fetch(`/api/market/contract/${id}`, {
+          method : "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body   : JSON.stringify({ action }),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          const newStatus = data.status as ContractStatus;
+          const update = (prev: Contract[]) =>
+            prev.map((c) => c.id === id ? { ...c, status: newStatus } : c);
+          setSellerContracts(update);
+          setBuyerContracts(update);
+        }
       }
+    } catch (e) {
+      console.error(e);
     }
   }
 

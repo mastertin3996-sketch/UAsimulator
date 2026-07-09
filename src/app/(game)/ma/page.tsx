@@ -240,20 +240,32 @@ export default function MaPage() {
 
   async function buy(dealId: string) {
     setBuying(dealId); setError("");
-    const res = await fetch(`/api/ma/${dealId}/buy`, { method: "POST" });
-    const d   = await res.json();
-    if (!res.ok) { setError(d.error ?? "Помилка"); setBuying(null); return; }
-    setBuying(null);
-    load();
+    try {
+      const res = await fetch(`/api/ma/${dealId}/buy`, { method: "POST" });
+      const d   = await res.json();
+      if (!res.ok) { setError(d.error ?? "Помилка"); return; }
+      load();
+    } catch (e) {
+      console.error(e);
+      setError("Мережева помилка. Спробуйте ще раз.");
+    } finally {
+      setBuying(null);
+    }
   }
 
   async function cancel(dealId: string) {
     setCancelling(dealId); setError("");
-    const res = await fetch(`/api/ma/${dealId}`, { method: "DELETE" });
-    const d   = await res.json();
-    if (!res.ok) { setError(d.error ?? "Помилка"); setCancelling(null); return; }
-    setCancelling(null);
-    load();
+    try {
+      const res = await fetch(`/api/ma/${dealId}`, { method: "DELETE" });
+      const d   = await res.json();
+      if (!res.ok) { setError(d.error ?? "Помилка"); return; }
+      load();
+    } catch (e) {
+      console.error(e);
+      setError("Мережева помилка. Спробуйте ще раз.");
+    } finally {
+      setCancelling(null);
+    }
   }
 
   if (loading) {

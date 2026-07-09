@@ -53,14 +53,20 @@ function IpoModal({
 
   async function launch() {
     setSaving(true); setErr("");
-    const res = await fetch("/api/stock-exchange/ipo", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ symbol: symbol.toUpperCase(), sharesToIssue: shares, initialPriceUah: price }),
-    });
-    const d = await res.json();
-    if (!res.ok) { setErr(d.error ?? "Помилка"); setSaving(false); return; }
-    onDone();
+    try {
+      const res = await fetch("/api/stock-exchange/ipo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ symbol: symbol.toUpperCase(), sharesToIssue: shares, initialPriceUah: price }),
+      });
+      const d = await res.json();
+      if (!res.ok) { setErr(d.error ?? "Помилка"); setSaving(false); return; }
+      onDone();
+    } catch (e) {
+      console.error(e);
+      setErr("Мережева помилка. Спробуйте ще раз.");
+      setSaving(false);
+    }
   }
 
   const meetsValuation = valuation >= 10_000_000;
@@ -160,14 +166,20 @@ function OrderModal({
 
   async function place() {
     setSaving(true); setErr("");
-    const res = await fetch("/api/stock-exchange/order", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tickerId: ticker.id, type, quantity: qty, pricePerShareUah: price }),
-    });
-    const d = await res.json();
-    if (!res.ok) { setErr(d.error ?? "Помилка"); setSaving(false); return; }
-    onDone();
+    try {
+      const res = await fetch("/api/stock-exchange/order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tickerId: ticker.id, type, quantity: qty, pricePerShareUah: price }),
+      });
+      const d = await res.json();
+      if (!res.ok) { setErr(d.error ?? "Помилка"); setSaving(false); return; }
+      onDone();
+    } catch (e) {
+      console.error(e);
+      setErr("Мережева помилка. Спробуйте ще раз.");
+      setSaving(false);
+    }
   }
 
   return (
@@ -253,14 +265,20 @@ function DividendModal({
 
   async function pay() {
     setSaving(true); setErr("");
-    const res = await fetch("/api/stock-exchange/dividends", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ totalPoolUah: pool }),
-    });
-    const d = await res.json();
-    if (!res.ok) { setErr(d.error ?? "Помилка"); setSaving(false); return; }
-    onDone();
+    try {
+      const res = await fetch("/api/stock-exchange/dividends", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ totalPoolUah: pool }),
+      });
+      const d = await res.json();
+      if (!res.ok) { setErr(d.error ?? "Помилка"); setSaving(false); return; }
+      onDone();
+    } catch (e) {
+      console.error(e);
+      setErr("Мережева помилка. Спробуйте ще раз.");
+      setSaving(false);
+    }
   }
 
   return (
@@ -330,9 +348,14 @@ export default function StockExchangePage() {
 
   async function cancelOrder(orderId: string) {
     setCancelling(orderId);
-    await fetch(`/api/stock-exchange/order/${orderId}`, { method: "DELETE" });
-    setCancelling(null);
-    load();
+    try {
+      await fetch(`/api/stock-exchange/order/${orderId}`, { method: "DELETE" });
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setCancelling(null);
+      load();
+    }
   }
 
   if (loading) {

@@ -139,17 +139,19 @@ function LicenseCard({
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function LicensesPage() {
-  const [data,    setData]    = useState<PageData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [busyId,  setBusyId]  = useState<string | null>(null);
-  const [msg,     setMsg]     = useState<{ ok: boolean; text: string } | null>(null);
+  const [data,      setData]      = useState<PageData | null>(null);
+  const [loading,   setLoading]   = useState(true);
+  const [busyId,    setBusyId]    = useState<string | null>(null);
+  const [msg,       setMsg]       = useState<{ ok: boolean; text: string } | null>(null);
+  const [loadError, setLoadError] = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
+    setLoadError(false);
     fetch("/api/licenses")
       .then((r) => r.json())
       .then((d) => { setData(d); setLoading(false); })
-      .catch(() => setLoading(false));
+      .catch((e) => { console.error(e); setLoadError(true); setLoading(false); });
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -157,20 +159,26 @@ export default function LicensesPage() {
   async function handleRenew(item: LicenseItem) {
     setBusyId(item.enterpriseId);
     setMsg(null);
-    const res  = await fetch("/api/licenses", {
-      method:  "POST",
-      headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ enterpriseId: item.enterpriseId, licenseType: item.licenseType }),
-    });
-    const d = await res.json();
-    setBusyId(null);
-    if (res.ok) {
-      const action = d.renewed ? "продовжено" : "придбано";
-      setMsg({ ok: true, text: `Ліцензію ${item.licenseName} ${action}. Спливає: тік #${d.expiresAtTick}` });
-      window.dispatchEvent(new CustomEvent("game:balance"));
-      load();
-    } else {
-      setMsg({ ok: false, text: d.error ?? "Помилка" });
+    try {
+      const res  = await fetch("/api/licenses", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ enterpriseId: item.enterpriseId, licenseType: item.licenseType }),
+      });
+      const d = await res.json();
+      if (res.ok) {
+        const action = d.renewed ? "продовжено" : "придбано";
+        setMsg({ ok: true, text: `Ліцензію ${item.licenseName} ${action}. Спливає: тік #${d.expiresAtTick}` });
+        window.dispatchEvent(new CustomEvent("game:balance"));
+        load();
+      } else {
+        setMsg({ ok: false, text: d.error ?? "Помилка" });
+      }
+    } catch (e) {
+      console.error(e);
+      setMsg({ ok: false, text: "Мережева помилка. Спробуйте ще раз." });
+    } finally {
+      setBusyId(null);
     }
   }
 
@@ -211,6 +219,14 @@ export default function LicensesPage() {
         )}>
           {msg.ok ? <CheckCircle2 size={14} /> : <XCircle size={14} />}
           {msg.text}
+        </div>
+      )}
+
+      {/* Load error */}
+      {!loading && loadError && (
+        <div className="rounded-lg border border-red-800/40 bg-red-950/10 px-3 py-2 text-xs text-red-400 flex items-center justify-between gap-2">
+          <span>⚠ Не вдалося завантажити дані.</span>
+          <button onClick={load} className="underline hover:text-red-300 shrink-0">Повторити</button>
         </div>
       )}
 

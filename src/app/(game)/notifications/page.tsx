@@ -160,15 +160,25 @@ function NotifItem({
 
   async function markRead() {
     if (note.isRead) return;
-    await fetch(`/api/notifications/${note.id}`, { method: "PATCH" });
-    onRead(note.id);
+    try {
+      const res = await fetch(`/api/notifications/${note.id}`, { method: "PATCH" });
+      if (res.ok) onRead(note.id);
+    } catch (e) {
+      console.error(e);
+    }
   }
 
   async function deleteNote(e: React.MouseEvent) {
     e.stopPropagation();
     setDeleting(true);
-    await fetch(`/api/notifications/${note.id}`, { method: "DELETE" });
-    onDelete(note.id);
+    try {
+      const res = await fetch(`/api/notifications/${note.id}`, { method: "DELETE" });
+      if (res.ok) onDelete(note.id);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setDeleting(false);
+    }
   }
 
   return (
@@ -296,17 +306,24 @@ export default function NotificationsPage() {
   async function markAllRead() {
     setMarkingAll(true);
     const types = catCfg.types.length > 0 ? `?types=${catCfg.types.join(",")}` : "";
-    await fetch(`/api/notifications/read-all${types}`, { method: "POST" });
-    setNotes((prev) => prev.map((n) => {
-      if (catCfg.types.length === 0 || catCfg.types.includes(n.type)) return { ...n, isRead: true };
-      return n;
-    }));
-    setUnreadCount((c) => {
-      if (catCfg.types.length === 0) return 0;
-      const markedCount = notes.filter((n) => !n.isRead && catCfg.types.includes(n.type)).length;
-      return Math.max(0, c - markedCount);
-    });
-    setMarkingAll(false);
+    try {
+      const res = await fetch(`/api/notifications/read-all${types}`, { method: "POST" });
+      if (res.ok) {
+        setNotes((prev) => prev.map((n) => {
+          if (catCfg.types.length === 0 || catCfg.types.includes(n.type)) return { ...n, isRead: true };
+          return n;
+        }));
+        setUnreadCount((c) => {
+          if (catCfg.types.length === 0) return 0;
+          const markedCount = notes.filter((n) => !n.isRead && catCfg.types.includes(n.type)).length;
+          return Math.max(0, c - markedCount);
+        });
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setMarkingAll(false);
+    }
   }
 
   function handleRead(id: string) {

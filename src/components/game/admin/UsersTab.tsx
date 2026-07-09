@@ -39,6 +39,8 @@ export default function UsersTab() {
     try {
       const r = await fetch(`/api/admin/users?search=${encodeURIComponent(q)}`);
       if (r.ok) { const d = await r.json(); setUsers(d.users); }
+    } catch (e) {
+      console.error(e);
     } finally { setLoad(false); }
   }, []);
 
@@ -60,6 +62,7 @@ export default function UsersTab() {
   };
 
   const handleBan = async (u: AdminUser) => {
+    if (!confirm(u.isActive ? `Заблокувати гравця ${u.username}?` : `Розблокувати гравця ${u.username}?`)) return;
     setBusyId(u.id);
     try {
       const r = await act(`/api/admin/users/${u.id}/ban`);
@@ -68,6 +71,9 @@ export default function UsersTab() {
         showToast(d.isActive ? `${u.username} розблоковано` : `${u.username} заблоковано`, true);
         loadUsers(search);
       } else { showToast(d.error, false); }
+    } catch (e) {
+      console.error(e);
+      showToast("Мережева помилка. Спробуйте ще раз.", false);
     } finally { setBusyId(null); }
   };
 
@@ -78,6 +84,9 @@ export default function UsersTab() {
       const r = await act(`/api/admin/users/${u.id}/reset-balance`);
       if (r.ok) { showToast(`Баланс ${u.username} обнулено`, true); loadUsers(search); }
       else { const d = await r.json(); showToast(d.error, false); }
+    } catch (e) {
+      console.error(e);
+      showToast("Мережева помилка. Спробуйте ще раз.", false);
     } finally { setBusyId(null); }
   };
 
@@ -94,6 +103,9 @@ export default function UsersTab() {
         setBonusTarget(null); setBonusAmt(""); setBonusReason("");
         loadUsers(search);
       } else { showToast(d.error, false); }
+    } catch (e) {
+      console.error(e);
+      showToast("Мережева помилка. Спробуйте ще раз.", false);
     } finally { setBusyId(null); }
   };
 

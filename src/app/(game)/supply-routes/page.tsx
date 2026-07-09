@@ -80,13 +80,18 @@ function QtyEditor({ route, onSaved }: { route: Route; onSaved: (qty: number) =>
     const q = Number(val);
     if (q <= 0 || isNaN(q)) return;
     setSaving(true);
-    const res = await fetch(`/api/supply-routes/${route.id}`, {
-      method : "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body   : JSON.stringify({ qtyPerTick: q }),
-    });
-    setSaving(false);
-    if (res.ok) { onSaved(q); setEditing(false); }
+    try {
+      const res = await fetch(`/api/supply-routes/${route.id}`, {
+        method : "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body   : JSON.stringify({ qtyPerTick: q }),
+      });
+      if (res.ok) { onSaved(q); setEditing(false); }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSaving(false);
+    }
   }
 
   if (!editing) {
@@ -144,20 +149,31 @@ function RouteRow({
 
   async function handleToggle() {
     setToggling(true);
-    const res = await fetch(`/api/supply-routes/${route.id}`, {
-      method : "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body   : JSON.stringify({ isActive: !route.isActive }),
-    });
-    setToggling(false);
-    if (res.ok) onToggle();
+    try {
+      const res = await fetch(`/api/supply-routes/${route.id}`, {
+        method : "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body   : JSON.stringify({ isActive: !route.isActive }),
+      });
+      if (res.ok) onToggle();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setToggling(false);
+    }
   }
 
   async function handleDelete() {
     if (!confirm(`Видалити маршрут ${route.sourceName} → ${route.productName} → ${route.targetName}?`)) return;
     setDeleting(true);
-    await fetch(`/api/supply-routes/${route.id}`, { method: "DELETE" });
-    onDelete();
+    try {
+      const res = await fetch(`/api/supply-routes/${route.id}`, { method: "DELETE" });
+      if (res.ok) onDelete();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setDeleting(false);
+    }
   }
 
   return (
@@ -586,17 +602,22 @@ export default function SupplyRoutesPage() {
   async function bulkToggle(activate: boolean) {
     setBulkBusy(activate ? "all-on" : "all-off");
     const targets = routes.filter((r) => r.isActive !== activate);
-    await Promise.all(
-      targets.map((r) =>
-        fetch(`/api/supply-routes/${r.id}`, {
-          method : "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body   : JSON.stringify({ isActive: activate }),
-        })
-      )
-    );
-    setRoutes((prev) => prev.map((r) => ({ ...r, isActive: activate })));
-    setBulkBusy(null);
+    try {
+      await Promise.all(
+        targets.map((r) =>
+          fetch(`/api/supply-routes/${r.id}`, {
+            method : "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body   : JSON.stringify({ isActive: activate }),
+          })
+        )
+      );
+      setRoutes((prev) => prev.map((r) => ({ ...r, isActive: activate })));
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setBulkBusy(null);
+    }
   }
 
   // ── Optimistic handlers ───────────────────────────────────────────────────────

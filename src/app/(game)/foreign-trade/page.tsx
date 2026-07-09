@@ -66,24 +66,30 @@ export default function ForeignTradePage() {
     } else {
       body = { action, direction: fxDir, amount: Number(fxAmount) };
     }
-    const res = await fetch("/api/foreign-trade", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-    const d   = await res.json();
-    setSubmitting(false);
-    if (!res.ok) { setMsg({ ok: false, text: d.error ?? "Помилка" }); return; }
-    if (action === "export") {
-      setMsg({ ok: true, text: `Експортну декларацію подано. Очікуваний дохід: ${formatUSD(d.usdValue)}. Кліренс через ~3 тіки.` });
-      setExportQty("");
-    } else if (action === "import") {
-      const dutyText = d.customsPaid
-        ? `Мито+ПДВ: ${formatUAH(d.importDutyUah + d.vatUah)} сплачено.`
-        : `⚠ Товар заморожено на кордоні — поповніть UAH баланс для сплати мита.`;
-      setMsg({ ok: d.customsPaid, text: `Імпорт оформлено: ${formatUSD(d.totalUsd)}. ${dutyText} Доставка через ~3 тіки.` });
-      setImportQty("");
-    } else {
-      setMsg({ ok: true, text: `Обмін виконано: отримано ${formatUSD(d.amountOut)} (курс ${Number(d.effectiveRate).toFixed(4)})` });
-      setFxAmount("");
+    try {
+      const res = await fetch("/api/foreign-trade", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const d   = await res.json();
+      if (!res.ok) { setMsg({ ok: false, text: d.error ?? "Помилка" }); return; }
+      if (action === "export") {
+        setMsg({ ok: true, text: `Експортну декларацію подано. Очікуваний дохід: ${formatUSD(d.usdValue)}. Кліренс через ~3 тіки.` });
+        setExportQty("");
+      } else if (action === "import") {
+        const dutyText = d.customsPaid
+          ? `Мито+ПДВ: ${formatUAH(d.importDutyUah + d.vatUah)} сплачено.`
+          : `⚠ Товар заморожено на кордоні — поповніть UAH баланс для сплати мита.`;
+        setMsg({ ok: d.customsPaid, text: `Імпорт оформлено: ${formatUSD(d.totalUsd)}. ${dutyText} Доставка через ~3 тіки.` });
+        setImportQty("");
+      } else {
+        setMsg({ ok: true, text: `Обмін виконано: отримано ${formatUSD(d.amountOut)} (курс ${Number(d.effectiveRate).toFixed(4)})` });
+        setFxAmount("");
+      }
+      load();
+    } catch (e) {
+      console.error(e);
+      setMsg({ ok: false, text: "Мережева помилка. Спробуйте ще раз." });
+    } finally {
+      setSubmitting(false);
     }
-    load();
   }
 
   if (loading) return (

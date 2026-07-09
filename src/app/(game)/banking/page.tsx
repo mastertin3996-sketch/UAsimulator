@@ -59,14 +59,20 @@ function LoanModal({
 
   async function take() {
     setSaving(true); setErr("");
-    const res = await fetch("/api/banking/loan", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ amountUah: amount, termMonths: term }),
-    });
-    const data = await res.json();
-    if (!res.ok) { setErr(data.error ?? "Помилка"); setSaving(false); return; }
-    onTaken();
+    try {
+      const res = await fetch("/api/banking/loan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amountUah: amount, termMonths: term }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setErr(data.error ?? "Помилка"); setSaving(false); return; }
+      onTaken();
+    } catch (e) {
+      console.error(e);
+      setErr("Мережева помилка. Спробуйте ще раз.");
+      setSaving(false);
+    }
   }
 
   return (
@@ -157,14 +163,20 @@ function DepositModal({
 
   async function open() {
     setSaving(true); setErr("");
-    const res = await fetch("/api/banking/deposit", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ amount, currency, durationDays: days }),
-    });
-    const data = await res.json();
-    if (!res.ok) { setErr(data.error ?? "Помилка"); setSaving(false); return; }
-    onOpened();
+    try {
+      const res = await fetch("/api/banking/deposit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount, currency, durationDays: days }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setErr(data.error ?? "Помилка"); setSaving(false); return; }
+      onOpened();
+    } catch (e) {
+      console.error(e);
+      setErr("Мережева помилка. Спробуйте ще раз.");
+      setSaving(false);
+    }
   }
 
   return (
@@ -276,28 +288,40 @@ export default function BankingPage() {
   async function repayLoan(id: string, remaining: number) {
     if (!confirm(`Погасити залишок ${formatUAH(remaining)} достроково?`)) return;
     setRepaying(id);
-    const res = await fetch(`/api/banking/loan?id=${id}`, { method: "DELETE" });
-    const d = await res.json();
-    setRepaying(null);
-    if (!res.ok) { alert(d.error ?? "Помилка"); return; }
-    load();
+    try {
+      const res = await fetch(`/api/banking/loan?id=${id}`, { method: "DELETE" });
+      const d = await res.json();
+      if (!res.ok) { alert(d.error ?? "Помилка"); return; }
+      load();
+    } catch (e) {
+      console.error(e);
+      alert("Мережева помилка. Спробуйте ще раз.");
+    } finally {
+      setRepaying(null);
+    }
   }
 
   async function payInstallment(id: string, monthlyPayment: number) {
     setPaying(id);
     setPayMsg(m => ({ ...m, [id]: "" }));
-    const res = await fetch("/api/banking/loan", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id }),
-    });
-    const d = await res.json();
-    setPaying(null);
-    if (res.ok) {
-      setPayMsg(m => ({ ...m, [id]: `✓ Сплачено ${formatUAH(d.paid)}` }));
-      load();
-    } else {
-      setPayMsg(m => ({ ...m, [id]: `✗ ${d.error}` }));
+    try {
+      const res = await fetch("/api/banking/loan", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      const d = await res.json();
+      if (res.ok) {
+        setPayMsg(m => ({ ...m, [id]: `✓ Сплачено ${formatUAH(d.paid)}` }));
+        load();
+      } else {
+        setPayMsg(m => ({ ...m, [id]: `✗ ${d.error}` }));
+      }
+    } catch (e) {
+      console.error(e);
+      setPayMsg(m => ({ ...m, [id]: "✗ Мережева помилка" }));
+    } finally {
+      setPaying(null);
     }
   }
 
@@ -651,14 +675,20 @@ function OverdraftSettle({ usage, cashBalance, onSettled }: { usage: number; cas
 
   async function settle() {
     setSaving(true); setErr("");
-    const res = await fetch("/api/banking/overdraft", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ amountUah: amount }),
-    });
-    const data = await res.json();
-    if (!res.ok) { setErr(data.error ?? "Помилка"); setSaving(false); return; }
-    onSettled();
+    try {
+      const res = await fetch("/api/banking/overdraft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amountUah: amount }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setErr(data.error ?? "Помилка"); setSaving(false); return; }
+      onSettled();
+    } catch (e) {
+      console.error(e);
+      setErr("Мережева помилка. Спробуйте ще раз.");
+      setSaving(false);
+    }
   }
 
   return (
