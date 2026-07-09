@@ -19,8 +19,8 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
   const { id: workshopId } = await params;
 
-  const workshop = await prisma.workshop.findUnique({
-    where:  { id: workshopId },
+  const workshop = await prisma.workshop.findFirst({
+    where:  { id: workshopId, enterprise: { playerId: session.user.id } },
     select: {
       id: true, footprintM2: true,
       _count: { select: { equipment: true } },

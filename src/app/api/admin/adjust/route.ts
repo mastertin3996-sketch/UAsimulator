@@ -4,6 +4,8 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Decimal } from "@prisma/client/runtime/library";
 
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? "mastertin3996@gmail.com";
+
 const adjustSchema = z.object({
   playerId:  z.string().min(1),
   amountUah: z.number().finite().refine(v => v !== 0, "amountUah must not be zero"),
@@ -13,6 +15,7 @@ const adjustSchema = z.object({
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (session.user.email !== ADMIN_EMAIL) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const rawBody = await req.json().catch(() => null);
   const parsed  = adjustSchema.safeParse(rawBody);

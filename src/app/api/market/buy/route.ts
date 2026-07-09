@@ -59,18 +59,27 @@ export async function POST(req: NextRequest) {
   const newFilled = order.quantityFilled + quantity;
   const newStatus = newFilled >= order.quantityTotal ? "FILLED" : "PARTIALLY_FILLED";
 
-  await prisma.$transaction([
-    // Deduct from buyer
-    prisma.player.update({ where: { id: buyerId }, data: { cashBalance: { decrement: totalCost } } }),
-    // Add to seller
-    prisma.player.update({ where: { id: order.playerId }, data: { cashBalance: { increment: totalCost } } }),
-    // Update order
-    prisma.marketOrder.update({
-      where: { id: offerId },
+  const result = await prisma.$transaction(async (tx) => {
+    // Re-check + claim the fill atomically: only proceeds if quantityFilled hasn't
+    // moved since we read it above (guards against two concurrent buyers overselling
+    // the same SELL order — see order.quantityFilled read at the top of this route).
+    const claimed = await tx.marketOrder.updateMany({
+      where: { id: offerId, quantityFilled: order.quantityFilled },
       data: { quantityFilled: newFilled, status: newStatus, filledAt: newStatus === "FILLED" ? new Date() : undefined },
-    }),
+    });
+    if (claimed.count === 0) return null;
+
+    await tx.player.update({ where: { id: buyerId }, data: { cashBalance: { decrement: totalCost } } });
+    await tx.player.update({ where: { id: order.playerId }, data: { cashBalance: { increment: totalCost } } });
+
+    // Release the seller's escrowed inventory (was moved here at SELL-order creation time)
+    await tx.playerInventory.update({
+      where: { playerId_productId: { playerId: order.playerId, productId: order.productId } },
+      data: { quantity: { decrement: quantity } },
+    });
+
     // Add to buyer enterprise inventory
-    prisma.enterpriseInventory.upsert({
+    await tx.enterpriseInventory.upsert({
       where: { enterpriseId_productId: { enterpriseId: buyerEnterpriseId, productId: order.productId } },
       update: {
         quantity: { increment: quantity },
@@ -82,9 +91,10 @@ export async function POST(req: NextRequest) {
         quantity,
         avgQuality: order.quality ?? 7.0,
       },
-    }),
+    });
+
     // Buyer financial transaction
-    prisma.financialTransaction.create({
+    await tx.financialTransaction.create({
       data: {
         playerId: buyerId,
         type: "MARKET_PURCHASE",
@@ -93,9 +103,9 @@ export async function POST(req: NextRequest) {
         balanceAfter: Number(buyer.cashBalance) - totalCost,
         description: `Купівля ${quantity} ${order.product.unit} ${order.product.nameUa}`,
       },
-    }),
+    });
     // Seller financial transaction
-    prisma.financialTransaction.create({
+    await tx.financialTransaction.create({
       data: {
         playerId: order.playerId,
         type: "MARKET_SALE",
@@ -104,8 +114,14 @@ export async function POST(req: NextRequest) {
         balanceAfter: Number(order.player.cashBalance) + totalCost,
         description: `Продаж ${quantity} ${order.product.unit} ${order.product.nameUa}`,
       },
-    }),
-  ]);
+    });
+
+    return true;
+  });
+
+  if (!result) {
+    return NextResponse.json({ error: "Пропозицію щойно змінено іншою угодою, спробуйте ще раз" }, { status: 409 });
+  }
 
   return NextResponse.json({ ok: true, quantity, totalCostUah: totalCost });
 }

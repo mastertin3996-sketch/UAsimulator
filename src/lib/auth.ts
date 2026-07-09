@@ -2,6 +2,7 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { allowRate } from "@/lib/rateLimit";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   session: { strategy: "jwt" },
@@ -18,6 +19,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
+
+        // Слабкий, але реальний захист від credential-stuffing по конкретному email —
+        // не блокує легітимного користувача, який набрав пароль з друкарською помилкою.
+        if (!(await allowRate(`login:${credentials.email}`, 1500))) return null;
 
         const player = await prisma.player.findUnique({
           where:  { email: credentials.email as string },

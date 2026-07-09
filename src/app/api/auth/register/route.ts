@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { allowRate } from "@/lib/rateLimit";
 
 const registerSchema = z.object({
   email:       z.string().min(1),
@@ -12,6 +13,11 @@ const registerSchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+    if (!(await allowRate(`register:${ip}`, 10_000))) {
+      return NextResponse.json({ error: "Забагато запитів — спробуйте за кілька секунд" }, { status: 429 });
+    }
+
     const rawBody = await req.json().catch(() => null);
     const parsed  = registerSchema.safeParse(rawBody);
     if (!parsed.success) {
